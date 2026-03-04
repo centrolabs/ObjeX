@@ -1,0 +1,8 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/ObjeX.Api/ObjeX.Api.csproj" />
+    <Project Path="src/ObjeX.Core/ObjeX.Core.csproj" />
+    <Project Path="src/ObjeX.Infrastructure/ObjeX.Infrastructure.csproj" />
+    <Project Path="src/ObjeX.Web/ObjeX.Web.csproj" />
+  </Folder>
+</Solution>
