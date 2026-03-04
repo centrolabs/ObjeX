@@ -1,0 +1,6 @@
+@ObjeX.Api_HostAddress = http://localhost:5199
+
+GET {{ObjeX.Api_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
