@@ -1,10 +1,10 @@
 using Microsoft.EntityFrameworkCore;
-
 using ObjeX.Core.Interfaces;
 using ObjeX.Infrastructure.Data;
 using ObjeX.Infrastructure.Metadata;
 using ObjeX.Infrastructure.Storage;
 using ObjeX.Web.Components;
+using ObjeX.Api.Endpoints;
 
 using Scalar.AspNetCore;
 
@@ -111,4 +111,5 @@ app.MapHealthChecks("/health");
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
 
+app.MapBucketEndpoints();
 app.Run();

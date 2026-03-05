@@ -8,8 +8,8 @@ namespace ObjeX.Core.Interfaces;
 /// </summary>
 public interface IMetadataService
 {
-    Task<List<Bucket>> CreateBucketAsync(Bucket bucket, CancellationToken ctk = default);
-    Task<Bucket> GetBucketAsync(string bucketName, CancellationToken ctk = default);
+    Task<Bucket> CreateBucketAsync(Bucket bucket, CancellationToken ctk = default);
+    Task<Bucket?> GetBucketAsync(string bucketName, CancellationToken ctk = default);
     Task<IEnumerable<Bucket>> ListBucketsAsync(CancellationToken ctk = default);
     Task DeleteBucketAsync(string bucketName, CancellationToken ctk = default);
     Task<bool> ExistsBucketAsync(string bucketName, CancellationToken ctk = default);
