@@ -93,6 +93,7 @@ BlobStore/
 - Simple API key in config/env var
 - Header: `X-API-Key: your-secret-key`
 - Later: AWS Signature V4 for S3 compatibility
+| Compression | Response compression (HTTPS-enabled)    |
 
 ---
 
