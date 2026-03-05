@@ -6,8 +6,8 @@ using ObjeX.Infrastructure.Storage;
 using ObjeX.Web.Components;
 using ObjeX.Api.Endpoints;
 
+using Radzen;
 using Scalar.AspNetCore;
-
 using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -61,6 +61,7 @@ builder.Services.AddDbContext<ObjeXDbContext>(options =>
 
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
+builder.Services.AddRadzenComponents();
 
 builder.Services.AddCors(options =>
 {
@@ -79,7 +80,6 @@ using (var scope = app.Services.CreateScope())
     var db = scope.ServiceProvider.GetRequiredService<ObjeXDbContext>();
     db.Database.Migrate();
 }
-
 app.UseStaticFiles();
 app.UseCors();
 app.UseAntiforgery();
@@ -101,15 +101,18 @@ else
 }
 app.UseSerilogRequestLogging();
 app.UseResponseCompression();
+
 app.MapOpenApi();
 app.MapScalarApiReference(options =>
 {
     options.WithTitle("ObjeX API");
 });
-app.MapControllers();
 app.MapHealthChecks("/health");
+
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
+
+app.MapControllers();
 
 app.MapBucketEndpoints();
 app.MapObjectEndpoints();

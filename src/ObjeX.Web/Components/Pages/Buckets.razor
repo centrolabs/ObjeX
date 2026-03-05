@@ -1,0 +1,62 @@
+@page "/buckets"
+@using ObjeX.Core.Interfaces
+@using ObjeX.Core.Models
+@inject IMetadataService MetadataService
+@inject IObjectStorageService FileSystemStorageService
+
+
+<PageTitle>Buckets</PageTitle>
+
+<h1>Buckets</h1>
+
+<RadzenButton Text="Add Bucket" Click="@OnAddBucket" />
+
+<RadzenDataGrid Data="@_buckets" TItem="Bucket">
+    <Columns>
+        <RadzenDataGridColumn TItem="Bucket" Property="Name" Title="Name" />
+        <RadzenDataGridColumn TItem="Bucket" Property="ObjectCount" Title="Object Count" />
+        <RadzenDataGridColumn TItem="Bucket" Property="TotalSize" Title="Size" />
+        <RadzenDataGridColumn TItem="Bucket" Property="CreatedAt" Title="Created Date" />
+    </Columns>
+</RadzenDataGrid>
+
+<RadzenStack>
+    <RadzenRow>
+        <RadzenColumn>
+            <RadzenText>Buckets</RadzenText>
+        </RadzenColumn>
+        <RadzenColumn>
+            <RadzenText>Buckets</RadzenText>
+        </RadzenColumn>
+    </RadzenRow>
+</RadzenStack>
+
+@code {
+    List<Bucket> _buckets = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        var result = await MetadataService.ListBucketsAsync();
+        _buckets = result.ToList();
+    }
+
+    async Task OnAddBucket()
+    {
+        try
+        {
+            var newBucket = new Bucket
+            {
+                Name = $"bucket-{Guid.NewGuid()}",
+            };
+            await MetadataService.CreateBucketAsync(newBucket);
+            var result = await MetadataService.ListBucketsAsync();
+            _buckets = result.ToList();
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error: {ex.Message}");
+        }
+    }
+
+}

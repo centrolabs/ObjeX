@@ -8,7 +8,7 @@ public static class ObjectEndpoints
 {
     public static void MapObjectEndpoints(this WebApplication app)
     {
-        var objects = app.MapGroup("/{bucketName}").WithTags("Objects");
+        var objects = app.MapGroup("api/objects/{bucketName}").WithTags("Objects");
 
         objects.MapPut("/{*key}", async (
             string bucketName,
