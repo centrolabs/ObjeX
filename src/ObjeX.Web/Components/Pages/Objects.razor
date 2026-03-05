@@ -29,8 +29,11 @@
                 <Template Context="obj">@FileHelper.FormatBytes(obj.Size)</Template>
             </RadzenDataGridColumn>
             <RadzenDataGridColumn TItem="BlobObject" Property="CreatedAt" Title="Uploaded" FormatString="{0:yyyy-MM-dd HH:mm}" />
-            <RadzenDataGridColumn TItem="BlobObject" Title="" Width="80px" Sortable="false">
+            <RadzenDataGridColumn TItem="BlobObject" Title="" Width="120px" Sortable="false">
                 <Template Context="obj">
+                    <a href="/api/objects/@BucketName/@obj.Key" download="@obj.Key">
+                        <RadzenButton Icon="download" ButtonStyle="ButtonStyle.Primary" Variant="Variant.Text" />
+                    </a>
                     <RadzenButton Icon="delete" ButtonStyle="ButtonStyle.Danger" Variant="Variant.Text"
                                   Click="@(() => OnDeleteObject(obj))" />
                 </Template>

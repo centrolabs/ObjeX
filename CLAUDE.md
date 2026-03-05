@@ -136,6 +136,8 @@ External S3 clients → HTTP → ObjeX.Api endpoints → same services
 
 **Dialogs:** Use `DialogService.OpenAsync<TComponent>("Title")` — returns the value passed to `DialogService.Close(value)`, or `null` if cancelled. Always null-check the return before acting on it.
 
+**File downloads are the exception to "no API calls from Blazor":** Blazor Server runs on the server and cannot push file bytes to the browser's download manager through SignalR. The browser must make a direct HTTP GET request to download a file. Therefore, download buttons use a plain `<a href="/api/objects/..." download>` pointing at the API endpoint. This is not an architecture violation — it's a browser constraint. Rule of thumb: Blazor reads/writes data through the service layer; file downloads are a browser concern.
+
 ---
 
 ## Endpoint Routes
