@@ -18,7 +18,7 @@ src/
 │   ├── Metadata/        # SqliteMetadataService
 │   ├── Migrations/      # EF Core migrations
 │   └── Storage/         # FileSystemStorageService
-└── ObjeX.Web/           # Blazor Server UI (scaffolded, pages not yet built)
+└── ObjeX.Web/           # Blazor Server UI — components, pages, dialogs
 ```
 
 ---
@@ -28,7 +28,7 @@ src/
 - **ObjeX.Core** has zero framework/NuGet dependencies — only BCL. Keep it that way.
 - **ObjeX.Infrastructure** implements Core interfaces. Never reference Api or Web.
 - **ObjeX.Api** wires everything together via DI in `Program.cs`. No business logic here.
-- **ObjeX.Web** is for Blazor UI only. Currently scaffolded but empty.
+- **ObjeX.Web** is for Blazor UI only. Components live here, hosted by ObjeX.Api.
 - New storage backends → implement `IObjectStorageService`. New metadata stores → implement `IMetadataService`. No other changes needed.
 
 ---
@@ -99,6 +99,42 @@ The DB path logic in `Program.cs`:
 var solutionRoot = currentDir.Parent?.Parent?.FullName; // src/ObjeX.Api → src → solution root
 var dbPath = Path.Combine(solutionRoot, "objex.db");
 ```
+
+---
+
+## Blazor UI Architecture
+
+**Hosting model:** Blazor Server (InteractiveServer), not WASM.
+
+**Combined host:** `ObjeX.Api` is the single process — it serves both the REST API and the Blazor UI. `ObjeX.Web` is a class library of components, referenced by `ObjeX.Api` as a project dependency. `ObjeX.Web/Program.cs` is dead scaffolding — ignore it.
+
+**Data access from Blazor:** Components inject Core interfaces (`IMetadataService`) directly — no HttpClient, no API calls. Blazor runs server-side in the same process and DI container as the API, so direct injection is correct and efficient. The REST API is the public S3-compatible surface for external clients only.
+
+```
+Browser → SignalR → Blazor Server (ObjeX.Api process)
+                         ↓
+                   IMetadataService (Core interface)
+                         ↓
+                   SqliteMetadataService (Infrastructure)
+
+External S3 clients → HTTP → ObjeX.Api endpoints → same services
+```
+
+**Render mode:** Set globally on `<Routes @rendermode="InteractiveServer" />` in `App.razor`. Do NOT add `@rendermode` per-page — the global setting covers all pages.
+
+**UI library:** Radzen Blazor. Registered via `builder.Services.AddRadzenComponents()` in `Program.cs`. Required host components in `MainLayout.razor`: `<RadzenDialog />` and `<RadzenNotification />`.
+
+**Validation pattern:**
+- **Enforcement** → service layer only (`SqliteMetadataService` calls `BucketNameValidator`, throws `ArgumentException` on invalid input)
+- **UX feedback** → Blazor dialogs use the same `BucketNameValidator` from Core for inline errors as the user types
+- **API endpoints** → do NOT duplicate validation; catch `ArgumentException` from the service and return `400 BadRequest`
+- Never call `BucketNameValidator` in both the API endpoint and the service — service is the single enforcer
+
+**Input reactivity:** Use native `<input @oninput="...">` with `class="rz-textbox"` instead of `<RadzenTextBox>` when you need per-keystroke updates. Radzen's `ValueChanged` fires on `onchange` (blur), not `oninput`.
+
+**EF Core + `init` properties:** Both `Bucket` and `BlobObject` use `Guid Id { get; init; } = Guid.NewGuid()`. EF Core 10 must be told not to generate its own value — both entities have `.ValueGeneratedNever()` configured in `ObjeXDbContext`. Do not remove this — removing it causes "Unexpected entry.EntityState: Detached" on insert.
+
+**Dialogs:** Use `DialogService.OpenAsync<TComponent>("Title")` — returns the value passed to `DialogService.Close(value)`, or `null` if cancelled. Always null-check the return before acting on it.
 
 ---
 

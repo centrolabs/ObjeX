@@ -1,0 +1,40 @@
+@using ObjeX.Core.Validation
+@inject DialogService DialogService
+
+<RadzenStack Gap="1rem">
+    <RadzenFormField Text="Bucket Name">
+        <input @oninput="OnInput"
+               placeholder="my-bucket"
+               class="rz-textbox"
+               style="width: 100%" />
+    </RadzenFormField>
+
+    @if (_error is not null)
+    {
+        <RadzenText TextStyle="TextStyle.Caption" Style="color: var(--rz-danger)">@_error</RadzenText>
+    }
+    else
+    {
+        <RadzenText TextStyle="TextStyle.Caption">
+            3–63 characters, lowercase letters, numbers and hyphens only.
+        </RadzenText>
+    }
+
+    <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.End" Gap="0.5rem">
+        <RadzenButton Text="Cancel" ButtonStyle="ButtonStyle.Light" Click="@(() => DialogService.Close(null))" />
+        <RadzenButton Text="Create" ButtonStyle="ButtonStyle.Primary" Click="@OnCreate" Disabled="@(_error is not null || string.IsNullOrWhiteSpace(_name))" />
+    </RadzenStack>
+</RadzenStack>
+
+@code {
+    string _name = string.Empty;
+    string? _error;
+
+    void OnInput(ChangeEventArgs e)
+    {
+        _name = e.Value?.ToString() ?? string.Empty;
+        _error = string.IsNullOrWhiteSpace(_name) ? null : BucketNameValidator.GetValidationError(_name);
+    }
+
+    void OnCreate() => DialogService.Close(_name.Trim());
+}

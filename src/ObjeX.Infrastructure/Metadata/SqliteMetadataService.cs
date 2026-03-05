@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 
 using ObjeX.Core.Interfaces;
 using ObjeX.Core.Models;
+using ObjeX.Core.Validation;
 using ObjeX.Infrastructure.Data;
 
 namespace ObjeX.Infrastructure.Metadata;
@@ -11,6 +12,10 @@ public class SqliteMetadataService(ObjeXDbContext ctx) : IMetadataService
 
     public async Task<Bucket> CreateBucketAsync(Bucket bucket, CancellationToken ctk = default)
     {
+        var error = BucketNameValidator.GetValidationError(bucket.Name);
+        if (error is not null)
+            throw new ArgumentException(error, nameof(bucket));
+
         ctx.Buckets.Add(bucket);
         await ctx.SaveChangesAsync(ctk);
         return bucket;

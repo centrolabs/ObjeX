@@ -14,6 +14,7 @@ public class ObjeXDbContext(DbContextOptions<ObjeXDbContext> options) : DbContex
         modelBuilder.Entity<Bucket>(entity =>
         {
             entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).ValueGeneratedNever();
             entity.HasIndex(e => e.Name).IsUnique();
             entity.Property(e => e.Name).IsRequired();
         });
@@ -21,6 +22,7 @@ public class ObjeXDbContext(DbContextOptions<ObjeXDbContext> options) : DbContex
         modelBuilder.Entity<BlobObject>(entity =>
         {
             entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).ValueGeneratedNever();
             entity.HasIndex(e => new { e.BucketName, e.Key }).IsUnique();
             entity.Property(e => e.BucketName).IsRequired();
             entity.Property(e => e.Key).IsRequired();
