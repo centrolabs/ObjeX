@@ -112,4 +112,6 @@ app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
 
 app.MapBucketEndpoints();
+app.MapObjectEndpoints();
+
 app.Run();
