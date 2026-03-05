@@ -1,0 +1,90 @@
+@page "/buckets"
+@using ObjeX.Core.Interfaces
+@using ObjeX.Core.Models
+@using ObjeX.Web.Components.Dialogs
+@inject IMetadataService MetadataService
+@inject DialogService DialogService
+@inject NotificationService NotificationService
+
+<PageTitle>Buckets</PageTitle>
+
+<RadzenStack Gap="1rem">
+    <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" JustifyContent="JustifyContent.SpaceBetween">
+        <RadzenText TextStyle="TextStyle.H4">Buckets</RadzenText>
+        <RadzenButton Text="Create Bucket" Icon="add" ButtonStyle="ButtonStyle.Primary" Click="@OnCreateBucket" />
+    </RadzenStack>
+
+    <RadzenDataGrid Data="@_buckets" TItem="Bucket" AllowSorting="true" EmptyText="No buckets yet.">
+        <Columns>
+            <RadzenDataGridColumn TItem="Bucket" Property="Name" Title="Name">
+                <Template Context="bucket">
+                    <RadzenLink Path="@($"/buckets/{bucket.Name}")" Text="@bucket.Name" />
+                </Template>
+            </RadzenDataGridColumn>
+            <RadzenDataGridColumn TItem="Bucket" Property="ObjectCount" Title="Objects" />
+            <RadzenDataGridColumn TItem="Bucket" Property="TotalSize" Title="Size" Sortable="true">
+                <Template Context="bucket">@FileHelper.FormatBytes(bucket.TotalSize)</Template>
+            </RadzenDataGridColumn>
+            <RadzenDataGridColumn TItem="Bucket" Property="CreatedAt" Title="Created" FormatString="{0:yyyy-MM-dd HH:mm}" />
+            <RadzenDataGridColumn TItem="Bucket" Title="" Width="80px" Sortable="false">
+                <Template Context="bucket">
+                    <RadzenButton Icon="delete" ButtonStyle="ButtonStyle.Danger" Variant="Variant.Text"
+                                  Click="@(() => OnDeleteBucket(bucket))" />
+                </Template>
+            </RadzenDataGridColumn>
+        </Columns>
+    </RadzenDataGrid>
+</RadzenStack>
+
+@code {
+    List<Bucket> _buckets = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadBuckets();
+    }
+
+    async Task LoadBuckets()
+    {
+        var result = await MetadataService.ListBucketsAsync();
+        _buckets = result.ToList();
+    }
+
+    async Task OnCreateBucket()
+    {
+        var name = await DialogService.OpenAsync<CreateBucketDialog>("Create Bucket");
+        if (name is null) return;
+
+        try
+        {
+            await MetadataService.CreateBucketAsync(new Bucket { Name = name });
+            await LoadBuckets();
+            NotificationService.Notify(NotificationSeverity.Success, "Bucket created", name);
+        }
+        catch (Exception ex)
+        {
+            NotificationService.Notify(NotificationSeverity.Error, "Failed to create bucket", ex.Message);
+        }
+    }
+
+    async Task OnDeleteBucket(Bucket bucket)
+    {
+        var confirmed = await DialogService.Confirm(
+            $"Delete \"{bucket.Name}\"? This will permanently remove all {bucket.ObjectCount} object(s) inside.",
+            "Delete Bucket",
+            new ConfirmOptions { OkButtonText = "Delete", CancelButtonText = "Cancel", CloseDialogOnOverlayClick = true });
+
+        if (confirmed != true) return;
+
+        try
+        {
+            await MetadataService.DeleteBucketAsync(bucket.Name);
+            await LoadBuckets();
+            NotificationService.Notify(NotificationSeverity.Success, "Bucket deleted", bucket.Name);
+        }
+        catch (Exception ex)
+        {
+            NotificationService.Notify(NotificationSeverity.Error, "Failed to delete bucket", ex.Message);
+        }
+    }
+}

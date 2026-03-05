@@ -2,6 +2,11 @@
 
   <ItemGroup>
     <ProjectReference Include="..\ObjeX.Core\ObjeX.Core.csproj" />
+    <ProjectReference Include="..\ObjeX.Infrastructure\ObjeX.Infrastructure.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Radzen.Blazor" Version="*" />
   </ItemGroup>
 
   <PropertyGroup>

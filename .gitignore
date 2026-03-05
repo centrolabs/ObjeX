@@ -3,6 +3,20 @@
 ##
 ## Get latest from `dotnet new gitignore`
 
+# Blazor compiled output
+wwwroot/lib/
+wwwroot/*.js
+wwwroot/*.css
+wwwroot/*.map
+
+# Database files
+*.db
+*.db-shm
+*.db-wal
+
+# Blob storage
+data/
+
 # dotenv files
 .env
 

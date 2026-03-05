@@ -1,0 +1,64 @@
+@page "/"
+@using ObjeX.Core.Interfaces
+@implements IDisposable
+@inject IMetadataService MetadataService
+
+<PageTitle>Dashboard</PageTitle>
+
+<RadzenStack Gap="1.5rem">
+    <RadzenText TextStyle="TextStyle.H4">Dashboard</RadzenText>
+
+    <RadzenStack Orientation="Orientation.Horizontal" Gap="1rem">
+        <RadzenCard Style="flex: 1">
+            <RadzenStack Gap="0.25rem">
+                <RadzenText TextStyle="TextStyle.Overline">Total Buckets</RadzenText>
+                <RadzenText TextStyle="TextStyle.H3">@_bucketCount</RadzenText>
+            </RadzenStack>
+        </RadzenCard>
+        <RadzenCard Style="flex: 1">
+            <RadzenStack Gap="0.25rem">
+                <RadzenText TextStyle="TextStyle.Overline">Total Objects</RadzenText>
+                <RadzenText TextStyle="TextStyle.H3">@_objectCount</RadzenText>
+            </RadzenStack>
+        </RadzenCard>
+        <RadzenCard Style="flex: 1">
+            <RadzenStack Gap="0.25rem">
+                <RadzenText TextStyle="TextStyle.Overline">Storage Used</RadzenText>
+                <RadzenText TextStyle="TextStyle.H3">@_storageUsed</RadzenText>
+            </RadzenStack>
+        </RadzenCard>
+    </RadzenStack>
+</RadzenStack>
+
+@code {
+    int _bucketCount;
+    long _objectCount;
+    string _storageUsed = "0 B";
+    Timer? _timer;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadStats();
+        _timer = new Timer(async _ =>
+        {
+            await LoadStats();
+            await InvokeAsync(StateHasChanged);
+        }, null, TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(10));
+    }
+
+    async Task LoadStats()
+    {
+        var buckets = (await MetadataService.ListBucketsAsync()).ToList();
+        _bucketCount = buckets.Count;
+        _objectCount = 0;
+        long totalSize = 0;
+        foreach (var b in buckets)
+        {
+            _objectCount += b.ObjectCount;
+            totalSize += b.TotalSize;
+        }
+        _storageUsed = FileHelper.FormatBytes(totalSize);
+    }
+
+    public void Dispose() => _timer?.Dispose();
+}
