@@ -1,447 +1,220 @@
-# ObjeX - S3-Compatible Blob Storage (PoC)
+# ObjeX - Self-Hosted Blob Storage
 
-**Goal**: Self-hostable, open-source blob storage with S3-compatible API  
-**Stack**: .NET API + Blazor UI + Single Docker Container  
-**Deployment**: Self-contained, single container with volume mounts
+**Goal**: Self-hostable, open-source blob storage with S3-compatible API
+**Stack**: .NET 10 API + Blazor Server UI + SQLite + Filesystem storage
+**Status**: Active development — core API implemented, UI in progress
 
 ---
 
-## Architecture Overview
+## Quick Start
 
-```md
-┌─────────────────────────────────────┐
-│         Single Container            │
-│  ┌───────────────────────────────┐  │
-│  │   ASP.NET Core App            │  │
-│  │                               │  │
-│  │  ├─ API Controllers (/api/*)  │  │
-│  │  ├─ Blazor Server (/)         │  │
-│  │  └─ Static Files              │  │
-│  └───────────────────────────────┘  │
-│                                     │
-│  ┌───────────────────────────────┐  │
-│  │   Storage Layer               │  │
-│  │   /data/blobs (volume mount)  │  │
-│  │   /data/metadata.db (SQLite)  │  │
-│  └───────────────────────────────┘  │
-└─────────────────────────────────────┘
-         ▲
-         │ Volume Mount
-         ▼
-    Host: /var/lib/blobstore
+```bash
+# Clone and run
+git clone https://github.com/youruser/ObjeX.git
+cd ObjeX/src/ObjeX.Api
+dotnet run
+```
+
+The app starts at **http://localhost:8080**
+
+- **API docs (Scalar)**: http://localhost:8080/scalar/v1
+- **Blazor UI**: http://localhost:8080
+- **Health check**: http://localhost:8080/health
+
+---
+
+## Try It Out
+
+```bash
+# Create a bucket
+curl -X POST "http://localhost:8080/api/buckets?name=my-bucket"
+
+# Upload an object
+curl -X PUT http://localhost:8080/my-bucket/hello.txt \
+  --data "Hello, ObjeX!"
+
+# Download it
+curl http://localhost:8080/my-bucket/hello.txt
+
+# List objects in a bucket
+curl http://localhost:8080/my-bucket/
+
+# List all buckets
+curl http://localhost:8080/api/buckets
+
+# Delete an object
+curl -X DELETE http://localhost:8080/my-bucket/hello.txt
+
+# Delete a bucket
+curl -X DELETE http://localhost:8080/api/buckets/my-bucket
 ```
 
 ---
 
-## Project Structure
+## Architecture
 
-```md
-BlobStore/
+```
+┌─────────────────────────────────────┐
+│         ASP.NET Core 10 App         │
+│                                     │
+│  ├─ Minimal API (/api/*, /{bucket}) │
+│  ├─ Blazor Server UI (/)            │
+│  └─ Scalar API Docs (/scalar/v1)    │
+│                                     │
+│  ┌───────────────────────────────┐  │
+│  │   Storage Layer               │  │
+│  │   ./data/blobs/  (filesystem) │  │
+│  │   ./objex.db     (SQLite)     │  │
+│  └───────────────────────────────┘  │
+└─────────────────────────────────────┘
+```
+
+### Project Structure
+
+```
+ObjeX/
 ├── src/
-│   ├── BlobStore.Api/              # ASP.NET Core host
-│   │   ├── Controllers/            # S3-compatible endpoints
-│   │   ├── Middleware/             # Auth, logging
-│   │   └── Program.cs
+│   ├── ObjeX.Api/              # ASP.NET Core host
+│   │   ├── Endpoints/          # BucketEndpoints, ObjectEndpoints
+│   │   └── Program.cs          # DI, middleware, EF migrations
 │   │
-│   ├── BlobStore.Web/              # Blazor Server UI
-│   │   ├── Pages/                  # Bucket browser, upload UI
-│   │   ├── Components/
-│   │   └── _Imports.razor
+│   ├── ObjeX.Web/              # Blazor Server UI (in progress)
 │   │
-│   ├── BlobStore.Core/             # Domain logic
-│   │   ├── Models/                 # Bucket, BlobObject, MultipartUpload
-│   │   ├── Interfaces/             # IStorageEngine, IMetadataStore
-│   │   └── Services/               # ObjectManager, BucketService
+│   ├── ObjeX.Core/             # Domain — no framework dependencies
+│   │   ├── Interfaces/         # IMetadataService, IObjectStorageService
+│   │   ├── Models/             # Bucket, BlobObject
+│   │   └── Validation/         # BucketNameValidator
 │   │
-│   └── BlobStore.Infrastructure/   # Implementation
-│       ├── Storage/                # FileSystemStorageEngine
-│       ├── Metadata/               # SqliteMetadataStore
-│       └── Security/               # Simple key-based auth
+│   └── ObjeX.Infrastructure/   # Implementations
+│       ├── Data/               # ObjeXDbContext (EF Core + SQLite)
+│       ├── Metadata/           # SqliteMetadataService
+│       ├── Migrations/         # EF Core migrations
+│       └── Storage/            # FileSystemStorageService
 │
-├── Dockerfile
-├── docker-compose.yml
 └── README.md
+```
+
+---
+
+## API Endpoints
+
+### Buckets — `/api/buckets`
+
+| Method   | Path                      | Description           |
+|----------|---------------------------|-----------------------|
+| `GET`    | `/api/buckets`            | List all buckets      |
+| `POST`   | `/api/buckets?name={name}`| Create a bucket       |
+| `GET`    | `/api/buckets/{name}`     | Get bucket details    |
+| `DELETE` | `/api/buckets/{name}`     | Delete a bucket       |
+
+Bucket name validation: 3–63 chars, lowercase alphanumeric and hyphens, no consecutive hyphens, cannot start/end with hyphen.
+
+### Objects — `/{bucketName}`
+
+| Method   | Path                    | Description                          |
+|----------|-------------------------|--------------------------------------|
+| `PUT`    | `/{bucket}/{*key}`      | Upload an object (streaming)         |
+| `GET`    | `/{bucket}/{*key}`      | Download an object                   |
+| `DELETE` | `/{bucket}/{*key}`      | Delete an object                     |
+| `GET`    | `/{bucket}/`            | List objects in a bucket             |
+
+Object keys support slashes (virtual folders): `PUT /my-bucket/images/photo.jpg`
+
+Upload response:
+```json
+{ "key": "hello.txt", "etag": "a1b2c3...", "size": 13 }
 ```
 
 ---
 
 ## Technology Stack
 
-### Backend
-
-- **ASP.NET Core 8** (single app hosting both API + Blazor)
-- **Minimal APIs** for S3 endpoints (lightweight, fast)
-- **Blazor Server** for admin UI (no separate SPA build complexity)
-- Single process, shared DI container
-
-### UI
-
-- **Blazor Server + MudBlazor**
-- MudBlazor = professional components out of the box
-- File upload with progress bars
-- Bucket/object tree view
-- Server-side = no CORS issues, simpler auth
-
-### Storage
-
-- **Blobs**: Filesystem `/data/blobs/{bucket}/{hash-prefix}/{object-key}`
-- **Metadata**: SQLite at `/data/metadata.db`
-- Both in Docker volume for persistence
-
-### Auth (PoC)
-
-- Simple API key in config/env var
-- Header: `X-API-Key: your-secret-key`
-- Later: AWS Signature V4 for S3 compatibility
+| Layer       | Technology                              |
+|-------------|-----------------------------------------|
+| Runtime     | .NET 10, ASP.NET Core 10                |
+| API         | Minimal APIs                            |
+| UI          | Blazor Server (Interactive SSR)         |
+| API Docs    | Scalar + OpenAPI                        |
+| Database    | SQLite via EF Core 10 (snake_case cols) |
+| Blob store  | Filesystem (`FileSystemStorageService`) |
+| Logging     | Serilog (console)                       |
 | Compression | Response compression (HTTPS-enabled)    |
 
 ---
 
-## MVP Features
+## Configuration
 
-### S3 API (Phase 1)
+By default, no config is required. Defaults:
 
-- `PUT /{bucket}/{key}` - Upload object
-- `GET /{bucket}/{key}` - Download object
-- `DELETE /{bucket}/{key}` - Delete object
-- `HEAD /{bucket}/{key}` - Get metadata
-- `GET /{bucket}?list-type=2` - List objects
-- `PUT /{bucket}` - Create bucket
-- `DELETE /{bucket}` - Delete bucket
+| Setting              | Default                                    |
+|----------------------|--------------------------------------------|
+| Port                 | `http://localhost:8080`                    |
+| Database             | `<solution-root>/objex.db`                 |
+| Blob storage path    | `<solution-root>/data/blobs/`              |
 
-### Blazor UI (Phase 1)
+Override via `appsettings.json` or environment variables:
 
-- Dashboard: Total storage, object count, bucket list
-- Bucket browser: Navigate folders, upload files
-- Object viewer: Download, delete, metadata display
-- Settings: API key management
-
----
-
-## Core Interfaces (Clean Architecture)
-
-### IStorageEngine
-
-```csharp
-// BlobStore.Core/Interfaces/IStorageEngine.cs
-public interface IStorageEngine
+```json
 {
-    Task<string> StoreAsync(string bucket, string key, Stream data, CancellationToken ct);
-    Task<Stream> RetrieveAsync(string bucket, string key, CancellationToken ct);
-    Task DeleteAsync(string bucket, string key, CancellationToken ct);
-    Task<bool> ExistsAsync(string bucket, string key, CancellationToken ct);
+  "ConnectionStrings": {
+    "DefaultConnection": "Data Source=/data/objex.db"
+  },
+  "Storage": {
+    "BasePath": "/data/blobs"
+  }
 }
 ```
 
-### IMetadataStore
+### File Layout on Disk
 
-```csharp
-// BlobStore.Core/Interfaces/IMetadataStore.cs
-public interface IMetadataStore
-{
-    Task<BlobObject?> GetObjectAsync(string bucket, string key, CancellationToken ct);
-    Task SaveObjectAsync(BlobObject obj, CancellationToken ct);
-    Task<IEnumerable<BlobObject>> ListObjectsAsync(string bucket, string? prefix, CancellationToken ct);
-}
 ```
-
-### DI Registration (Program.cs)
-
-```csharp
-// Storage
-builder.Services.AddSingleton<IStorageEngine, FileSystemStorageEngine>();
-builder.Services.AddSingleton<IMetadataStore, SqliteMetadataStore>();
-
-// Business logic
-builder.Services.AddScoped<ObjectManager>();
-builder.Services.AddScoped<BucketService>();
-
-// Both API and Blazor
-builder.Services.AddControllers();
-builder.Services.AddRazorPages();
-builder.Services.AddServerSideBlazor();
-builder.Services.AddMudServices();
-```
-
----
-
-## Dockerfile
-
-```dockerfile
-# Multi-stage build
-FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
-WORKDIR /src
-
-# Copy and restore
-COPY src/ .
-RUN dotnet restore BlobStore.Api/BlobStore.Api.csproj
-
-# Build
-RUN dotnet publish BlobStore.Api/BlobStore.Api.csproj \
-    -c Release \
-    -o /app/publish \
-    --no-restore
-
-# Runtime
-FROM mcr.microsoft.com/dotnet/aspnet:8.0
-WORKDIR /app
-
-# Create data directory
-RUN mkdir -p /data/blobs && \
-    chmod 755 /data
-
-COPY --from=build /app/publish .
-
-# Health check
-HEALTHCHECK --interval=30s --timeout=3s \
-    CMD curl -f http://localhost:8080/health || exit 1
-
-EXPOSE 8080
-VOLUME ["/data"]
-
-ENTRYPOINT ["dotnet", "BlobStore.Api.dll"]
-```
-
----
-
-## Docker Compose (Self-Hosting)
-
-```yaml
-version: '3.8'
-
-services:
-  blobstore:
-    image: yourusername/blobstore:latest
-    container_name: blobstore
-    ports:
-      - "8080:8080"
-    environment:
-      - BLOBSTORE_API_KEY=change-me-in-production
-      - ASPNETCORE_ENVIRONMENT=Production
-    volumes:
-      - blobstore-data:/data
-    restart: unless-stopped
-
-volumes:
-  blobstore-data:
-```
-
----
-
-## Development Workflow
-
-### Local Development
-
-```bash
-cd src/BlobStore.Api
-dotnet run
-```
-
-### Docker Build
-
-```bash
-docker build -t blobstore:dev .
-```
-
-### Run Container
-
-```bash
-docker run -p 8080:8080 \
-  -v $(pwd)/data:/data \
-  -e BLOBSTORE_API_KEY=dev-key \
-  blobstore:dev
-```
-
-### Test S3 API
-
-```bash
-# Create bucket
-curl -X PUT http://localhost:8080/mybucket \
-  -H "X-API-Key: dev-key"
-
-# Upload object
-curl -X PUT http://localhost:8080/mybucket/test.txt \
-  -H "X-API-Key: dev-key" \
-  --data "Hello World"
-
-# Download object
-curl http://localhost:8080/mybucket/test.txt \
-  -H "X-API-Key: dev-key"
-```
-
----
-
-## Growth Path (Architectural Extensibility)
-
-### Phase 1 → Phase 2: Add Features
-
-- Multipart upload (new controller, same storage engine)
-- AWS Signature V4 (new middleware)
-- Presigned URLs (token service)
-
-### Phase 2 → Phase 3: Extract When Needed
-
-- **Storage backends**: Swap `FileSystemStorageEngine` for `S3StorageEngine` or `ChunkedStorageEngine`
-- **Metadata**: Swap SQLite for PostgreSQL via same interface
-- **Distributed**: Keep API, replace storage layer with distributed coordination
-
-### Phase 3 → Microservices (if ever needed)
-
-- API Gateway (same contracts)
-- Storage Service (gRPC)
-- Metadata Service (separate DB)
-- UI becomes standalone SPA
-
-*Won't need this until real scale problems*
-
----
-
-## Technical Challenges to Learn
-
-### 1. Storage Backend Architecture
-
-- Naive: Direct filesystem storage
-- Challenge: Millions of small files kill filesystem performance
-- Solution: Chunking strategies, metadata separation, object packing
-- Trade-off: Simple filesystems (ext4/XFS) vs custom append-log
-
-### 2. Metadata Management
-
-- Separate object metadata from blob data
-- Fast listing operations (S3 ListObjects with prefixes/delimiters)
-- Options: SQLite/RocksDB, PostgreSQL, custom indexing
-
-### 3. Durability & Consistency
-
-- Erasure coding for redundancy (Reed-Solomon)
-- Replication strategies for multi-node
-- Read-after-write consistency
-- Checksumming (MD5/SHA256) for corruption detection
-
-### 4. Multipart Upload Protocol
-
-- Stateful: InitiateMultipartUpload → UploadPart → CompleteMultipartUpload
-- Track in-progress uploads, handle part ETags
-- Atomic assembly of final object
-- Garbage collection of abandoned uploads
-
-### 5. Performance & Scalability
-
-- Streaming (don't buffer entire objects in memory)
-- Concurrent access (read/write locking)
-- Range requests (HTTP byte-range)
-- Horizontal scaling: sharding strategy
-
-### 6. S3 API Compatibility
-
-- AWS Signature V4 (complex HMAC-SHA256 canonical request signing)
-- XML response formatting (S3 uses XML, not JSON)
-- Presigned URLs (time-limited access tokens)
-- Versioning, lifecycle policies, ACLs
-
----
-
-## What This Teaches
-
-✅ Clean architecture in real project (not toy example)  
-✅ Docker packaging for self-hosted apps  
-✅ Blazor + API in single ASP.NET Core host  
-✅ Blob storage fundamentals (chunking, streaming, metadata)  
-✅ Interface-driven design for swappable components  
-✅ Open source workflows (versioning, releases, docs)  
-✅ Systems engineering (filesystem I/O, resource constraints)  
-✅ Backend depth (API design, streaming, concurrency)  
-✅ Infrastructure (Proxmox deployment, Linux I/O tuning)
-
----
-
-## Open Source Setup
-
-- **License**: MIT or Apache 2.0
-- **README**: Quick start with `docker run` one-liner
-- **Docs**: API compatibility matrix, configuration options
-- **CI/CD**: GitHub Actions building multi-arch images (amd64, arm64)
-
----
-
-## Storage Engine File Structure
-
-```md
 /data/
 ├── blobs/
-│   ├── bucket-1/
-│   │   ├── ab/
-│   │   │   └── ab123...xyz  # Object hashed for distribution
-│   │   └── cd/
-│   │       └── cd456...xyz
-│   └── bucket-2/
-│       └── ...
-└── metadata.db  # SQLite database
+│   └── {bucket}/
+│       └── {object-key}    # stored as-is under bucket directory
+└── objex.db                # SQLite — buckets + object metadata
 ```
 
 ---
 
-## Next Steps
+## What's Implemented
 
-1. **Create solution structure**
-   - Set up projects (Api, Web, Core, Infrastructure)
-   - Add NuGet packages (MudBlazor, EF Core SQLite, etc.)
-
-2. **Implement core interfaces**
-   - IStorageEngine → FileSystemStorageEngine
-   - IMetadataStore → SqliteMetadataStore
-
-3. **Build minimal API**
-   - Basic PUT/GET/DELETE endpoints
-   - Simple authentication middleware
-
-4. **Create Blazor UI**
-   - Dashboard page
-   - Bucket browser
-   - Upload component
-
-5. **Containerize**
-   - Write Dockerfile
-   - Test locally
-   - Push to Docker Hub
-
-6. **Deploy on Proxmox**
-   - LXC container or VM
-   - Test with s3cmd or aws-cli
-   - Monitor resource usage
+- [x] Clean Architecture (Core / Infrastructure / API / Web separation)
+- [x] Bucket CRUD with name validation
+- [x] Object upload (streaming), download, delete, list
+- [x] ETag computation (MD5) on upload
+- [x] SQLite metadata store via EF Core (auto-migrated on startup)
+- [x] Filesystem blob store
+- [x] Scalar interactive API docs
+- [x] Health check endpoint
+- [x] Serilog structured logging
+- [x] Response compression
+- [x] Blazor Server scaffolded (UI pages not yet built)
 
 ---
 
-## References & Inspirations
+## Roadmap
 
-- **MinIO**: Study for patterns (deprecated but good reference)
-- **SeaweedFS**: Simpler architecture to learn from
-- **Garage**: Rust-based, designed for self-hosted setups
-- **S3 API Spec**: AWS documentation for compatibility
+### Next Up
 
----
+- [ ] **Dockerize** — Dockerfile + docker-compose with volume mounts for `/data`
+- [ ] **Blazor UI** — bucket browser, upload widget, object viewer, storage dashboard
+- [ ] **Object listing with prefix/delimiter** — virtual folder navigation
 
-## Performance Targets (MVP)
+### Later
 
-- Handle 10k+ objects without degradation
-- Support files up to 5GB
-- <100ms latency for small object GET
-- Streaming for large files (no memory buffering)
-- Concurrent uploads/downloads (10+ simultaneous)
-
----
-
-## Questions to Explore
-
-- How does filesystem choice affect performance? (ext4 vs XFS vs btrfs)
-- When does chunking become necessary?
-- What's the sweet spot for metadata caching?
-- How to handle orphaned data after crashes?
-- What's the cost of checksumming every object?
+- [ ] **Presigned URLs** — time-limited access tokens for direct download links
+- [ ] **Multipart uploads** — InitiateMultipartUpload → UploadPart → Complete
+- [ ] **S3 compatibility layer** — AWS Signature V4, XML responses, S3-compatible routes
+- [ ] **API key auth** — `X-API-Key` header middleware
+- [ ] **Storage backends** — swap `FileSystemStorageService` for cloud or chunked storage
+- [ ] **PostgreSQL support** — swap SQLite via same `IMetadataService` interface
 
 ---
 
-**Status**: Planning Phase  
-**Timeline**: 2-4 weeks for MVP  
-**Deployment**: Proxmox homelab (Ubuntu VM/LXC)
+## References
 
+- [MinIO](https://github.com/minio/minio) — patterns reference
+- [SeaweedFS](https://github.com/seaweedfs/seaweedfs) — simpler distributed architecture
+- [Garage](https://garagehq.deuxfleurs.fr/) — Rust-based self-hosted object storage
+- [AWS S3 API Reference](https://docs.aws.amazon.com/AmazonS3/latest/API/Welcome.html)
