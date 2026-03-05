@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+
 using ObjeX.Core.Interfaces;
 
 namespace ObjeX.Core.Models;
@@ -6,7 +7,7 @@ namespace ObjeX.Core.Models;
 public class BlobObject : IHasTimestamps
 {
     // Properties
-    [Required] [Key] public Guid Id { get; init; } = Guid.NewGuid();
+    [Required][Key] public Guid Id { get; init; } = Guid.NewGuid();
     [Required] public required string BucketName { get; set; }
     [Required] public required string Key { get; set; }
     public long Size { get; set; }

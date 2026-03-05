@@ -1,41 +1,114 @@
+using Microsoft.EntityFrameworkCore;
+
+using ObjeX.Core.Interfaces;
+using ObjeX.Infrastructure.Data;
+using ObjeX.Infrastructure.Metadata;
+using ObjeX.Infrastructure.Storage;
+using ObjeX.Web.Components;
+
+using Scalar.AspNetCore;
+
+using Serilog;
+
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
-// Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
+builder.Services.AddScoped<IMetadataService, SqliteMetadataService>();
+builder.Services.AddSingleton<IObjectStorageService>(_ =>
+{
+    var basePath = builder.Configuration["Storage:BasePath"]
+                   ?? Path.Combine(builder.Environment.ContentRootPath, "..", "..", "data", "blobs");
+    return new FileSystemStorageService(basePath);
+});
+builder.Services.AddControllers()
+    .AddJsonOptions(options =>
+    {
+        options.JsonSerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
+        options.JsonSerializerOptions.DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull;
+    });
 builder.Services.AddOpenApi();
+builder.Services.AddHealthChecks();
+
+builder.Services.AddResponseCompression(options =>
+{
+    options.EnableForHttps = true;
+});
+
+builder.Host.UseSerilog((context, config) =>
+    config.ReadFrom.Configuration(context.Configuration));
+
+builder.Services.AddDbContext<ObjeXDbContext>(options =>
+{
+    var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+
+    if (string.IsNullOrEmpty(connectionString))
+    {
+        var currentDir = new DirectoryInfo(builder.Environment.ContentRootPath);
+        var solutionRoot = currentDir.Parent?.Parent?.FullName
+                          ?? Path.GetFullPath(Path.Combine(builder.Environment.ContentRootPath, "..", ".."));
+        var dbPath = Path.Combine(solutionRoot, "objex.db");
+        connectionString = $"Data Source={dbPath}";
+    }
+
+    options.UseSqlite(connectionString);
+    options.UseSnakeCaseNamingConvention();
+
+    if (builder.Environment.IsDevelopment())
+    {
+        options.EnableSensitiveDataLogging();
+        options.EnableDetailedErrors();
+    }
+});
+
+builder.Services.AddRazorComponents()
+    .AddInteractiveServerComponents();
+
+builder.Services.AddCors(options =>
+{
+    options.AddDefaultPolicy(policy =>
+    {
+        policy.AllowAnyOrigin()
+            .AllowAnyMethod()
+            .AllowAnyHeader();
+    });
+});
 
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
+using (var scope = app.Services.CreateScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<ObjeXDbContext>();
+    db.Database.Migrate();
+}
+
+app.UseStaticFiles();
+app.UseCors();
+app.UseAntiforgery();
 if (app.Environment.IsDevelopment())
 {
-    app.MapOpenApi();
+    app.UseDeveloperExceptionPage();
 }
-
-app.UseHttpsRedirection();
-
-var summaries = new[]
+else
 {
-    "Freezing", "Bracing", "Chilly", "Cool", "Mild", "Warm", "Balmy", "Hot", "Sweltering", "Scorching"
-};
-
-app.MapGet("/weatherforecast", () =>
+    app.UseExceptionHandler(errorApp =>
+    {
+        errorApp.Run(async context =>
+        {
+            context.Response.StatusCode = 500;
+            context.Response.ContentType = "application/json";
+            await context.Response.WriteAsJsonAsync(new { error = "An error occurred" });
+        });
+    });
+}
+app.UseSerilogRequestLogging();
+app.UseResponseCompression();
+app.MapOpenApi();
+app.MapScalarApiReference(options =>
 {
-    var forecast =  Enumerable.Range(1, 5).Select(index =>
-        new WeatherForecast
-        (
-            DateOnly.FromDateTime(DateTime.Now.AddDays(index)),
-            Random.Shared.Next(-20, 55),
-            summaries[Random.Shared.Next(summaries.Length)]
-        ))
-        .ToArray();
-    return forecast;
-})
-.WithName("GetWeatherForecast");
+    options.WithTitle("ObjeX API");
+});
+app.MapControllers();
+app.MapHealthChecks("/health");
+app.MapRazorComponents<App>()
+    .AddInteractiveServerRenderMode();
 
 app.Run();
-
-record WeatherForecast(DateOnly Date, int TemperatureC, string? Summary)
-{
-    public int TemperatureF => 32 + (int)(TemperatureC / 0.5556);
-}
