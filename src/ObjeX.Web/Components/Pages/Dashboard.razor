@@ -1,5 +1,6 @@
 @page "/"
 @using ObjeX.Core.Interfaces
+@implements IDisposable
 @inject IMetadataService MetadataService
 
 <PageTitle>Dashboard</PageTitle>
@@ -33,11 +34,23 @@
     int _bucketCount;
     long _objectCount;
     string _storageUsed = "0 B";
+    Timer? _timer;
 
     protected override async Task OnInitializedAsync()
     {
+        await LoadStats();
+        _timer = new Timer(async _ =>
+        {
+            await LoadStats();
+            await InvokeAsync(StateHasChanged);
+        }, null, TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(10));
+    }
+
+    async Task LoadStats()
+    {
         var buckets = (await MetadataService.ListBucketsAsync()).ToList();
         _bucketCount = buckets.Count;
+        _objectCount = 0;
         long totalSize = 0;
         foreach (var b in buckets)
         {
@@ -46,4 +59,6 @@
         }
         _storageUsed = FileHelper.FormatBytes(totalSize);
     }
+
+    public void Dispose() => _timer?.Dispose();
 }
