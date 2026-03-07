@@ -16,6 +16,7 @@ src/
 ├── ObjeX.Infrastructure/
 │   ├── Data/            # ObjeXDbContext (EF Core + SQLite)
 │   ├── Hashing/         # Sha256HashService
+│   ├── Jobs/            # CleanupOrphanedBlobsJob (Hangfire job classes)
 │   ├── Metadata/        # SqliteMetadataService
 │   ├── Migrations/      # EF Core migrations
 │   └── Storage/         # FileSystemStorageService
@@ -31,6 +32,36 @@ src/
 - **ObjeX.Api** wires everything together via DI in `Program.cs`. No business logic here.
 - **ObjeX.Web** is for Blazor UI only. Components live here, hosted by ObjeX.Api.
 - New storage backends → implement `IObjectStorageService`. New metadata stores → implement `IMetadataService`. No other changes needed.
+
+---
+
+## Background Jobs (Hangfire)
+
+Hangfire is wired in `ObjeX.Api` only. Job classes live in `ObjeX.Infrastructure/Jobs/` — no job logic in the API layer.
+
+**Packages (ObjeX.Api only):** `Hangfire.Core`, `Hangfire.AspNetCore`, `Hangfire.Storage.SQLite`
+
+**Storage:** Hangfire reuses the same `objex.db` SQLite file. Note: `Hangfire.Storage.SQLite` takes a **file path** (`/path/objex.db`), not an EF Core connection string (`Data Source=...`). The path is extracted from `connectionString` before passing to `UseSQLiteStorage(dbFilePath)`.
+
+**DI registration:** `FileSystemStorageService` is registered as a singleton under its **concrete type first**, then aliased as `IObjectStorageService`. This lets the job inject the concrete type directly (no cast) while the rest of the app uses the interface:
+```csharp
+builder.Services.AddSingleton<FileSystemStorageService>(...);
+builder.Services.AddSingleton<IObjectStorageService>(sp => sp.GetRequiredService<FileSystemStorageService>());
+```
+
+**Dashboard:** `/hangfire` — currently `LocalRequestsOnlyAuthorizationFilter`. TODO: replace with real auth when API Key / User Auth lands.
+
+**Jobs:**
+
+| Job class | Location | Schedule | Return type | What it does |
+|---|---|---|---|---|
+| `CleanupOrphanedBlobsJob` | `Infrastructure/Jobs/` | Weekly Sun 03:00 UTC | `Task<CleanupResult>` | Queries all known `StoragePath` values from metadata, scans `*.blob` files on disk, deletes any not in the known set |
+
+`CleanupOrphanedBlobsJob` injects `IMetadataService` + `FileSystemStorageService` (concrete) + `ILogger`. It owns the full GC logic — `FileSystemStorageService` does NOT have a cleanup method.
+
+`CleanupResult` (record, defined in same file): `FilesChecked`, `FilesDeleted`, `DurationSeconds`, `Timestamp`. Returning a value from the job method makes the result visible in the Hangfire dashboard job history.
+
+`FileSystemStorageService.BasePath` is `internal` — accessible to jobs in the same `ObjeX.Infrastructure` assembly, not visible outside.
 
 ---
 
@@ -60,6 +91,7 @@ public interface IMetadataService
     Task<BlobObject> SaveObjectAsync(BlobObject blobObject, CancellationToken ctk = default);
     Task<BlobObject?> GetObjectAsync(string bucketName, string key, CancellationToken ctk = default);
     Task<IEnumerable<BlobObject>> ListObjectsAsync(string bucketName, CancellationToken ctk = default);
+    Task<IEnumerable<BlobObject>> ListAllObjectsAsync(CancellationToken ctk = default); // all objects across all buckets
     Task DeleteObjectAsync(string bucketName, string key, CancellationToken ctk = default);
     Task<bool> ExistsObjectAsync(string bucketName, string key, CancellationToken ctk = default);
     Task UpdateBucketStatsAsync(string bucketName, CancellationToken ctk = default);
@@ -200,6 +232,9 @@ GET    /{bucket}/                 → list objects in bucket
 | `Scalar.AspNetCore`                | Interactive API docs at `/scalar/v1` |
 | `Serilog.AspNetCore`               | Structured request logging       |
 | `Microsoft.AspNetCore.OpenApi`     | OpenAPI spec generation          |
+| `Hangfire.Core`                    | Background job scheduling        |
+| `Hangfire.AspNetCore`              | Hangfire DI + ASP.NET Core host integration |
+| `Hangfire.Storage.SQLite`          | Hangfire job store (reuses `objex.db`) |
 
 ---
 

@@ -89,6 +89,11 @@ public class SqliteMetadataService(ObjeXDbContext ctx) : IMetadataService
             .ToListAsync(ctk);
     }
 
+    public async Task<IEnumerable<BlobObject>> ListAllObjectsAsync(CancellationToken ctk = default)
+    {
+        return await ctx.BlobObjects.ToListAsync(ctk);
+    }
+
     public async Task DeleteObjectAsync(string bucketName, string key, CancellationToken ctk = default)
     {
         var obj = await GetObjectAsync(bucketName, key, ctk);

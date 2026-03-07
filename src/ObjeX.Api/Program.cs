@@ -1,7 +1,10 @@
+using Hangfire;
+using Hangfire.Storage.SQLite;
 using Microsoft.EntityFrameworkCore;
 using ObjeX.Core.Interfaces;
 using ObjeX.Infrastructure.Data;
 using ObjeX.Infrastructure.Hashing;
+using ObjeX.Infrastructure.Jobs;
 using ObjeX.Infrastructure.Metadata;
 using ObjeX.Infrastructure.Storage;
 using ObjeX.Web.Components;
@@ -15,12 +18,13 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddScoped<IMetadataService, SqliteMetadataService>();
 builder.Services.AddSingleton<IHashService, Sha256HashService>();
-builder.Services.AddSingleton<IObjectStorageService>(sp =>
+builder.Services.AddSingleton<FileSystemStorageService>(sp =>
 {
     var basePath = builder.Configuration["Storage:BasePath"]
                    ?? Path.Combine(builder.Environment.ContentRootPath, "..", "..", "data", "blobs");
     return new FileSystemStorageService(basePath, sp.GetRequiredService<IHashService>());
 });
+builder.Services.AddSingleton<IObjectStorageService>(sp => sp.GetRequiredService<FileSystemStorageService>());
 builder.Services.AddControllers()
     .AddJsonOptions(options =>
     {
@@ -38,19 +42,24 @@ builder.Services.AddResponseCompression(options =>
 builder.Host.UseSerilog((context, config) =>
     config.ReadFrom.Configuration(context.Configuration));
 
+var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+string dbFilePath;
+if (string.IsNullOrEmpty(connectionString))
+{
+    var currentDir = new DirectoryInfo(builder.Environment.ContentRootPath);
+    var solutionRoot = currentDir.Parent?.Parent?.FullName
+                      ?? Path.GetFullPath(Path.Combine(builder.Environment.ContentRootPath, "..", ".."));
+    dbFilePath = Path.Combine(solutionRoot, "objex.db");
+    connectionString = $"Data Source={dbFilePath}";
+}
+else
+{
+    // Extract file path from "Data Source=..." connection string for Hangfire
+    dbFilePath = connectionString.Replace("Data Source=", "").Trim();
+}
+
 builder.Services.AddDbContext<ObjeXDbContext>(options =>
 {
-    var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
-
-    if (string.IsNullOrEmpty(connectionString))
-    {
-        var currentDir = new DirectoryInfo(builder.Environment.ContentRootPath);
-        var solutionRoot = currentDir.Parent?.Parent?.FullName
-                          ?? Path.GetFullPath(Path.Combine(builder.Environment.ContentRootPath, "..", ".."));
-        var dbPath = Path.Combine(solutionRoot, "objex.db");
-        connectionString = $"Data Source={dbPath}";
-    }
-
     options.UseSqlite(connectionString);
     options.UseSnakeCaseNamingConvention();
 
@@ -60,6 +69,13 @@ builder.Services.AddDbContext<ObjeXDbContext>(options =>
         options.EnableDetailedErrors();
     }
 });
+
+builder.Services.AddHangfire(config => config
+    .UseSimpleAssemblyNameTypeSerializer()
+    .UseRecommendedSerializerSettings()
+    .UseSQLiteStorage(dbFilePath));
+builder.Services.AddHangfireServer();
+builder.Services.AddScoped<CleanupOrphanedBlobsJob>();
 
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents()
@@ -105,6 +121,17 @@ else
 }
 app.UseSerilogRequestLogging();
 app.UseResponseCompression();
+
+// TODO: Restrict Hangfire dashboard with auth once API Key / User Auth is implemented
+app.UseHangfireDashboard("/hangfire", new DashboardOptions
+{
+    Authorization = [new Hangfire.Dashboard.LocalRequestsOnlyAuthorizationFilter()]
+});
+
+RecurringJob.AddOrUpdate<CleanupOrphanedBlobsJob>(
+    "cleanup-orphaned-blobs",
+    job => job.ExecuteAsync(),
+    Cron.Weekly(DayOfWeek.Sunday, 3)); // weekly Sunday 03:00 UTC
 
 app.MapOpenApi();
 app.MapScalarApiReference(options =>

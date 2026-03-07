@@ -137,6 +137,7 @@ Upload response:
 | API Docs    | Scalar + OpenAPI                        |
 | Database    | SQLite via EF Core 10 (snake_case cols) |
 | Blob store  | Filesystem, content-addressable SHA256 paths (`FileSystemStorageService`) |
+| Background jobs | Hangfire (SQLite-backed, dashboard at `/hangfire`) |
 | Logging     | Serilog (console)                       |
 | Compression | Response compression (HTTPS-enabled)    |
 
@@ -191,7 +192,8 @@ The logical key (e.g. `images/2024/photo.jpg`) is stored in the database only â€
 - [x] ETag computation (MD5) on upload
 - [x] SQLite metadata store via EF Core (auto-migrated on startup)
 - [x] Content-addressable filesystem blob store (SHA256 hashed paths, 2-level directory nesting)
-- [x] Orphaned blob GC (`CleanupOrphanedBlobsAsync`)
+- [x] Orphaned blob GC via Hangfire background job (weekly Sunday 03:00 UTC, results in dashboard)
+- [x] Hangfire dashboard at `/hangfire`
 - [x] Scalar interactive API docs
 - [x] Health check endpoint
 - [x] Serilog structured logging

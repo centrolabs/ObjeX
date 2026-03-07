@@ -4,14 +4,14 @@ namespace ObjeX.Infrastructure.Storage;
 
 public class FileSystemStorageService : IObjectStorageService
 {
-    private readonly string _basePath;
+    internal string BasePath { get; }
     private readonly IHashService _hashService;
 
     public FileSystemStorageService(string basePath, IHashService hashService)
     {
-        _basePath = basePath;
+        BasePath = basePath;
         _hashService = hashService;
-        Directory.CreateDirectory(_basePath);
+        Directory.CreateDirectory(BasePath);
     }
 
     public async Task<string> StoreAsync(string bucketName, string key, Stream data, CancellationToken ctk = default)
@@ -60,27 +60,6 @@ public class FileSystemStorageService : IObjectStorageService
         return Task.FromResult(new FileInfo(filePath).Length);
     }
 
-    /// <summary>
-    /// Removes blob files that have no corresponding entry in the provided set of known storage paths.
-    /// Call this periodically or after bulk deletes for garbage collection.
-    /// </summary>
-    public async Task CleanupOrphanedBlobsAsync(IReadOnlySet<string> knownStoragePaths, CancellationToken ctk = default)
-    {
-        var files = await Task.Run(() => 
-            Directory.EnumerateFiles(_basePath, "*.blob", SearchOption.AllDirectories).ToList(), 
-            ctk);
-
-        foreach (var file in files)
-        {
-            ctk.ThrowIfCancellationRequested();
-
-            if (!knownStoragePaths.Contains(file))
-            {
-                await Task.Run(() => File.Delete(file), ctk);
-            }
-        }
-    }
-
     // TODO: Future — content-based deduplication: hash the file bytes instead of bucket+key,
     //       store once, reference via a content-addressed path, and track ref-counts in metadata.
 
@@ -91,7 +70,7 @@ public class FileSystemStorageService : IObjectStorageService
         var hash = _hashService.ComputeHash($"{bucketName}/{SanitizeKey(key)}");
         var l1 = hash[..2];
         var l2 = hash[2..4];
-        return Path.Combine(_basePath, bucketName, l1, l2, $"{hash}.blob");
+        return Path.Combine(BasePath, bucketName, l1, l2, $"{hash}.blob");
     }
 
     private static string SanitizeKey(string key) =>

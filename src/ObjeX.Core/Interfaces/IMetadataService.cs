@@ -17,6 +17,7 @@ public interface IMetadataService
     Task<BlobObject> SaveObjectAsync(BlobObject blobObject, CancellationToken ctk = default);
     Task<BlobObject?> GetObjectAsync(string bucketName, string key, CancellationToken ctk = default);
     Task<IEnumerable<BlobObject>> ListObjectsAsync(string bucketName, CancellationToken ctk = default);
+    Task<IEnumerable<BlobObject>> ListAllObjectsAsync(CancellationToken ctk = default);
     Task DeleteObjectAsync(string bucketName, string key, CancellationToken ctk = default);
     Task<bool> ExistsObjectAsync(string bucketName, string key, CancellationToken ctk = default);
 

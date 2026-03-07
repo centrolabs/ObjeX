@@ -13,6 +13,13 @@
 - `CleanupOrphanedBlobsAsync(IReadOnlySet<string>)` — caller-triggered GC, no scheduling
 - `IHashService` registered as singleton in `Program.cs`
 
+### Hangfire Background Jobs ✅
+- `Hangfire.Core` + `Hangfire.AspNetCore` + `Hangfire.Storage.SQLite` (reuses `objex.db`)
+- Job classes in `ObjeX.Infrastructure/Jobs/` — no job logic in API layer
+- `CleanupOrphanedBlobsJob` — weekly Sunday 03:00 UTC, returns `CleanupResult` (checked/deleted/duration/timestamp) visible in Hangfire dashboard history
+- Dashboard at `/hangfire` (localhost-only until auth is implemented)
+- `IMetadataService.ListAllObjectsAsync()` added for cross-bucket object enumeration
+
 ### Blazor UI — Basic ✅
 - Radzen Blazor component library (replaced MudBlazor)
 - Dashboard: total buckets, object count, storage used (10s auto-refresh)
