@@ -1,0 +1,81 @@
+name: CD
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+env:
+  DOTNET_CLI_TELEMETRY_OPTOUT: 1
+  ASPNETCORE_ENVIRONMENT: Development
+  DEPLOY_DIR: /opt/objex
+  DATA_DIR: /opt/objex/data
+  SERVICE_NAME: objex
+
+jobs:
+  deploy:
+    name: Build & Deploy
+    runs-on: [self-hosted, objex, cd, dev]
+
+    steps:
+      # ── 1. Source ────────────────────────────────────────────────────────────
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # ── 2. SDK ───────────────────────────────────────────────────────────────
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      # ── 3. Restore ───────────────────────────────────────────────────────────
+      - name: Restore dependencies
+        run: dotnet restore ObjeX.slnx
+
+      # ── 4. Build ─────────────────────────────────────────────────────────────
+      - name: Build (Debug)
+        run: dotnet build ObjeX.slnx --no-restore --configuration Debug
+
+      # ── 5. Publish ───────────────────────────────────────────────────────────
+      - name: Publish API
+        run: |
+          dotnet publish src/ObjeX.Api/ObjeX.Api.csproj \
+            --configuration Debug \
+            --no-restore \
+            --self-contained false \
+            --output ./publish
+
+      # ── 6. Stop service ──────────────────────────────────────────────────────
+      - name: Stop ObjeX service
+        run: |
+          if systemctl is-active --quiet ${{ env.SERVICE_NAME }}; then
+            echo "Stopping ${{ env.SERVICE_NAME }}..."
+            sudo systemctl stop ${{ env.SERVICE_NAME }}
+          else
+            echo "Service ${{ env.SERVICE_NAME }} is not running — skipping stop."
+          fi
+
+      # ── 7. Deploy files ──────────────────────────────────────────────────────
+      - name: Copy published files to deployment directory
+        run: |
+          sudo rsync -a --delete ./publish/ ${{ env.DEPLOY_DIR }}/
+
+      # ── 8. Ensure data directories exist ─────────────────────────────────────
+      - name: Create data directories
+        run: |
+          sudo mkdir -p ${{ env.DATA_DIR }}/blobs
+          sudo mkdir -p ${{ env.DATA_DIR }}/db
+
+      # ── 9. Fix ownership & permissions ────────────────────────────────────────
+      - name: Set file ownership
+        run: |
+          sudo chown -R ${{ env.SERVICE_NAME }}:${{ env.SERVICE_NAME }} ${{ env.DEPLOY_DIR }}
+          sudo chmod -R 750 ${{ env.DEPLOY_DIR }}
+          # Data directory needs write access for SQLite + blob files
+          sudo chmod -R 770 ${{ env.DATA_DIR }}
+
+      # ── 10. Start service ─────────────────────────────────────────────────────
+      - name: Start ObjeX service
+        run: |
+          sudo systemctl start ${{ env.SERVICE_NAME }}
