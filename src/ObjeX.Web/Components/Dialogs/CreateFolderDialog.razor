@@ -1,0 +1,35 @@
+@inject DialogService DialogService
+
+<RadzenStack Gap="1rem" Style="padding:1rem; min-width:320px">
+    <RadzenFormField Text="Folder name">
+        <input @bind="_name" @bind:event="oninput" @onkeydown="OnKeyDown"
+               class="rz-textbox" placeholder="e.g. photos" style="width:100%" autofocus />
+    </RadzenFormField>
+    @if (_error is not null)
+    {
+        <RadzenText Style="color:var(--rz-danger)">@_error</RadzenText>
+    }
+    <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.End" Gap="0.5rem">
+        <RadzenButton Text="Cancel" ButtonStyle="ButtonStyle.Light" Click="@(() => DialogService.Close(null))" />
+        <RadzenButton Text="Create" ButtonStyle="ButtonStyle.Primary" Disabled="@string.IsNullOrWhiteSpace(_name)" Click="@OnCreate" />
+    </RadzenStack>
+</RadzenStack>
+
+@code {
+    string _name = string.Empty;
+    string? _error;
+
+    void OnCreate()
+    {
+        var name = _name.Trim().Trim('/');
+        if (string.IsNullOrEmpty(name)) { _error = "Folder name cannot be empty."; return; }
+        if (name.Contains('/')) { _error = "Use the UI to nest folders — no slashes allowed here."; return; }
+        DialogService.Close(name);
+    }
+
+    void OnKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") OnCreate();
+        if (e.Key == "Escape") DialogService.Close(null);
+    }
+}

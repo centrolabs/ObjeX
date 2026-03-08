@@ -1,3 +1,5 @@
+using System.IO.Compression;
+
 using ObjeX.Core.Interfaces;
 using ObjeX.Core.Models;
 using ObjeX.Core.Utilities;
@@ -24,7 +26,7 @@ public static class ObjectEndpoints
 
             var contentType = request.ContentType ?? "application/octet-stream";
 
-            using var hashingStream = new HashingStream(request.Body);
+            await using var hashingStream = new HashingStream(request.Body);
             var storagePath = await storage.StoreAsync(bucketName, key, hashingStream);
             var size = await storage.GetSizeAsync(bucketName, key);
             var etag = hashingStream.GetETag();
@@ -77,15 +79,43 @@ public static class ObjectEndpoints
             return Results.NoContent();
         });
 
-        objects.MapGet("/", async (string bucketName, IMetadataService metadata) =>
+        objects.MapGet("/download", async (string bucketName, string? prefix, IMetadataService metadata, IObjectStorageService storage) =>
+        {
+            if (!await metadata.ExistsBucketAsync(bucketName))
+                return Results.NotFound(new { error = "Bucket not found" });
+
+            var result = await metadata.ListObjectsAsync(bucketName, prefix, delimiter: null);
+            var files = result.Objects.Where(o => !o.Key.EndsWith("/")).ToList();
+
+            var ms = new MemoryStream();
+            using (var zip = new ZipArchive(ms, ZipArchiveMode.Create, leaveOpen: true))
+            {
+                foreach (var obj in files)
+                {
+                    var entry = zip.CreateEntry(obj.Key, CompressionLevel.Fastest);
+                    await using var fileStream = await storage.RetrieveAsync(bucketName, obj.Key);
+                    await using var entryStream = entry.Open();
+                    await fileStream.CopyToAsync(entryStream);
+                }
+            }
+            ms.Position = 0;
+
+            var zipName = string.IsNullOrEmpty(prefix)
+                ? $"{bucketName}.zip"
+                : $"{prefix.TrimEnd('/')}.zip";
+
+            return Results.File(ms, "application/zip", zipName);
+        });
+
+        objects.MapGet("/", async (string bucketName, string? prefix, string? delimiter, IMetadataService metadata) =>
         {
             if (!await metadata.ExistsBucketAsync(bucketName))
             {
                 return Results.NotFound(new { error = "Bucket not found" });
             }
 
-            var objectList = await metadata.ListObjectsAsync(bucketName);
-            return Results.Ok(objectList);
+            var result = await metadata.ListObjectsAsync(bucketName, prefix, delimiter);
+            return Results.Ok(result);
         });
         
         return objects;
