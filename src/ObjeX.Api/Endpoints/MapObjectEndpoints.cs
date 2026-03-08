@@ -6,7 +6,7 @@ namespace ObjeX.Api.Endpoints;
 
 public static class ObjectEndpoints
 {
-    public static void MapObjectEndpoints(this WebApplication app)
+    public static RouteGroupBuilder MapObjectEndpoints(this WebApplication app)
     {
         var objects = app.MapGroup("api/objects/{bucketName}").WithTags("Objects");
 
@@ -87,8 +87,11 @@ public static class ObjectEndpoints
             var objectList = await metadata.ListObjectsAsync(bucketName);
             return Results.Ok(objectList);
         });
+        
+        return objects;
     }
 
+    // TODO ASAP: move to a helper class in Infrastructure or Core
     private static async Task<string> ComputeETag(Stream stream)
     {
         using var ms = new MemoryStream();

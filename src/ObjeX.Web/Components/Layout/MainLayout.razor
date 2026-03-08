@@ -1,17 +1,24 @@
 @inherits LayoutComponentBase
 
-<RadzenLayout>
-    <RadzenSidebar>
-        <NavMenu/>
-    </RadzenSidebar>
+<AuthorizeView>
+    <Authorized>
+        <RadzenLayout>
+            <RadzenSidebar>
+                <NavMenu/>
+            </RadzenSidebar>
 
-    <RadzenBody>
-        <RadzenContentContainer>
-            @Body
-        </RadzenContentContainer>
-    </RadzenBody>
-</RadzenLayout>
+            <RadzenBody>
+                <RadzenContentContainer>
+                    @Body
+                </RadzenContentContainer>
+            </RadzenBody>
+        </RadzenLayout>
 
-<RadzenDialog />
-<RadzenNotification />
+        <RadzenDialog />
+        <RadzenNotification />
+    </Authorized>
+    <NotAuthorized>
+        <RedirectToLogin />
+    </NotAuthorized>
+</AuthorizeView>
 

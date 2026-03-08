@@ -1,0 +1,67 @@
+@page "/login"
+@attribute [AllowAnonymous]
+@layout EmptyLayout
+@inject AuthenticationStateProvider AuthStateProvider
+@inject NavigationManager Navigation
+@inject NotificationService NotificationService
+
+<PageTitle>Login — ObjeX</PageTitle>
+
+<div style="display:flex; align-items:center; justify-content:center; min-height:100vh; background:var(--rz-base-background-color)">
+    <RadzenCard Style="width:400px">
+        <RadzenStack Gap="1.5rem">
+            <RadzenStack Gap="0.25rem">
+                <RadzenText TextStyle="TextStyle.H5" style="margin:0">ObjeX</RadzenText>
+                <RadzenText TextStyle="TextStyle.Caption" style="color:var(--rz-text-secondary-color)">Self-hosted blob storage</RadzenText>
+            </RadzenStack>
+
+            <form method="post" action="/account/login">
+                <RadzenStack Gap="0.75rem">
+                    <input type="hidden" name="returnUrl" value="@ReturnUrl" />
+
+                    <RadzenStack Gap="0.25rem">
+                        <RadzenLabel Text="Email or username" />
+                        <input class="rz-textbox" style="width:100%" type="text"
+                               name="login" value="@LoginValue" placeholder="admin@objex.local" autocomplete="username" />
+                    </RadzenStack>
+
+                    <RadzenStack Gap="0.25rem">
+                        <RadzenLabel Text="Password" />
+                        <input class="rz-textbox" style="width:100%" type="password"
+                               name="password" autocomplete="current-password" />
+                    </RadzenStack>
+
+                    <button type="submit" class="rz-button rz-button-md rz-primary" style="width:100%">
+                        Sign in
+                    </button>
+                </RadzenStack>
+            </form>
+
+            <RadzenText TextStyle="TextStyle.Caption" style="color:var(--rz-text-secondary-color); text-align:center">
+                Default: admin / admin
+            </RadzenText>
+        </RadzenStack>
+    </RadzenCard>
+</div>
+
+@code {
+    [SupplyParameterFromQuery] public string? ReturnUrl { get; set; }
+    [SupplyParameterFromQuery] public string? Error { get; set; }
+    [SupplyParameterFromQuery(Name = "login")] public string? LoginValue { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        if (authState.User.Identity?.IsAuthenticated == true)
+            Navigation.NavigateTo(ReturnUrl ?? "/", forceLoad: true);
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && Error == "1")
+        {
+            NotificationService.Notify(NotificationSeverity.Error, "Login failed", "Invalid username/email or password.");
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+}

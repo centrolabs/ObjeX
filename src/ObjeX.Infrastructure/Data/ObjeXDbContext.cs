@@ -1,16 +1,19 @@
+using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 
 using ObjeX.Core.Models;
 
 namespace ObjeX.Infrastructure.Data;
 
-public class ObjeXDbContext(DbContextOptions<ObjeXDbContext> options) : DbContext(options)
+public class ObjeXDbContext(DbContextOptions<ObjeXDbContext> options) : IdentityDbContext<User>(options)
 {
     public DbSet<Bucket> Buckets { get; set; } = null!;
     public DbSet<BlobObject> BlobObjects { get; set; } = null!;
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        base.OnModelCreating(modelBuilder);
+        
         modelBuilder.Entity<Bucket>(entity =>
         {
             entity.HasKey(e => e.Id);

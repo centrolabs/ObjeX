@@ -1,6 +1,10 @@
 using Hangfire;
 using Hangfire.Storage.SQLite;
+
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+
+using ObjeX.Api.Auth;
 using ObjeX.Core.Interfaces;
 using ObjeX.Infrastructure.Data;
 using ObjeX.Infrastructure.Hashing;
@@ -9,6 +13,7 @@ using ObjeX.Infrastructure.Metadata;
 using ObjeX.Infrastructure.Storage;
 using ObjeX.Web.Components;
 using ObjeX.Api.Endpoints;
+using ObjeX.Core.Models;
 
 using Radzen;
 using Scalar.AspNetCore;
@@ -41,6 +46,23 @@ builder.Services.AddResponseCompression(options =>
 
 builder.Host.UseSerilog((context, config) =>
     config.ReadFrom.Configuration(context.Configuration));
+
+builder.Services.AddIdentity<User, IdentityRole>(options =>
+    {
+        // Relax password requirements for MVP
+        options.Password.RequireDigit = false;
+        options.Password.RequireUppercase = false;
+        options.Password.RequireLowercase = false;
+        options.Password.RequireNonAlphanumeric = false;
+        options.Password.RequiredLength = 4;
+    })
+    .AddEntityFrameworkStores<ObjeXDbContext>()
+    .AddDefaultTokenProviders();
+
+builder.Services.AddAuthentication();
+builder.Services.AddAuthorization();
+builder.Services.AddSingleton<IEmailSender<User>, NoOpEmailSender>();
+
 
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
 string dbFilePath;
@@ -81,6 +103,7 @@ builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents()
     .AddHubOptions(o => o.MaximumReceiveMessageSize = 500 * 1024 * 1024);
 builder.Services.AddRadzenComponents();
+builder.Services.AddCascadingAuthenticationState();
 
 builder.Services.AddCors(options =>
 {
@@ -97,11 +120,48 @@ var app = builder.Build();
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<ObjeXDbContext>();
+    var userManager = scope.ServiceProvider.GetRequiredService<UserManager<User>>();
+    
     db.Database.Migrate();
+    
+    if (await userManager.FindByNameAsync("admin") is null)
+    {
+        var defaultUsername = builder.Configuration["DefaultAdmin:Username"] ?? "admin";
+        var defaultEmail = builder.Configuration["DefaultAdmin:Email"] ?? "admin@objex.local";
+        var defaultPassword = builder.Configuration["DefaultAdmin:Password"] ?? "admin";
+        
+        var adminUser = new User
+        {
+            UserName = defaultUsername,
+            Email = defaultEmail,
+            EmailConfirmed = true,
+            StorageUsedBytes = 0 // TODO: make 0 default in model property 
+        };
+        
+        var result = await userManager.CreateAsync(adminUser, defaultPassword);
+        
+        if (result.Succeeded)
+        {
+            var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
+            if (!await roleManager.RoleExistsAsync("Admin"))
+            {
+                await roleManager.CreateAsync(new IdentityRole("Admin"));
+                await roleManager.CreateAsync(new IdentityRole("User"));
+            }
+            await userManager.AddToRoleAsync(adminUser, "Admin");
+
+            app.Logger.LogWarning(
+                "⚠️  Default admin user created: {Username} {Email} / {Password} - CHANGE THIS IN PRODUCTION!",
+                defaultUsername, defaultEmail, defaultPassword);
+        }
+    }
 }
+
 app.UseStatusCodePagesWithReExecute("/not-found");
 app.UseStaticFiles();
 app.UseCors();
+app.UseAuthentication();
+app.UseAuthorization();
 app.UseAntiforgery();
 if (app.Environment.IsDevelopment())
 {
@@ -122,10 +182,9 @@ else
 app.UseSerilogRequestLogging();
 app.UseResponseCompression();
 
-// TODO: Restrict Hangfire dashboard with auth once API Key / User Auth is implemented
 app.UseHangfireDashboard("/hangfire", new DashboardOptions
 {
-    Authorization = [new Hangfire.Dashboard.LocalRequestsOnlyAuthorizationFilter()]
+    Authorization = new[] { new HangfireAuthorizationFilter() }
 });
 
 RecurringJob.AddOrUpdate<CleanupOrphanedBlobsJob>(
@@ -145,7 +204,38 @@ app.MapRazorComponents<App>()
 
 app.MapControllers();
 
-app.MapBucketEndpoints();
-app.MapObjectEndpoints();
+app.MapBucketEndpoints().RequireAuthorization();
+app.MapObjectEndpoints().RequireAuthorization();
+app.MapIdentityApi<User>();
+
+// Auth endpoints — real HTTP requests so cookies can be set/cleared
+app.MapPost("/account/login", async (HttpContext ctx, SignInManager<User> signInManager) =>
+{
+    var form = await ctx.Request.ReadFormAsync();
+    var login = form["login"].ToString();
+    var password = form["password"].ToString();
+    var returnUrl = form["returnUrl"].ToString();
+
+    var user = login.Contains('@')
+        ? await signInManager.UserManager.FindByEmailAsync(login)
+        : await signInManager.UserManager.FindByNameAsync(login);
+
+    if (user is not null)
+    {
+        var result = await signInManager.PasswordSignInAsync(user, password, isPersistent: true, lockoutOnFailure: false);
+        if (result.Succeeded)
+            return Results.Redirect(string.IsNullOrEmpty(returnUrl) ? "/" : returnUrl);
+    }
+
+    var qs = $"error=1&login={Uri.EscapeDataString(login)}";
+    if (!string.IsNullOrEmpty(returnUrl)) qs += $"&returnUrl={Uri.EscapeDataString(returnUrl)}";
+    return Results.Redirect($"/login?{qs}");
+}).DisableAntiforgery();
+
+app.MapGet("/account/logout", async (SignInManager<User> signInManager) =>
+{
+    await signInManager.SignOutAsync();
+    return Results.Redirect("/login");
+});
 
 app.Run();

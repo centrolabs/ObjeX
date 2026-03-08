@@ -5,7 +5,7 @@ namespace ObjeX.Api.Endpoints;
 
 public static class BucketEndpoints
 {
-    public static void MapBucketEndpoints(this WebApplication app)
+    public static RouteGroupBuilder MapBucketEndpoints(this WebApplication app)
     {
         var buckets = app.MapGroup("/api/buckets").WithTags("Buckets");
 
@@ -48,5 +48,7 @@ public static class BucketEndpoints
             await metadata.DeleteBucketAsync(bucketName);
             return Results.NoContent();
         });
+        
+        return buckets;
     }
 }
