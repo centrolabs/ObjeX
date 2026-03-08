@@ -28,7 +28,7 @@ builder.Services.AddSingleton<FileSystemStorageService>(sp =>
 {
     var basePath = builder.Configuration["Storage:BasePath"] ?? "./data/blobs";
     basePath = Path.GetFullPath(basePath);
-    return new FileSystemStorageService(basePath, sp.GetRequiredService<IHashService>());
+    return new FileSystemStorageService(basePath, sp.GetRequiredService<IHashService>(), sp.GetRequiredService<ILogger<FileSystemStorageService>>());
 });
 builder.Services.AddSingleton<IObjectStorageService>(sp => sp.GetRequiredService<FileSystemStorageService>());
 builder.Services.AddControllers()
@@ -131,7 +131,9 @@ builder.Services.AddScoped<CleanupOrphanedBlobsJob>();
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents()
     .AddHubOptions(o => o.MaximumReceiveMessageSize = 500 * 1024 * 1024);
+builder.Services.AddHttpContextAccessor();
 builder.Services.AddRadzenComponents();
+builder.Services.AddScoped<ThemeService>();
 builder.Services.AddCascadingAuthenticationState();
 
 builder.Services.AddCors(options =>
