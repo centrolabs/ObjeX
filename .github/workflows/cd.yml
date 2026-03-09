@@ -59,7 +59,7 @@ jobs:
       - name: Start ObjeX
         run: |
           cd ~/objex-live
-          nohup dotnet ObjeX.Api.dll --urls "http://0.0.0.0:8080" > ~/objex.log 2>&1 &
+          screen -dmS objex dotnet ObjeX.Api.dll --urls "http://0.0.0.0:8080"
           sleep 2
-          echo "🚀 ObjeX deployed and running on port 8080"
-          echo "📋 Check logs: tail -f ~/objex.log"
+          echo "🚀 ObjeX started in screen session 'objex'"
+          screen -ls
