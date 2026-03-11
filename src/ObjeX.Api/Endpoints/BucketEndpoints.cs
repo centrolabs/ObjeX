@@ -1,4 +1,3 @@
-using System.Security.Claims;
 using ObjeX.Core.Interfaces;
 using ObjeX.Core.Models;
 
@@ -39,13 +38,14 @@ public static class BucketEndpoints
             return bucket is null ? Results.NotFound(new { error = "Bucket not found" }) : Results.Ok(bucket);
         });
         
-        buckets.MapDelete("/{bucketName}", async (string bucketName, HttpContext ctx, IMetadataService metadata, ILogger<Bucket> logger) =>
+        buckets.MapDelete("/{bucketName}", async (string bucketName, IMetadataService metadata) =>
         {
             if (!await metadata.ExistsBucketAsync(bucketName))
+            {
                 return Results.NotFound(new { error = "Bucket not found" });
+            }
 
             await metadata.DeleteBucketAsync(bucketName);
-            logger.LogInformation("Bucket deleted: {Bucket} by {UserId}", bucketName, ctx.User.FindFirstValue(ClaimTypes.NameIdentifier));
             return Results.NoContent();
         });
         
