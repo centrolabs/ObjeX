@@ -227,6 +227,8 @@ No config required for local dev. Defaults (from `appsettings.json`):
 | Blob storage | `./data/blobs` (relative to working directory) |
 | Log files | `./data/logs/objex-YYYYMMDD.log` — daily rolling, 30 days retention, compact JSON |
 | Auto-migrate | `true` — set `Database:AutoMigrate=false` to disable startup migrations |
+| Max upload size | unlimited — set `Storage:MaxUploadBytes` (bytes) to cap per-upload size |
+| Min free disk | `524288000` (500MB) — uploads rejected with 507 if free space drops below this; override via `Storage:MinimumFreeDiskBytes` |
 | Admin username | `admin` |
 | Admin email | `admin@objex.local` |
 | Admin password | `admin` |
@@ -415,6 +417,8 @@ The logical key (e.g. `images/2024/photo.jpg`) lives in the database only.
 - [x] Security audit logs — failed logins, invalid/expired API keys, object/bucket deletes, API key create/delete
 - [x] Daily rolling log files — compact JSON to `./data/logs/`, 30-day retention (Filebeat/Promtail compatible)
 - [x] Response compression
+- [x] Upload size limit — unlimited by default, configurable via `Storage:MaxUploadBytes`
+- [x] Disk space guard — rejects uploads with 507 if free space < 500MB (configurable via `Storage:MinimumFreeDiskBytes`)
 - [x] Rate limiting — `POST /account/login`: 5 attempts per 2 min per IP (sliding window); `POST /api/keys`: 10 per min per IP
 
 ---

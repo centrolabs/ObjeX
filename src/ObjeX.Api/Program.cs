@@ -24,6 +24,11 @@ using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Upload size limit — null = unlimited (disk space guard is the real protection).
+// Override via Storage:MaxUploadBytes in config.
+var maxUploadBytes = builder.Configuration.GetValue<long?>("Storage:MaxUploadBytes");
+builder.WebHost.ConfigureKestrel(o => o.Limits.MaxRequestBodySize = maxUploadBytes);
+
 builder.Services.AddScoped<IMetadataService, SqliteMetadataService>();
 builder.Services.AddSingleton<IHashService, Sha256HashService>();
 builder.Services.AddSingleton<FileSystemStorageService>(sp =>
