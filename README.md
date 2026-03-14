@@ -361,6 +361,8 @@ ObjeX sets the following headers on every response:
 
 Content Security Policy (CSP) is not yet set — Blazor Server requires inline scripts and a `ws://` WebSocket connection for SignalR, making a safe policy non-trivial. Deferred to a future hardening pass.
 
+**Rate limiting:** `POST /account/login` is limited to 5 attempts per 2 minutes per IP (sliding window) — returns 429 when exceeded. `POST /api/keys` is limited to 10 per minute per IP. Rate limiting is IP-based via `RemoteIpAddress` — if you run ObjeX behind a reverse proxy, ensure `X-Forwarded-For` is correctly forwarded, otherwise the limiter sees the proxy IP and may block all users simultaneously.
+
 **CORS:** ObjeX allows any origin (`AllowAnyOrigin`). This is intentional for self-hosted use where the origin isn't known upfront. Browsers block `AllowAnyOrigin` + `AllowCredentials` simultaneously, so cookie sessions are safe. If you add `AllowCredentials()` in the future, you must also restrict to explicit origins — the wildcard + credentials combination is rejected by browsers and would need to be replaced.
 
 ### Blob Layout on Disk
@@ -411,6 +413,7 @@ The logical key (e.g. `images/2024/photo.jpg`) lives in the database only.
 - [x] Security audit logs — failed logins, invalid/expired API keys, object/bucket deletes, API key create/delete
 - [x] Daily rolling log files — compact JSON to `./data/logs/`, 30-day retention (Filebeat/Promtail compatible)
 - [x] Response compression
+- [x] Rate limiting — `POST /account/login`: 5 attempts per 2 min per IP (sliding window); `POST /api/keys`: 10 per min per IP
 
 ---
 

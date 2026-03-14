@@ -29,7 +29,7 @@ public static class ApiKeyEndpoints
             logger.LogInformation("API key created: {KeyName} by {UserId}", apiKey.Name, userId);
 
             return Results.Ok(new { apiKey.Key, apiKey.Name, apiKey.ExpiresAt });
-        });
+        }).RequireRateLimiting("key-create");
 
         group.MapGet("/", async (HttpContext ctx, ObjeXDbContext db) =>
         {

@@ -2,6 +2,7 @@ using Hangfire;
 using Hangfire.Storage.SQLite;
 
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 
 using ObjeX.Api.Auth;
@@ -150,6 +151,30 @@ builder.Services.AddCors(options =>
     });
 });
 
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+
+    // Login: 5 attempts per 2 minutes per IP — brute-force protection
+    options.AddSlidingWindowLimiter("login", o =>
+    {
+        o.Window = TimeSpan.FromMinutes(2);
+        o.SegmentsPerWindow = 4;
+        o.PermitLimit = 5;
+        o.QueueLimit = 0;
+        o.QueueProcessingOrder = System.Threading.RateLimiting.QueueProcessingOrder.NewestFirst;
+    });
+
+    // API key creation: 10 per minute per IP — sensitive write
+    options.AddFixedWindowLimiter("key-create", o =>
+    {
+        o.Window = TimeSpan.FromMinutes(1);
+        o.PermitLimit = 10;
+        o.QueueLimit = 0;
+        o.QueueProcessingOrder = System.Threading.RateLimiting.QueueProcessingOrder.NewestFirst;
+    });
+});
+
 var app = builder.Build();
 
 using (var scope = app.Services.CreateScope())
@@ -208,6 +233,7 @@ app.UseWhen(
     branch => branch.UseStatusCodePagesWithReExecute("/not-found"));
 app.UseStaticFiles();
 app.UseCors();
+app.UseRateLimiter();
 app.Use(async (ctx, next) =>
 {
     ctx.Response.Headers["X-Content-Type-Options"] = "nosniff";
