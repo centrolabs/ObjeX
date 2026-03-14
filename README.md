@@ -347,6 +347,8 @@ ObjeX sets the following headers on every response:
 | `Referrer-Policy` | `strict-origin-when-cross-origin` |
 | `Strict-Transport-Security` | `max-age=63072000; includeSubDomains` (non-dev only) |
 
+**Hangfire dashboard** (`/hangfire`) is publicly routable but protected by Admin role (localhost bypasses auth for dev convenience). The dashboard exposes job history, parameters, and retry controls — sufficient for a self-hosted admin tool. If you want to restrict it further (e.g. internal network only), block it at the reverse proxy: `location /hangfire { deny all; }`. ObjeX's current jobs carry no sensitive parameters; take care if you add jobs that do.
+
 Content Security Policy (CSP) is not yet set — Blazor Server requires inline scripts and a `ws://` WebSocket connection for SignalR, making a safe policy non-trivial. Deferred to a future hardening pass.
 
 **CORS:** ObjeX allows any origin (`AllowAnyOrigin`). This is intentional for self-hosted use where the origin isn't known upfront. Browsers block `AllowAnyOrigin` + `AllowCredentials` simultaneously, so cookie sessions are safe. If you add `AllowCredentials()` in the future, you must also restrict to explicit origins — the wildcard + credentials combination is rejected by browsers and would need to be replaced.
