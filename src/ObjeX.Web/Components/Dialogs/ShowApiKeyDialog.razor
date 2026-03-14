@@ -1,6 +1,6 @@
 @inject DialogService DialogService
 
-<RadzenStack Gap="1rem">
+<RadzenStack Gap="1rem" @onkeydown="@(e => { if (e.Key is "Enter" or "Escape") DialogService.Close(null); })" tabindex="-1">
     <RadzenText TextStyle="TextStyle.Body1">
         Copy your new API key now — it won't be shown again.
     </RadzenText>
