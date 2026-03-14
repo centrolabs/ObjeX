@@ -1,39 +1,98 @@
 @page "/"
 @using ObjeX.Core.Interfaces
+@using ObjeX.Core.Models
 @implements IDisposable
 @inject IMetadataService MetadataService
 
 <PageTitle>Dashboard</PageTitle>
 
 <RadzenStack Gap="1.5rem">
-    <RadzenText TextStyle="TextStyle.H4">Dashboard</RadzenText>
+    <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center"
+                 JustifyContent="JustifyContent.SpaceBetween">
+        <RadzenText TextStyle="TextStyle.H4">Dashboard</RadzenText>
+        <RadzenText TextStyle="TextStyle.Caption" Style="color:var(--rz-text-secondary-color)">
+            Updated @_lastUpdated.ToString("HH:mm:ss")
+        </RadzenText>
+    </RadzenStack>
 
     <RadzenStack Orientation="Orientation.Horizontal" Gap="1rem">
-        <RadzenCard Style="flex: 1">
+        <RadzenCard Style="flex:1">
             <RadzenStack Gap="0.25rem">
                 <RadzenText TextStyle="TextStyle.Overline">Total Buckets</RadzenText>
-                <RadzenText TextStyle="TextStyle.H3">@_bucketCount</RadzenText>
+                <RadzenText TextStyle="TextStyle.H3">@_buckets.Count</RadzenText>
             </RadzenStack>
         </RadzenCard>
-        <RadzenCard Style="flex: 1">
+        <RadzenCard Style="flex:1">
             <RadzenStack Gap="0.25rem">
                 <RadzenText TextStyle="TextStyle.Overline">Total Objects</RadzenText>
-                <RadzenText TextStyle="TextStyle.H3">@_objectCount</RadzenText>
+                <RadzenText TextStyle="TextStyle.H3">@_totalObjects.ToString("N0")</RadzenText>
             </RadzenStack>
         </RadzenCard>
-        <RadzenCard Style="flex: 1">
+        <RadzenCard Style="flex:1">
             <RadzenStack Gap="0.25rem">
                 <RadzenText TextStyle="TextStyle.Overline">Storage Used</RadzenText>
-                <RadzenText TextStyle="TextStyle.H3">@_storageUsed</RadzenText>
+                <RadzenText TextStyle="TextStyle.H3">@FileHelper.FormatBytes(_totalSize)</RadzenText>
+            </RadzenStack>
+        </RadzenCard>
+        <RadzenCard Style="flex:1">
+            <RadzenStack Gap="0.25rem">
+                <RadzenText TextStyle="TextStyle.Overline">Avg Object Size</RadzenText>
+                <RadzenText TextStyle="TextStyle.H3">@(_totalObjects > 0 ? FileHelper.FormatBytes(_totalSize / _totalObjects) : "—")</RadzenText>
             </RadzenStack>
         </RadzenCard>
     </RadzenStack>
+
+    @if (_buckets.Count > 0)
+    {
+        <RadzenCard>
+            <RadzenStack Gap="1rem">
+                <RadzenText TextStyle="TextStyle.H6">Buckets</RadzenText>
+                <RadzenDataGrid Data="@_buckets" TItem="Bucket" AllowSorting="true">
+                    <Columns>
+                        <RadzenDataGridColumn TItem="Bucket" Property="Name" Title="Name">
+                            <Template Context="b">
+                                <a href="/buckets/@b.Name" style="color:var(--rz-primary);text-decoration:none">@b.Name</a>
+                            </Template>
+                        </RadzenDataGridColumn>
+                        <RadzenDataGridColumn TItem="Bucket" Property="ObjectCount" Title="Objects">
+                            <Template Context="b">@b.ObjectCount.ToString("N0")</Template>
+                        </RadzenDataGridColumn>
+                        <RadzenDataGridColumn TItem="Bucket" Property="TotalSize" Title="Size">
+                            <Template Context="b">@FileHelper.FormatBytes(b.TotalSize)</Template>
+                        </RadzenDataGridColumn>
+                        <RadzenDataGridColumn TItem="Bucket" Title="Share" Sortable="false">
+                            <Template Context="b">
+                                @if (_totalSize > 0)
+                                {
+                                    var pct = (double)b.TotalSize / _totalSize * 100;
+                                    <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
+                                        <div style="flex:1;background:var(--rz-base-300);border-radius:4px;height:6px;overflow:hidden">
+                                            <div style="width:@(pct.ToString("F1"))%;background:var(--rz-primary);height:100%"></div>
+                                        </div>
+                                        <span style="min-width:3rem;text-align:right;font-size:0.8rem">@pct.ToString("F1")%</span>
+                                    </RadzenStack>
+                                }
+                            </Template>
+                        </RadzenDataGridColumn>
+                        <RadzenDataGridColumn TItem="Bucket" Property="CreatedAt" Title="Created">
+                            <Template Context="b">@b.CreatedAt.ToString("yyyy-MM-dd")</Template>
+                        </RadzenDataGridColumn>
+                    </Columns>
+                </RadzenDataGrid>
+            </RadzenStack>
+        </RadzenCard>
+    }
 </RadzenStack>
 
+<style>
+    .rz-data-grid-data td { height: 44px !important; padding-top: 0 !important; padding-bottom: 0 !important; }
+</style>
+
 @code {
-    int _bucketCount;
-    long _objectCount;
-    string _storageUsed = "0 B";
+    List<Bucket> _buckets = [];
+    long _totalObjects;
+    long _totalSize;
+    DateTime _lastUpdated = DateTime.Now;
     Timer? _timer;
 
     protected override async Task OnInitializedAsync()
@@ -48,16 +107,10 @@
 
     async Task LoadStats()
     {
-        var buckets = (await MetadataService.ListBucketsAsync()).ToList();
-        _bucketCount = buckets.Count;
-        _objectCount = 0;
-        long totalSize = 0;
-        foreach (var b in buckets)
-        {
-            _objectCount += b.ObjectCount;
-            totalSize += b.TotalSize;
-        }
-        _storageUsed = FileHelper.FormatBytes(totalSize);
+        _buckets = (await MetadataService.ListBucketsAsync()).OrderByDescending(b => b.TotalSize).ToList();
+        _totalObjects = _buckets.Sum(b => b.ObjectCount);
+        _totalSize = _buckets.Sum(b => b.TotalSize);
+        _lastUpdated = DateTime.Now;
     }
 
     public void Dispose() => _timer?.Dispose();
