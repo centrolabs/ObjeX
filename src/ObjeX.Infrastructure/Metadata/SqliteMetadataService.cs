@@ -82,11 +82,31 @@ public class SqliteMetadataService(ObjeXDbContext ctx) : IMetadataService
             .FirstOrDefaultAsync(o => o.BucketName == bucketName && o.Key == key, ctk);
     }
 
-    public async Task<IEnumerable<BlobObject>> ListObjectsAsync(string bucketName, CancellationToken ctk = default)
+    public async Task<ListObjectsResult> ListObjectsAsync(string bucketName, string? prefix = null, string? delimiter = null, CancellationToken ctk = default)
     {
-        return await ctx.BlobObjects
-            .Where(o => o.BucketName == bucketName)
-            .ToListAsync(ctk);
+        var query = ctx.BlobObjects.Where(o => o.BucketName == bucketName);
+        if (!string.IsNullOrEmpty(prefix))
+            query = query.Where(o => o.Key.StartsWith(prefix));
+
+        var allMatching = await query.ToListAsync(ctk);
+
+        if (string.IsNullOrEmpty(delimiter))
+            return new ListObjectsResult(allMatching, []);
+
+        var objects = new List<BlobObject>();
+        var commonPrefixes = new HashSet<string>();
+
+        foreach (var obj in allMatching)
+        {
+            var suffix = string.IsNullOrEmpty(prefix) ? obj.Key : obj.Key[prefix.Length..];
+            var delimIdx = suffix.IndexOf(delimiter, StringComparison.Ordinal);
+            if (delimIdx < 0)
+                objects.Add(obj);
+            else
+                commonPrefixes.Add((prefix ?? string.Empty) + suffix[..(delimIdx + delimiter.Length)]);
+        }
+
+        return new ListObjectsResult(objects, commonPrefixes.Order());
     }
 
     public async Task<IEnumerable<BlobObject>> ListAllObjectsAsync(CancellationToken ctk = default)

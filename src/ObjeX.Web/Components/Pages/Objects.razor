@@ -12,39 +12,92 @@
 <RadzenStack Gap="1rem">
     <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" JustifyContent="JustifyContent.SpaceBetween">
         <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
-            <RadzenLink Path="/buckets" Text="Buckets" />
-            <RadzenText>/ @BucketName</RadzenText>
+            <a href="/buckets" style="color:var(--rz-primary);text-decoration:none">Buckets</a>
+            <RadzenText>/</RadzenText>
+            <span style="color:var(--rz-primary);cursor:pointer" @onclick="@(() => NavigateToPrefix(string.Empty))">@BucketName</span>
+            @foreach (var (segment, prefixUpTo) in GetBreadcrumbSegments())
+            {
+                <RadzenText>/</RadzenText>
+                var upTo = prefixUpTo;
+                <span style="color:var(--rz-primary);cursor:pointer" @onclick="@(() => NavigateToPrefix(upTo))">@segment</span>
+            }
         </RadzenStack>
-        <RadzenButton Text="@(_uploading ? "Uploading..." : "Upload")" Icon="upload"
-                      ButtonStyle="ButtonStyle.Primary" Disabled="@(_uploading || !_bucketExists)"
-                      Click="@OnUploadClick" />
+        <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem">
+            <RadzenButton Text="New Folder" Icon="create_new_folder"
+                          ButtonStyle="ButtonStyle.Light" Disabled="@(!_bucketExists)"
+                          Click="@OnNewFolderClick" />
+            <RadzenButton Text="@(_uploading ? "Uploading..." : "Upload")" Icon="upload"
+                          ButtonStyle="ButtonStyle.Primary" Disabled="@(_uploading || !_bucketExists)"
+                          Click="@OnUploadClick" />
+        </RadzenStack>
     </RadzenStack>
 
-    <RadzenDataGrid Data="@_objects" TItem="BlobObject" AllowSorting="true" EmptyText="No objects in this bucket.">
+    <div class="objects-grid">
+    <RadzenDataGrid Data="@_rows" TItem="ListRow" AllowSorting="true" EmptyText="No objects in this bucket.">
         <Columns>
-            <RadzenDataGridColumn TItem="BlobObject" Property="Key" Title="Key" />
-            <RadzenDataGridColumn TItem="BlobObject" Property="ContentType" Title="Content Type" />
-            <RadzenDataGridColumn TItem="BlobObject" Property="Size" Title="Size">
-                <Template Context="obj">@FileHelper.FormatBytes(obj.Size)</Template>
+            <RadzenDataGridColumn TItem="ListRow" Title="Name">
+                <Template Context="row">
+                    @if (row.IsFolder)
+                    {
+                        <span style="color:var(--rz-primary);cursor:pointer" @onclick="@(() => NavigateToPrefix(row.FolderPath!))">@row.Name</span>
+                    }
+                    else
+                    {
+                        @row.Name
+                    }
+                </Template>
             </RadzenDataGridColumn>
-            <RadzenDataGridColumn TItem="BlobObject" Property="CreatedAt" Title="Uploaded" FormatString="{0:yyyy-MM-dd HH:mm}" />
-            <RadzenDataGridColumn TItem="BlobObject" Title="" Width="120px" Sortable="false">
-                <Template Context="obj">
-                    <a href="/api/objects/@BucketName/@obj.Key" download="@obj.Key">
-                        <RadzenButton Icon="download" ButtonStyle="ButtonStyle.Primary" Variant="Variant.Text" />
-                    </a>
-                    <RadzenButton Icon="delete" ButtonStyle="ButtonStyle.Danger" Variant="Variant.Text"
-                                  Click="@(() => OnDeleteObject(obj))" />
+            <RadzenDataGridColumn TItem="ListRow" Title="Content Type">
+                <Template Context="row">@(row.IsFolder ? "" : row.Object!.ContentType)</Template>
+            </RadzenDataGridColumn>
+            <RadzenDataGridColumn TItem="ListRow" Title="Size">
+                <Template Context="row">@(row.IsFolder ? "" : FileHelper.FormatBytes(row.Object!.Size))</Template>
+            </RadzenDataGridColumn>
+            <RadzenDataGridColumn TItem="ListRow" Title="Uploaded">
+                <Template Context="row">@(row.IsFolder ? "" : row.Object!.CreatedAt.ToString("yyyy-MM-dd HH:mm"))</Template>
+            </RadzenDataGridColumn>
+            <RadzenDataGridColumn TItem="ListRow" Title="" Width="120px" Sortable="false">
+                <Template Context="row">
+                    @if (row.IsFolder)
+                    {
+                        <a href="/api/objects/@BucketName/download?prefix=@row.FolderPath" download="@(row.Name[..^1]).zip">
+                            <RadzenButton Icon="download" ButtonStyle="ButtonStyle.Primary" Variant="Variant.Text" />
+                        </a>
+                        <RadzenButton Icon="delete" ButtonStyle="ButtonStyle.Danger" Variant="Variant.Text"
+                                      Click="@(() => OnDeleteFolder(row.FolderPath!))" />
+                    }
+                    else
+                    {
+                        <a href="/api/objects/@BucketName/@row.Object!.Key" download="@row.Object!.Key">
+                            <RadzenButton Icon="download" ButtonStyle="ButtonStyle.Primary" Variant="Variant.Text" />
+                        </a>
+                        <RadzenButton Icon="delete" ButtonStyle="ButtonStyle.Danger" Variant="Variant.Text"
+                                      Click="@(() => OnDeleteObject(row.Object!))" />
+                    }
                 </Template>
             </RadzenDataGridColumn>
         </Columns>
     </RadzenDataGrid>
+    </div>
 </RadzenStack>
+
+<style>
+    .objects-grid .rz-data-grid-data td {
+        height: 44px !important;
+        padding-top: 0 !important;
+        padding-bottom: 0 !important;
+    }
+</style>
 
 @code {
     [Parameter] public string BucketName { get; set; } = string.Empty;
 
+    record ListRow(string Name, bool IsFolder, string? FolderPath = null, BlobObject? Object = null);
+
+    List<ListRow> _rows = [];
     List<BlobObject> _objects = [];
+    List<string> _folders = [];
+    string _currentPrefix = string.Empty;
     bool _uploading;
     bool _bucketExists = true;
 
@@ -59,8 +112,58 @@
 
     async Task LoadObjects()
     {
-        var result = await MetadataService.ListObjectsAsync(BucketName);
-        _objects = result.ToList();
+        var result = await MetadataService.ListObjectsAsync(
+            BucketName,
+            prefix: string.IsNullOrEmpty(_currentPrefix) ? null : _currentPrefix,
+            delimiter: "/");
+        _objects = result.Objects.ToList();
+        _folders = result.CommonPrefixes.ToList();
+        _rows = [
+            .._folders.Select(f => new ListRow(f[_currentPrefix.Length..].TrimEnd('/') + "/", true, f)),
+            .._objects.Where(o => !o.Key.EndsWith("/")).Select(o => new ListRow(o.Key[_currentPrefix.Length..], false, Object: o))
+        ];
+    }
+
+    async Task NavigateToPrefix(string prefix)
+    {
+        _currentPrefix = prefix;
+        await LoadObjects();
+    }
+
+    IEnumerable<(string Segment, string PrefixUpTo)> GetBreadcrumbSegments()
+    {
+        if (string.IsNullOrEmpty(_currentPrefix)) yield break;
+        var parts = _currentPrefix.TrimEnd('/').Split('/');
+        for (var i = 0; i < parts.Length; i++)
+            yield return (parts[i], string.Join("/", parts[..(i + 1)]) + "/");
+    }
+
+    async Task OnNewFolderClick()
+    {
+        var name = await DialogService.OpenAsync<Dialogs.CreateFolderDialog>("New Folder");
+        if (name is not string folderName || string.IsNullOrWhiteSpace(folderName)) return;
+
+        var key = _currentPrefix + folderName.Trim('/') + "/";
+        try
+        {
+            await using var empty = new MemoryStream();
+            await using var hashingStream = new Core.Utilities.HashingStream(empty);
+            var storagePath = await StorageService.StoreAsync(BucketName, key, hashingStream);
+            await MetadataService.SaveObjectAsync(new BlobObject
+            {
+                BucketName = BucketName,
+                Key = key,
+                Size = 0,
+                ContentType = "application/x-directory",
+                ETag = hashingStream.GetETag(),
+                StoragePath = storagePath
+            });
+            await LoadObjects();
+        }
+        catch (Exception ex)
+        {
+            NotificationService.Notify(NotificationSeverity.Error, "Failed to create folder", ex.Message);
+        }
     }
 
     async Task OnUploadClick()
@@ -79,18 +182,19 @@
 
         foreach (var file in selectedFiles)
         {
+            var key = _currentPrefix + file.Name;
             string? storagePath = null;
             try
             {
                 using var ms = new MemoryStream(file.Data);
                 await using var hashingStream = new Core.Utilities.HashingStream(ms);
-                storagePath = await StorageService.StoreAsync(BucketName, file.Name, hashingStream);
+                storagePath = await StorageService.StoreAsync(BucketName, key, hashingStream);
                 var etag = hashingStream.GetETag();
 
                 await MetadataService.SaveObjectAsync(new BlobObject
                 {
                     BucketName = BucketName,
-                    Key = file.Name,
+                    Key = key,
                     Size = file.Size,
                     ContentType = file.ContentType,
                     ETag = etag,
@@ -100,7 +204,7 @@
             catch (Exception ex)
             {
                 if (storagePath is not null)
-                    await StorageService.DeleteAsync(BucketName, file.Name);
+                    await StorageService.DeleteAsync(BucketName, key);
                 errors.Add($"{file.Name}: {ex.Message}");
             }
         }
@@ -113,6 +217,33 @@
         else
             foreach (var err in errors)
                 NotificationService.Notify(NotificationSeverity.Error, "Upload failed", err);
+    }
+
+    async Task OnDeleteFolder(string folderPath)
+    {
+        var confirmed = await DialogService.Confirm(
+            $"Delete \"{folderPath.TrimEnd('/')}\" and all its contents?",
+            "Delete Folder",
+            new ConfirmOptions { OkButtonText = "Delete", CancelButtonText = "Cancel", CloseDialogOnOverlayClick = true });
+
+        if (confirmed != true) return;
+
+        try
+        {
+            var result = await MetadataService.ListObjectsAsync(BucketName, prefix: folderPath, delimiter: null);
+            var all = result.Objects.ToList();
+            foreach (var obj in all)
+            {
+                await StorageService.DeleteAsync(BucketName, obj.Key);
+                await MetadataService.DeleteObjectAsync(BucketName, obj.Key);
+            }
+            await LoadObjects();
+            NotificationService.Notify(NotificationSeverity.Success, "Folder deleted", folderPath.TrimEnd('/'));
+        }
+        catch (Exception ex)
+        {
+            NotificationService.Notify(NotificationSeverity.Error, "Failed to delete folder", ex.Message);
+        }
     }
 
     async Task OnDeleteObject(BlobObject obj)
