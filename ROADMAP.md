@@ -170,6 +170,9 @@
 
 ## Future Considerations
 
+- Backup tooling — `export` / `restore` CLI commands; scheduled backup to local path or remote (S3, rclone)
+- Metadata rebuild from disk — currently impossible; would require storing the logical key alongside the blob (e.g. in a sidecar file or blob header), then scanning blobs to reconstruct `objex.db` after total DB loss
+- Hangfire on separate SQLite file — reduces lock contention between job store and EF Core under write-heavy load
 - OAuth / SSO (Google, GitHub, OIDC)
 - Content-based search (Elasticsearch integration)
 - Image recognition / auto-tagging (ML)

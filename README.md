@@ -243,6 +243,92 @@ Override via `appsettings.json` or environment variables:
 
 > ⚠️ Change default admin credentials before exposing the instance publicly.
 
+### SQLite Limitations
+
+SQLite is the right choice for single-node homelab use — zero config, no separate process, trivially backed up with `cp`. It becomes a bottleneck in specific scenarios:
+
+**What works fine:**
+- Personal or small-team use (handful of concurrent users)
+- Bursty uploads — SQLite handles short write spikes well in WAL mode
+- Read-heavy workloads — WAL mode allows concurrent readers with no lock contention
+
+**What to watch out for:**
+- **Sustained concurrent writes** — Hangfire polls every few seconds while EF Core writes on every upload/delete/key rotation. Under heavy parallel upload bursts this can produce `SQLITE_BUSY` retries and degraded throughput
+- **Network filesystems** — do not host `objex.db` on NFS, SMB, or any network-mounted path. SQLite uses POSIX advisory locks which are unreliable over NFS and can cause silent database corruption
+- **Not benchmarked** — no formal throughput testing has been done. If you need numbers, run your own load test against your hardware
+
+**Architecture note:** Hangfire, EF Core (metadata + Identity), and the app all share one `objex.db` file. Separating Hangfire onto its own SQLite file or an in-memory store is a future improvement. For now, the weekly cleanup job is the only significant Hangfire write activity.
+
+**Upgrade path:** The `IMetadataService` interface is the only thing that needs a new implementation to swap SQLite for PostgreSQL. See roadmap.
+
+### Backup & Restore
+
+> **Current state:** no built-in backup tooling. Manual procedure only.
+
+#### What needs to be backed up
+
+ObjeX data lives in two places that must be backed up **together and consistently**:
+
+```
+data/
+├── db/objex.db     # SQLite — all metadata, user accounts, API keys, bucket definitions
+└── blobs/          # content-addressed blob files (SHA256-named .blob files)
+```
+
+The logical key → physical blob mapping exists **only in the database**. If you lose `objex.db` but keep the blobs, you have a directory of `a3f7c2....blob` files with no way to know which object each one represents. There is currently no tool to rebuild the index from disk.
+
+#### Docker (recommended setup)
+
+Data lives in a named Docker volume. To back it up:
+
+```bash
+# Stop the container first (ensures DB is not mid-write)
+docker compose stop objex
+
+# Copy the volume to a backup location
+docker run --rm \
+  -v objex_data:/data \
+  -v /your/backup/path:/backup \
+  alpine cp -a /data /backup/objex-$(date +%Y%m%d)
+
+# Restart
+docker compose start objex
+```
+
+Hot backup (without stopping) is possible using SQLite's online backup:
+```bash
+docker exec objex sqlite3 /data/db/objex.db ".backup /data/db/objex.db.bak"
+```
+Then copy the `.bak` file and the blobs. There is a small race window between the DB backup and the blob copy — any blobs written in that window will be orphaned and cleaned up by the weekly Hangfire GC job. No data loss, but a slightly inconsistent snapshot is possible.
+
+#### Bare metal / direct deploy
+
+```bash
+# Stop the app first
+pkill -f ObjeX.Api.dll
+
+cp -a ~/objex-live/data/ ~/backups/objex-$(date +%Y%m%d)/
+
+# Restart
+screen -dmS objex dotnet ~/objex-live/ObjeX.Api.dll --urls "http://0.0.0.0:8080"
+```
+
+#### Restore
+
+1. Stop the running instance
+2. Replace `data/` with the backup copy
+3. Start the instance — EF Core will validate the schema on startup
+4. Hit `/health/ready` to confirm DB connectivity and blob storage are both healthy
+5. Spot-check a few object downloads to verify blob integrity
+
+#### Consistency guarantees
+
+| Scenario | Outcome |
+|----------|---------|
+| DB newer than blobs | Object records exist with no backing blob → download returns 404 |
+| Blobs newer than DB | Orphaned blobs → cleaned up automatically by weekly Hangfire GC |
+| Both from same stopped snapshot | Fully consistent |
+
 ### Encryption
 
 ObjeX does not encrypt blobs or metadata at the application level. For data at rest, rely on full-disk encryption at the host (e.g. LUKS, BitLocker, or encrypted cloud volumes). For data in transit, run ObjeX behind a TLS-terminating reverse proxy (nginx, Caddy, Traefik).
