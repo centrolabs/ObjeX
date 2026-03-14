@@ -381,6 +381,7 @@ The logical key (e.g. `images/2024/photo.jpg`) lives in the database only.
 - [x] Dark mode with system preference detection (cookie-persisted, toggle in Settings)
 - [x] Atomic blob writes — write to `.tmp`, then `File.Move` into final path; stale `.tmp` cleanup on startup
 - [x] ETag computation (MD5) on upload
+- [x] `Content-Length` header on object downloads (enables progress bars and resumption)
 - [x] SQLite metadata store via EF Core (auto-migrated on startup)
 - [x] Content-addressable filesystem blob store (SHA256 hashed paths, 2-level nesting)
 - [x] Orphaned blob GC via Hangfire background job (weekly, results in dashboard)

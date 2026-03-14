@@ -49,15 +49,15 @@ public static class ObjectEndpoints
         objects.MapGet("/{*key}", async (
             string bucketName,
             string key,
+            HttpContext ctx,
             IMetadataService metadata,
             IObjectStorageService storage) =>
         {
             var obj = await metadata.GetObjectAsync(bucketName, key);
             if (obj is null)
-            {
                 return Results.NotFound(new { error = "Object not found" });
-            }
 
+            ctx.Response.Headers.ContentLength = obj.Size;
             var stream = await storage.RetrieveAsync(bucketName, key);
             return Results.File(stream, obj.ContentType, obj.Key);
         });
