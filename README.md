@@ -257,6 +257,8 @@ SQLite is the right choice for single-node homelab use — zero config, no separ
 - **Network filesystems** — do not host `objex.db` on NFS, SMB, or any network-mounted path. SQLite uses POSIX advisory locks which are unreliable over NFS and can cause silent database corruption
 - **Not benchmarked** — no formal throughput testing has been done. If you need numbers, run your own load test against your hardware
 
+**Multi-instance:** startup migration (`db.Database.Migrate()`) is not safe for concurrent multi-instance deployments — if two processes start simultaneously, both race on schema migration. SQLite's file lock serializes this in practice but it's not a guarantee. ObjeX is single-node by design; if you ever run multiple instances, extract migrations into a dedicated pre-start step.
+
 **Architecture note:** Hangfire, EF Core (metadata + Identity), and the app all share one `objex.db` file. Separating Hangfire onto its own SQLite file or an in-memory store is a future improvement. For now, the weekly cleanup job is the only significant Hangfire write activity.
 
 **Upgrade path:** The `IMetadataService` interface is the only thing that needs a new implementation to swap SQLite for PostgreSQL. See roadmap.
