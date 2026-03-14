@@ -1,4 +1,5 @@
 using System.IO.Compression;
+using System.Security.Claims;
 
 using ObjeX.Core.Interfaces;
 using ObjeX.Core.Models;
@@ -65,17 +66,17 @@ public static class ObjectEndpoints
         objects.MapDelete("/{*key}", async (
             string bucketName,
             string key,
+            HttpContext ctx,
             IMetadataService metadata,
-            IObjectStorageService storage) =>
+            IObjectStorageService storage,
+            ILogger<BlobObject> logger) =>
         {
             if (!await metadata.ExistsObjectAsync(bucketName, key))
-            {
                 return Results.NotFound(new { error = "Object not found" });
-            }
 
             await storage.DeleteAsync(bucketName, key);
             await metadata.DeleteObjectAsync(bucketName, key);
-
+            logger.LogInformation("Object deleted: {Bucket}/{Key} by {UserId}", bucketName, key, ctx.User.FindFirstValue(ClaimTypes.NameIdentifier));
             return Results.NoContent();
         });
 

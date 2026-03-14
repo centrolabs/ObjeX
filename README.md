@@ -399,6 +399,7 @@ The logical key (e.g. `images/2024/photo.jpg`) lives in the database only.
 - [x] Scalar interactive API docs at `/scalar/v1`
 - [x] Health checks — `/health/live` (liveness) and `/health/ready` (readiness: DB + blob storage)
 - [x] Serilog structured logging + request logging
+- [x] Security audit logs — failed logins, invalid/expired API keys, object/bucket deletes, API key create/delete
 - [x] Response compression
 
 ---
