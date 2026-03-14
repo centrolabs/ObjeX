@@ -134,20 +134,27 @@
 
 ## Phase 4 — Multi-User & Permissions
 
-### 8. User Management UI
+### 8. Storage Quotas
+- `User.StorageUsedBytes` is tracked but not enforced — decorative until quota enforcement is wired in
+- Add `StorageQuotaBytes` to `User` model (nullable = unlimited)
+- Check `StorageUsedBytes + incomingSize > StorageQuotaBytes` before accepting upload — return 413 with clear message
+- Admin UI to set per-user quota
+- Verify `StorageUsedBytes` is correctly updated on upload and delete before enforcing
+
+### 10. User Management UI
 - Identity backend already implemented (User model, roles, password hashing)
 - Registration page
 - Admin user list (view, deactivate, role assignment)
 - Password reset flow (requires real email sender — currently `NoOpEmailSender`)
 - Email verification
 
-### 9. Bucket Permissions
+### 11. Bucket Permissions
 - Per-bucket access control list (ACL)
 - Read / Write / Delete permissions per user
 - Permission management UI (admin)
 - Permission checks enforced in all API endpoints
 
-### 10. Teams & Organizations
+### 12. Teams & Organizations
 - Multi-tenant support with organization workspaces
 - Team membership (Owner / Admin / Member roles)
 - Per-organization storage quotas
