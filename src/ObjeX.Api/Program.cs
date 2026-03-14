@@ -194,6 +194,16 @@ app.UseWhen(
     branch => branch.UseStatusCodePagesWithReExecute("/not-found"));
 app.UseStaticFiles();
 app.UseCors();
+app.Use(async (ctx, next) =>
+{
+    ctx.Response.Headers["X-Content-Type-Options"] = "nosniff";
+    ctx.Response.Headers["X-Frame-Options"] = "DENY";
+    ctx.Response.Headers["X-Permitted-Cross-Domain-Policies"] = "none";
+    ctx.Response.Headers["Referrer-Policy"] = "strict-origin-when-cross-origin";
+    if (!app.Environment.IsDevelopment())
+        ctx.Response.Headers["Strict-Transport-Security"] = "max-age=63072000; includeSubDomains";
+    await next();
+});
 app.UseAuthentication();
 app.UseMiddleware<ApiKeyAuthenticationMiddleware>();
 app.UseAuthorization();

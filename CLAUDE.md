@@ -56,10 +56,27 @@ Both are supported simultaneously. The cookie is the default for the browser; AP
 ### Middleware Pipeline Order
 
 ```
+UseStaticFiles
+UseCors
+app.Use(...)               ← security headers (X-Content-Type-Options, X-Frame-Options, etc.)
 UseAuthentication          ← runs Identity cookie handler, sets context.User for cookie sessions
 UseMiddleware<ApiKeyAuthenticationMiddleware>  ← if not already authed, checks X-API-Key header
 UseAuthorization           ← enforces policies on the already-resolved context.User
 ```
+
+### HTTP Security Headers
+
+Set in a raw `app.Use` middleware in `Program.cs` (after `UseCors`, before auth):
+
+| Header | Value | Condition |
+|--------|-------|-----------|
+| `X-Content-Type-Options` | `nosniff` | always |
+| `X-Frame-Options` | `DENY` | always |
+| `X-Permitted-Cross-Domain-Policies` | `none` | always |
+| `Referrer-Policy` | `strict-origin-when-cross-origin` | always |
+| `Strict-Transport-Security` | `max-age=63072000; includeSubDomains` | non-dev only |
+
+CSP is intentionally omitted — Blazor Server requires inline scripts and a SignalR WebSocket (`ws://`/`wss://`), making a safe policy non-trivial. Deferred.
 
 `ApiKeyAuthenticationMiddleware` (`ObjeX.Api/Middleware/`) short-circuits if `context.User.Identity.IsAuthenticated` is already true (cookie session takes precedence). Otherwise, it looks up the key in `db.ApiKeys`, validates expiry, updates `LastUsedAt`, and sets `context.User` to a `ClaimsIdentity` with scheme `"ApiKey"`.
 
