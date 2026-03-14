@@ -242,6 +242,10 @@ Override via `appsettings.json` or environment variables:
 
 > ⚠️ Change default admin credentials before exposing the instance publicly.
 
+### Encryption
+
+ObjeX does not encrypt blobs or metadata at the application level. For data at rest, rely on full-disk encryption at the host (e.g. LUKS, BitLocker, or encrypted cloud volumes). For data in transit, run ObjeX behind a TLS-terminating reverse proxy (nginx, Caddy, Traefik).
+
 ### Blob Layout on Disk
 
 Blobs use **content-addressable hashed paths** — the physical filename is a SHA256 hash of `"{bucketName}/{key}"`, spread across a 2-level directory tree:
