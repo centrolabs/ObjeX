@@ -7,6 +7,7 @@
 @inject DialogService DialogService
 @inject NotificationService NotificationService
 @inject NavigationManager Navigation
+@inject IConfiguration Configuration
 
 <PageTitle>@BucketName — ObjeX</PageTitle>
 
@@ -61,7 +62,7 @@
                 <Template Context="row">
                     @if (row.IsFolder)
                     {
-                        <a href="/api/objects/@BucketName/download?prefix=@row.FolderPath" download="@(row.Name[..^1]).zip">
+                        <a href="/api/objects/@BucketName/download?prefix=@row.FolderPath" download="@(row.Name[..^1]).zip" target="_blank">
                             <RadzenButton Icon="download" ButtonStyle="ButtonStyle.Primary" Variant="Variant.Text" />
                         </a>
                         <RadzenButton Icon="delete" ButtonStyle="ButtonStyle.Danger" Variant="Variant.Text"
@@ -69,7 +70,7 @@
                     }
                     else
                     {
-                        <a href="/api/objects/@BucketName/@row.Object!.Key" download="@row.Object!.Key">
+                        <a href="@($"{_s3Url}/{BucketName}/{row.Object!.Key}?download=true")" target="_blank">
                             <RadzenButton Icon="download" ButtonStyle="ButtonStyle.Primary" Variant="Variant.Text" />
                         </a>
                         <RadzenButton Icon="delete" ButtonStyle="ButtonStyle.Danger" Variant="Variant.Text"
@@ -92,6 +93,7 @@
 
 @code {
     [Parameter] public string BucketName { get; set; } = string.Empty;
+    string _s3Url => Configuration["S3:PublicUrl"] ?? "http://localhost:9000";
     [SupplyParameterFromQuery(Name = "prefix")] public string? PrefixParam { get; set; }
 
     record ListRow(string Name, bool IsFolder, string? FolderPath = null, BlobObject? Object = null);

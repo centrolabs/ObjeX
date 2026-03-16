@@ -15,6 +15,7 @@ using ObjeX.Infrastructure.Metadata;
 using ObjeX.Infrastructure.Storage;
 using ObjeX.Web.Components;
 using ObjeX.Api.Endpoints;
+using ObjeX.Api.Endpoints.S3Endpoints;
 using ObjeX.Api.Middleware;
 using ObjeX.Core.Models;
 
@@ -319,9 +320,16 @@ app.MapRazorComponents<App>()
 
 app.MapControllers();
 
-app.MapBucketEndpoints().RequireAuthorization("ApiPolicy");
-app.MapObjectEndpoints().RequireAuthorization("ApiPolicy");
 app.MapApiKeyEndpoints().RequireAuthorization("ApiPolicy");
+
+app.MapDownloadEndpoints().RequireAuthorization("ApiPolicy");
+
+// S3 Endpoints — single shared group, port 9000 only
+// TODO: replace AllowAnonymous with S3 Sig V4 auth when implemented
+var s3Group = app.MapGroup("/").RequireHost("*:9000").WithTags("S3").AllowAnonymous();
+app.MapS3BucketEndpoints(s3Group);
+app.MapS3ObjectEndpoints(s3Group);
+
 app.MapIdentityApi<User>();
 
 app.MapAccountEndpoints();
