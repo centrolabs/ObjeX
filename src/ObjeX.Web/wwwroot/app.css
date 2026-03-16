@@ -5,11 +5,9 @@
 @font-face { font-family: 'Inter'; src: url('fonts/inter-600.ttf') format('truetype'); font-weight: 600; font-display: swap; }
 @font-face { font-family: 'Inter'; src: url('fonts/inter-700.ttf') format('truetype'); font-weight: 700; font-display: swap; }
 
-/* Inter font */
-:root { --rz-body-font-family: 'Inter', sans-serif; }
-*:not(.material-icons):not(.material-icons-outlined):not([class*="rz-icon"]):not(i) {
-    font-family: 'Inter', sans-serif !important;
-}
+/* Inter font — Radzen Material reads --rz-text-font-family for all component text */
+:root { --rz-text-font-family: 'Inter', sans-serif; }
+body { font-family: 'Inter', sans-serif; }
 
 /* ObjeX teal primary — applies to both light and dark */
 :root {
