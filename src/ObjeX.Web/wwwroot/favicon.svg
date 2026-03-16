@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200"><rect width="200" height="200" rx="38" fill="#0D1117"></rect><path d="M52,72 L66,148 Q100,162 134,148 L148,72 Z" fill="#0F766E"></path><ellipse cx="100" cy="72" rx="48" ry="13" fill="#14B8A6"></ellipse><ellipse cx="100" cy="72" rx="48" ry="13" fill="none" stroke="#5EEAD4" stroke-width="1.5" opacity="0.5"></ellipse><ellipse cx="100" cy="148" rx="34" ry="8" fill="#0D9488" opacity="0.7"></ellipse><g transform="translate(68,48)">
+    <polygon points="11,0 22,6 11,12 0,6" fill="#2DD4BF"></polygon>
+    <polygon points="22,6 22,20 11,26 11,12" fill="#0F8F7A"></polygon>
+    <polygon points="0,6 11,12 11,26 0,20" fill="#0A6658"></polygon>
+  </g><g transform="translate(89,40)">
+    <polygon points="11,0 22,6 11,12 0,6" fill="#5EEAD4"></polygon>
+    <polygon points="22,6 22,20 11,26 11,12" fill="#14B8A6"></polygon>
+    <polygon points="0,6 11,12 11,26 0,20" fill="#0D9488"></polygon>
+  </g><g transform="translate(110,46)">
+    <polygon points="11,0 22,6 11,12 0,6" fill="#2DD4BF"></polygon>
+    <polygon points="22,6 22,20 11,26 11,12" fill="#0F8F7A"></polygon>
+    <polygon points="0,6 11,12 11,26 0,20" fill="#0A6658"></polygon>
+  </g><circle cx="148" cy="48" r="6" fill="#2DD4BF" opacity="0.55"></circle><circle cx="158" cy="62" r="3.5" fill="#2DD4BF" opacity="0.32"></circle></svg>

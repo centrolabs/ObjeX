@@ -1,3 +1,5 @@
+<img src="src/ObjeX.Web/wwwroot/favicon.svg" width="48" alt="ObjeX" />
+
 # ObjeX - Self-Hosted Blob Storage
 
 **Goal**: Self-hostable, open-source blob storage with S3-compatible API
