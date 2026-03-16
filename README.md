@@ -16,13 +16,13 @@ cd ObjeX/src/ObjeX.Api
 dotnet run
 ```
 
-Open **http://localhost:8080** — log in with `admin` / `admin`.
+Open **http://localhost:9001** — log in with `admin` / `admin`.
 
-- **Blazor UI**: http://localhost:8080
-- **API docs (Scalar)**: http://localhost:8080/scalar/v1
-- **Job dashboard**: http://localhost:8080/hangfire
-- **Health check**: http://localhost:8080/health (liveness)
-- **Health check (readiness)**: http://localhost:8080/health/ready
+- **Blazor UI**: http://localhost:9001
+- **API docs (Scalar)**: http://localhost:9001/scalar/v1
+- **Job dashboard**: http://localhost:9001/hangfire
+- **Health check**: http://localhost:9001/health (liveness)
+- **Health check (readiness)**: http://localhost:9001/health/ready
 
 > ⚠️ Change the default admin credentials before exposing the instance publicly. Set `DefaultAdmin:Username`, `DefaultAdmin:Email`, and `DefaultAdmin:Password` in `appsettings.json` or environment variables.
 
@@ -40,11 +40,11 @@ Create a key in the Settings page (`/settings`) or via the API:
 
 ```bash
 # 1. Log in to get a session cookie
-curl -c cookies.txt -X POST http://localhost:8080/account/login \
+curl -c cookies.txt -X POST http://localhost:9001/account/login \
   -d "login=admin&password=admin"
 
 # 2. Create an API key
-curl -b cookies.txt -X POST http://localhost:8080/api/keys \
+curl -b cookies.txt -X POST http://localhost:9001/api/keys \
   -H "Content-Type: application/json" \
   -d '{"name":"my-key","expiresInDays":365}'
 # → {"key":"obx_...","name":"my-key","expiresAt":"..."}
@@ -57,36 +57,36 @@ export OBX_KEY="obx_..."
 
 ```bash
 # Create a bucket
-curl -X POST "http://localhost:8080/api/buckets?name=my-bucket" \
+curl -X POST "http://localhost:9001/api/buckets?name=my-bucket" \
   -H "X-API-Key: $OBX_KEY"
 
 # Upload an object
-curl -X PUT http://localhost:8080/api/objects/my-bucket/hello.txt \
+curl -X PUT http://localhost:9001/api/objects/my-bucket/hello.txt \
   -H "X-API-Key: $OBX_KEY" \
   --data-binary "Hello, ObjeX!"
 
 # Download it
-curl http://localhost:8080/api/objects/my-bucket/hello.txt \
+curl http://localhost:9001/api/objects/my-bucket/hello.txt \
   -H "X-API-Key: $OBX_KEY"
 
 # List objects (flat)
-curl http://localhost:8080/api/objects/my-bucket/ \
+curl http://localhost:9001/api/objects/my-bucket/ \
   -H "X-API-Key: $OBX_KEY"
 
 # List objects with virtual folder navigation
-curl "http://localhost:8080/api/objects/my-bucket/?prefix=images/&delimiter=/" \
+curl "http://localhost:9001/api/objects/my-bucket/?prefix=images/&delimiter=/" \
   -H "X-API-Key: $OBX_KEY"
 
 # Download a folder as ZIP
-curl "http://localhost:8080/api/objects/my-bucket/download?prefix=images/" \
+curl "http://localhost:9001/api/objects/my-bucket/download?prefix=images/" \
   -H "X-API-Key: $OBX_KEY" -o images.zip
 
 # Delete an object
-curl -X DELETE http://localhost:8080/api/objects/my-bucket/hello.txt \
+curl -X DELETE http://localhost:9001/api/objects/my-bucket/hello.txt \
   -H "X-API-Key: $OBX_KEY"
 
 # Delete a bucket
-curl -X DELETE http://localhost:8080/api/buckets/my-bucket \
+curl -X DELETE http://localhost:9001/api/buckets/my-bucket \
   -H "X-API-Key: $OBX_KEY"
 ```
 
@@ -224,7 +224,8 @@ No config required for local dev. Defaults (from `appsettings.json`):
 
 | Setting | Default |
 |---------|---------|
-| Port | `http://localhost:8080` |
+| UI / API port | `9001` |
+| S3 API port | `9000` (reserved, not yet implemented) |
 | Database | `./data/db/objex.db` (relative to working directory) |
 | Blob storage | `./data/blobs` (relative to working directory) |
 | Log files | `./data/logs/objex-YYYYMMDD.log` — daily rolling, 30 days retention, compact JSON |
@@ -328,7 +329,7 @@ pkill -f ObjeX.Api.dll
 cp -a ~/objex/data/ ~/backups/objex-$(date +%Y%m%d)/
 
 # Restart
-dotnet ~/objex/ObjeX.Api.dll --urls "http://0.0.0.0:8080"
+dotnet ~/objex/ObjeX.Api.dll --urls "http://0.0.0.0:9001"
 ```
 
 #### Restore

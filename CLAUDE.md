@@ -420,10 +420,10 @@ GET    /scalar/v1         → interactive API docs (require auth)
 ```bash
 cd src/ObjeX.Api
 dotnet run
-# → http://localhost:8080  (login: admin / admin)
-# → http://localhost:8080/scalar/v1  (API docs)
-# → http://localhost:8080/hangfire   (job dashboard)
-# → http://localhost:8080/health
+# → http://localhost:9001  (login: admin / admin)
+# → http://localhost:9001/scalar/v1  (API docs)
+# → http://localhost:9001/hangfire   (job dashboard)
+# → http://localhost:9001/health
 ```
 
 ## EF Migrations

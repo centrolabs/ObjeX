@@ -12,9 +12,10 @@ FROM mcr.microsoft.com/dotnet/aspnet:10.0
 WORKDIR /app
 RUN mkdir -p /data/db /data/blobs
 COPY --from=build /app/publish .
-ENV ASPNETCORE_URLS=http://+:8080
+ENV ASPNETCORE_URLS=http://+:9001
 ENV ConnectionStrings__DefaultConnection="Data Source=/data/db/objex.db"
 ENV Storage__BasePath="/data/blobs"
 VOLUME ["/data"]
-EXPOSE 8080
+EXPOSE 9001
+EXPOSE 9000
 ENTRYPOINT ["dotnet", "ObjeX.Api.dll"]
