@@ -31,6 +31,8 @@ builder.WebHost.ConfigureKestrel(o =>
 {
     o.Limits.MaxRequestBodySize = maxUploadBytes;
     o.AddServerHeader = false; // don't leak "Server: Kestrel"
+    o.ListenAnyIP(9001); // UI 
+    o.ListenAnyIP(9000); // S3-compatible API
 });
 
 builder.Services.AddScoped<IMetadataService, SqliteMetadataService>();
