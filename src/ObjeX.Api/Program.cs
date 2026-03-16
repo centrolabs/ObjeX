@@ -249,7 +249,7 @@ using (var scope = app.Services.CreateScope())
 
 app.UseWhen(
     ctx => !ctx.Request.Path.StartsWithSegments("/api"),
-    branch => branch.UseStatusCodePagesWithReExecute("/not-found"));
+    branch => branch.UseStatusCodePagesWithRedirects("/not-found"));
 app.UseStaticFiles();
 app.UseCors();
 app.UseRateLimiter();
