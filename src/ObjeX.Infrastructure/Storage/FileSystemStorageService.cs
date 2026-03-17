@@ -48,7 +48,7 @@ public class FileSystemStorageService : IObjectStorageService
 
     public async Task<string> StoreAsync(string bucketName, string key, Stream data, CancellationToken ctk = default)
     {
-        var filePath = GetSafePath(bucketName, key);
+        var filePath = AssertWithinBasePath(GetSafePath(bucketName, key));
         var tmpPath = filePath + ".tmp";
         Directory.CreateDirectory(Path.GetDirectoryName(filePath)!);
 
@@ -70,7 +70,7 @@ public class FileSystemStorageService : IObjectStorageService
 
     public async Task<Stream> RetrieveAsync(string bucketName, string key, CancellationToken ctk = default)
     {
-        var filePath = GetSafePath(bucketName, key);
+        var filePath = AssertWithinBasePath(GetSafePath(bucketName, key));
 
         if (!File.Exists(filePath))
             throw new FileNotFoundException($"Object not found: {bucketName}/{key}");
@@ -80,7 +80,7 @@ public class FileSystemStorageService : IObjectStorageService
 
     public Task DeleteAsync(string bucketName, string key, CancellationToken ctk = default)
     {
-        var filePath = GetSafePath(bucketName, key);
+        var filePath = AssertWithinBasePath(GetSafePath(bucketName, key));
 
         if (File.Exists(filePath))
             File.Delete(filePath);
@@ -89,11 +89,11 @@ public class FileSystemStorageService : IObjectStorageService
     }
 
     public Task<bool> ExistsAsync(string bucketName, string key, CancellationToken ctk = default) =>
-        Task.FromResult(File.Exists(GetSafePath(bucketName, key)));
+        Task.FromResult(File.Exists(AssertWithinBasePath(GetSafePath(bucketName, key))));
 
     public Task<long> GetSizeAsync(string bucketName, string key, CancellationToken ctk = default)
     {
-        var filePath = GetSafePath(bucketName, key);
+        var filePath = AssertWithinBasePath(GetSafePath(bucketName, key));
 
         if (!File.Exists(filePath))
             return Task.FromResult(0L);
@@ -107,12 +107,16 @@ public class FileSystemStorageService : IObjectStorageService
     // TODO: Future — content-based deduplication: hash the file bytes instead of bucket+key,
     //       store once, reference via a content-addressed path, and track ref-counts in metadata.
 
-    private string GetSafePath(string bucketName, string key)
+    private string GetSafePath(string bucketName, string key) =>
+        GetFilePath(bucketName, key);
+
+    private string AssertWithinBasePath(string filePath)
     {
-        var filePath = GetFilePath(bucketName, key);
-        if (!Path.GetFullPath(filePath).StartsWith(Path.GetFullPath(BasePath) + Path.DirectorySeparatorChar, StringComparison.Ordinal))
-            throw new InvalidOperationException("Computed blob path escapes storage root.");
-        return filePath;
+        var resolved = Path.GetFullPath(filePath);
+        var baseResolved = Path.GetFullPath(BasePath) + Path.DirectorySeparatorChar;
+        if (!resolved.StartsWith(baseResolved, StringComparison.Ordinal))
+            throw new InvalidOperationException($"Path escapes storage root: {resolved}");
+        return resolved;
     }
 
     private string GetFilePath(string bucketName, string key)
