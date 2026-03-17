@@ -33,9 +33,11 @@ public class SigV4AuthMiddleware(RequestDelegate next, ILogger<SigV4AuthMiddlewa
             .AsNoTracking()
             .FirstOrDefaultAsync(c => c.AccessKeyId == parsed.AccessKeyId, context.RequestAborted);
 
+        var safeKeyId = parsed.AccessKeyId.Replace("\r", "").Replace("\n", "");
+
         if (credential is null)
         {
-            logger.LogWarning("SigV4: unknown AccessKeyId {KeyId}", parsed.AccessKeyId);
+            logger.LogWarning("SigV4: unknown AccessKeyId {KeyId}", safeKeyId);
             await WriteError(context, S3Errors.InvalidAccessKeyId,
                 "The AWS access key Id you provided does not exist.", 403);
             return;
@@ -55,13 +57,13 @@ public class SigV4AuthMiddleware(RequestDelegate next, ILogger<SigV4AuthMiddlewa
 
         if (!valid)
         {
-            logger.LogWarning("SigV4: signature mismatch for {KeyId}", parsed.AccessKeyId);
+            logger.LogWarning("SigV4: signature mismatch for {KeyId}", safeKeyId);
             logger.LogDebug(
                 "SigV4 mismatch details for {KeyId}\n" +
                 "=== Canonical Request ===\n{CR}\n" +
                 "=== String to Sign ===\n{STS}\n" +
                 "=== Expected: {Expected}  Got: {Got}",
-                parsed.AccessKeyId,
+                safeKeyId,
                 diag!.CanonicalRequest,
                 diag.StringToSign,
                 diag.ExpectedSignature,
@@ -76,7 +78,7 @@ public class SigV4AuthMiddleware(RequestDelegate next, ILogger<SigV4AuthMiddlewa
 
         if (!await VerifyPayloadHashAsync(context.Request))
         {
-            logger.LogWarning("SigV4: payload hash mismatch for {KeyId}", parsed.AccessKeyId);
+            logger.LogWarning("SigV4: payload hash mismatch for {KeyId}", safeKeyId);
             await WriteError(context, S3Errors.SignatureDoesNotMatch,
                 "The payload hash does not match x-amz-content-sha256.", 400);
             return;

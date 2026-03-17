@@ -26,7 +26,8 @@ public static class AccountEndpoints
                     return Results.Redirect(string.IsNullOrEmpty(returnUrl) ? "/" : returnUrl);
             }
 
-            logger.LogWarning("Failed login attempt for {Login} from {IP}", login, ip);
+            var sanitizedLogin = login.Replace("\r", "").Replace("\n", "");
+            logger.LogWarning("Failed login attempt for {Login} from {IP}", sanitizedLogin, ip);
 
             var qs = $"error=1&login={Uri.EscapeDataString(login)}";
             if (!string.IsNullOrEmpty(returnUrl)) qs += $"&returnUrl={Uri.EscapeDataString(returnUrl)}";
