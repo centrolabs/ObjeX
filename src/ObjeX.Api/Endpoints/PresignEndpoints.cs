@@ -24,7 +24,10 @@ public static class PresignEndpoints
             if (credential is null)
                 return Results.BadRequest(new { error = "No S3 credential found. Create one in Settings." });
 
-            var expiresSeconds = Math.Clamp(expires ?? 3600, 1, 604800);
+            var settings       = await db.SystemSettings.FindAsync(1);
+            var defaultExpiry  = settings?.PresignedUrlDefaultExpirySeconds ?? 3600;
+            var maxExpiry      = settings?.PresignedUrlMaxExpirySeconds ?? 604800;
+            var expiresSeconds = Math.Clamp(expires ?? defaultExpiry, 1, maxExpiry);
             var s3BaseUrl = config["S3:PublicUrl"] ?? "http://localhost:9000";
 
             var url = PresignedUrlGenerator.Generate(

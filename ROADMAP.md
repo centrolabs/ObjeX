@@ -106,11 +106,15 @@
 - [x] Range request support — `enableRangeProcessing: true` fixes AWS CLI parallel downloads
 - [x] Weekly Hangfire job cleans abandoned uploads older than 7 days (`CleanupAbandonedMultipartJob`)
 
-### 4. Presigned URLs
-- HMAC-SHA256 signed URLs with expiry
-- Expiry enforcement on every request
-- Support both download (GET) and upload (PUT) URLs
-- Share link generation in Blazor UI
+### 4. Presigned URLs ✅
+- [x] HMAC-SHA256 signed GET URLs with configurable expiry
+- [x] Expiry enforcement on every request (`X-Amz-Expires` in `SigV4AuthMiddleware`)
+- [x] `PresignedUrlGenerator` in `ObjeX.Core.Utilities` — pure BCL, usable from both Api and Web
+- [x] `GET /api/presign/{bucket}/{*key}?expires=N` endpoint (cookie auth, port 9001)
+- [x] Copy-link button in Blazor UI — opens duration picker dialog, copies URL to clipboard
+- [x] Duration picker: quick-select chips + custom number/unit input, live expiry preview
+- [x] Default and max expiry configurable via `S3:PresignedUrlDefaultExpirySeconds` / `S3:PresignedUrlMaxExpirySeconds`
+- [ ] PUT presigned URLs (direct browser upload without credentials) — deferred
 
 ---
 

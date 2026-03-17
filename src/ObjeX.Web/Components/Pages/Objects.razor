@@ -299,13 +299,30 @@
             return;
         }
 
+        var settings      = await Db.SystemSettings.FindAsync(1);
+        var defaultExpiry = settings?.PresignedUrlDefaultExpirySeconds ?? 3600;
+        var maxExpiry     = settings?.PresignedUrlMaxExpirySeconds ?? 604800;
+
+        var result = await DialogService.OpenAsync<Dialogs.PresignedUrlDialog>(
+            "Share Link",
+            new Dictionary<string, object?>
+            {
+                { "DefaultSeconds", defaultExpiry },
+                { "MaxSeconds",     maxExpiry },
+            },
+            new DialogOptions { Width = "440px", CloseDialogOnOverlayClick = true });
+
+        if (result is not int expiresSeconds) return;
+
         var s3BaseUrl = Configuration["S3:PublicUrl"] ?? "http://localhost:9000";
         var url = PresignedUrlGenerator.Generate(
             s3BaseUrl, BucketName, obj.Key,
             credential.AccessKeyId, credential.SecretAccessKey,
-            expiresSeconds: 3600);
+            expiresSeconds);
 
         await JS.InvokeVoidAsync("navigator.clipboard.writeText", url);
-        NotificationService.Notify(NotificationSeverity.Success, "Link copied", "Valid for 1 hour.");
+
+        var expiresAt = DateTime.Now.AddSeconds(expiresSeconds);
+        NotificationService.Notify(NotificationSeverity.Success, "Link copied", $"Expires at {expiresAt:HH:mm:ss}");
     }
 }

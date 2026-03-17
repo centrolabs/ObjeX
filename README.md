@@ -95,11 +95,16 @@ Exposed on a dedicated port for drop-in compatibility with S3 clients (`aws-cli`
 | `PUT` | `/{bucket}` | Create bucket |
 | `DELETE` | `/{bucket}` | Delete bucket |
 | `PUT` | `/{bucket}/{*key}` | Upload object |
-| `GET` | `/{bucket}/{*key}` | Download object (`?download=true` forces attachment) |
+| `PUT` | `/{bucket}/{*key}?partNumber=N&uploadId=X` | Upload part (multipart) |
+| `GET` | `/{bucket}/{*key}` | Download object (`?download=true` forces attachment); Range requests supported |
+| `GET` | `/{bucket}/{*key}?uploadId=X` | List parts |
 | `HEAD` | `/{bucket}/{*key}` | Object metadata |
 | `DELETE` | `/{bucket}/{*key}` | Delete object |
+| `DELETE` | `/{bucket}/{*key}?uploadId=X` | Abort multipart upload |
+| `POST` | `/{bucket}/{*key}?uploads` | Initiate multipart upload |
+| `POST` | `/{bucket}/{*key}?uploadId=X` | Complete multipart upload |
 
-Configure `S3:PublicUrl` in `appsettings.json` (default `http://localhost:9000`) — used by the Blazor UI to build download links.
+Configure `S3:PublicUrl` in `appsettings.json` (default `http://localhost:9000`) — used by presigned URL generation and the Blazor UI.
 
 ---
 
@@ -118,6 +123,8 @@ No config required for local dev. Defaults (from `appsettings.json`):
 | Auto-migrate | `true` — set `Database:AutoMigrate=false` to disable startup migrations |
 | Max upload size | unlimited — set `Storage:MaxUploadBytes` (bytes) to cap per-upload size |
 | Min free disk | `524288000` (500MB) — uploads rejected with 507 if free space drops below this; override via `Storage:MinimumFreeDiskBytes` |
+| Presigned URL default expiry | `3600` seconds (1 hour) — configurable in **Settings → Presigned URLs** |
+| Presigned URL max expiry | `604800` seconds (7 days) — configurable in **Settings → Presigned URLs**; hard cap enforced server-side |
 | Admin username | `admin` |
 | Admin email | `admin@objex.local` |
 | Admin password | `admin` |

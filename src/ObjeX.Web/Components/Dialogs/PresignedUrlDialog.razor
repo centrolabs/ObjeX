@@ -1,0 +1,147 @@
+@inject DialogService DialogService
+
+<RadzenStack Gap="1rem" @onkeydown="OnKeyDown" tabindex="-1">
+
+    @* Quick-select chips *@
+    <RadzenStack Orientation="Orientation.Horizontal" Gap="0.35rem" Style="flex-wrap:wrap">
+        @foreach (var preset in _presets)
+        {
+            var p = preset;
+            var active = _value == p.Value && _unit == p.Unit;
+            <span class="presign-chip @(active ? "presign-chip--active" : "")"
+                  @onclick="@(() => ApplyPreset(p))">@p.Label</span>
+        }
+    </RadzenStack>
+
+    @* Custom input *@
+    <RadzenStack Orientation="Orientation.Horizontal" Gap="0.75rem" AlignItems="AlignItems.Start">
+        <RadzenFormField Text="Duration" Style="flex:1">
+            <input type="number" min="1" @oninput="OnValueInput"
+                   value="@_value"
+                   class="rz-textbox no-spinner"
+                   style="width:100%" />
+        </RadzenFormField>
+        <RadzenFormField Text="Unit" Style="flex:1">
+            <RadzenDropDown @bind-Value="_unit" Data="_units"
+                            TextProperty="@nameof(TimeUnit.Label)"
+                            ValueProperty="@nameof(TimeUnit.Id)"
+                            Change="@(_ => Validate())"
+                            Style="width:100%" />
+        </RadzenFormField>
+    </RadzenStack>
+
+    @if (_error is not null)
+    {
+        <RadzenText TextStyle="TextStyle.Caption" Style="color:var(--rz-danger)">@_error</RadzenText>
+    }
+    else
+    {
+        <RadzenText TextStyle="TextStyle.Caption" Style="color:var(--rz-text-secondary-color)">
+            Expires at: @DateTime.Now.AddSeconds(TotalSeconds).ToString("yyyy-MM-dd HH:mm:ss")
+        </RadzenText>
+    }
+
+    <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.End" Gap="0.5rem">
+        <RadzenButton Text="Cancel" ButtonStyle="ButtonStyle.Light" Click="@(() => DialogService.Close(null))" />
+        <RadzenButton Text="Copy Link" ButtonStyle="ButtonStyle.Primary"
+                      Disabled="@(_error is not null || _value < 1)"
+                      Click="@(() => DialogService.Close(TotalSeconds))" />
+    </RadzenStack>
+
+</RadzenStack>
+
+<style>
+    .presign-chip {
+        display: inline-flex;
+        align-items: center;
+        padding: 0.25rem 0.7rem;
+        border-radius: 9999px;
+        font-size: 0.8rem;
+        font-weight: 500;
+        cursor: pointer;
+        border: 1px solid var(--rz-border-disabled-color);
+        background: transparent;
+        color: var(--rz-text-secondary-color);
+        transition: background 0.15s, color 0.15s, border-color 0.15s;
+        user-select: none;
+    }
+    .presign-chip:hover {
+        border-color: var(--rz-primary);
+        color: var(--rz-primary);
+    }
+    .presign-chip--active {
+        background: var(--rz-primary);
+        border-color: var(--rz-primary);
+        color: #fff;
+    }
+    /* Hide browser number input spinners */
+    .no-spinner::-webkit-outer-spin-button,
+    .no-spinner::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+    .no-spinner { -moz-appearance: textfield; }
+</style>
+
+@code {
+    [Parameter] public int DefaultSeconds { get; set; } = 3600;
+    [Parameter] public int MaxSeconds { get; set; } = 604800;
+
+    int _value = 1;
+    string _unit = "hours";
+    string? _error;
+
+    record TimeUnit(string Id, string Label, int Multiplier);
+    record Preset(string Label, int Value, string Unit);
+
+    static readonly List<TimeUnit> _units =
+    [
+        new("minutes", "Minutes", 60),
+        new("hours",   "Hours",   3600),
+        new("days",    "Days",    86400),
+    ];
+
+    static readonly List<Preset> _presets =
+    [
+        new("15 min",  15, "minutes"),
+        new("1 h",      1, "hours"),
+        new("6 h",      6, "hours"),
+        new("24 h",     24, "hours"),
+        new("3 d",      3, "days"),
+        new("7 d",      7, "days"),
+    ];
+
+    int TotalSeconds => _value * (_units.First(u => u.Id == _unit).Multiplier);
+
+    protected override void OnInitialized()
+    {
+        if (DefaultSeconds % 86400 == 0)      { _value = DefaultSeconds / 86400; _unit = "days"; }
+        else if (DefaultSeconds % 3600 == 0)  { _value = DefaultSeconds / 3600;  _unit = "hours"; }
+        else                                  { _value = DefaultSeconds / 60;    _unit = "minutes"; }
+        Validate();
+    }
+
+    void OnValueInput(ChangeEventArgs e)
+    {
+        _value = int.TryParse(e.Value?.ToString(), out var v) ? v : 0;
+        Validate();
+    }
+
+    void ApplyPreset(Preset p)
+    {
+        _value = p.Value;
+        _unit  = p.Unit;
+        Validate();
+    }
+
+    void Validate()
+    {
+        if (_value < 1)           { _error = "Duration must be at least 1."; return; }
+        if (TotalSeconds > MaxSeconds) { _error = $"Maximum is {MaxSeconds / 86400} days."; return; }
+        _error = null;
+    }
+
+    void OnKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Escape") DialogService.Close(null);
+        if (e.Key == "Enter" && _error is null && _value >= 1)
+            DialogService.Close(TotalSeconds);
+    }
+}

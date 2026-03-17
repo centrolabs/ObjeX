@@ -28,6 +28,45 @@
 
     <RadzenCard>
         <RadzenStack Gap="1rem">
+            <RadzenText TextStyle="TextStyle.H6">Presigned URLs</RadzenText>
+            <RadzenStack Gap="0.75rem">
+                <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center"
+                             JustifyContent="JustifyContent.SpaceBetween">
+                    <RadzenText>Default expiry</RadzenText>
+                    <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" AlignItems="AlignItems.Center">
+                        <input type="number" min="1" @oninput="OnDefaultValueInput" value="@_defaultValue"
+                               class="rz-textbox no-spinner" style="width:72px;text-align:right" />
+                        <RadzenDropDown @bind-Value="_defaultUnit" Data="_units"
+                                        TextProperty="@nameof(TimeUnit.Label)" ValueProperty="@nameof(TimeUnit.Id)"
+                                        Change="@(_ => ValidatePresignSettings())" Style="width:110px" />
+                    </RadzenStack>
+                </RadzenStack>
+                <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center"
+                             JustifyContent="JustifyContent.SpaceBetween">
+                    <RadzenText>Maximum expiry</RadzenText>
+                    <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" AlignItems="AlignItems.Center">
+                        <input type="number" min="1" @oninput="OnMaxValueInput" value="@_maxValue"
+                               class="rz-textbox no-spinner" style="width:72px;text-align:right" />
+                        <RadzenDropDown @bind-Value="_maxUnit" Data="_units"
+                                        TextProperty="@nameof(TimeUnit.Label)" ValueProperty="@nameof(TimeUnit.Id)"
+                                        Change="@(_ => ValidatePresignSettings())" Style="width:110px" />
+                    </RadzenStack>
+                </RadzenStack>
+            </RadzenStack>
+            @if (_presignError is not null)
+            {
+                <RadzenText TextStyle="TextStyle.Caption" Style="color:var(--rz-danger)">@_presignError</RadzenText>
+            }
+            <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.End">
+                <RadzenButton Text="Save" ButtonStyle="ButtonStyle.Primary" Size="ButtonSize.Small"
+                              Disabled="@(_presignError is not null)"
+                              Click="SavePresignSettings" />
+            </RadzenStack>
+        </RadzenStack>
+    </RadzenCard>
+
+    <RadzenCard>
+        <RadzenStack Gap="1rem">
             <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center"
                          JustifyContent="JustifyContent.SpaceBetween">
                 <RadzenText TextStyle="TextStyle.H6">S3 Credentials</RadzenText>
@@ -73,16 +112,97 @@
     </RadzenCard>
 </RadzenStack>
 
+<style>
+    .no-spinner::-webkit-outer-spin-button,
+    .no-spinner::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+    .no-spinner { -moz-appearance: textfield; }
+</style>
+
 @code {
     bool _isDark;
     string _userId = string.Empty;
     List<S3Credential> _credentials = [];
+
+    // Presigned URL settings
+    int _defaultValue = 1;
+    string _defaultUnit = "hours";
+    int _maxValue = 7;
+    string _maxUnit = "days";
+    string? _presignError;
+
+    record TimeUnit(string Id, string Label, int Multiplier);
+    static readonly List<TimeUnit> _units =
+    [
+        new("minutes", "Minutes", 60),
+        new("hours",   "Hours",   3600),
+        new("days",    "Days",    86400),
+    ];
+
+    int DefaultSeconds => _defaultValue * _units.First(u => u.Id == _defaultUnit).Multiplier;
+    int MaxSeconds     => _maxValue     * _units.First(u => u.Id == _maxUnit).Multiplier;
 
     protected override async Task OnInitializedAsync()
     {
         var auth = await AuthStateProvider.GetAuthenticationStateAsync();
         _userId = auth.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? string.Empty;
         await LoadCredentials();
+        await LoadPresignSettings();
+    }
+
+    async Task LoadPresignSettings()
+    {
+        var settings = await Db.SystemSettings.FindAsync(1);
+        var defaultSec = settings?.PresignedUrlDefaultExpirySeconds ?? 3600;
+        var maxSec     = settings?.PresignedUrlMaxExpirySeconds ?? 604800;
+
+        (_defaultValue, _defaultUnit) = SecondsToValueUnit(defaultSec);
+        (_maxValue,     _maxUnit)     = SecondsToValueUnit(maxSec);
+    }
+
+    static (int Value, string Unit) SecondsToValueUnit(int seconds)
+    {
+        if (seconds % 86400 == 0) return (seconds / 86400, "days");
+        if (seconds % 3600  == 0) return (seconds / 3600,  "hours");
+        return (seconds / 60, "minutes");
+    }
+
+    void OnDefaultValueInput(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out var v) && v >= 1)
+            _defaultValue = v;
+        ValidatePresignSettings();
+    }
+
+    void OnMaxValueInput(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out var v) && v >= 1)
+            _maxValue = v;
+        ValidatePresignSettings();
+    }
+
+    void ValidatePresignSettings()
+    {
+        _presignError = DefaultSeconds > MaxSeconds
+            ? "Default expiry must not exceed the maximum expiry."
+            : null;
+    }
+
+    async Task SavePresignSettings()
+    {
+        ValidatePresignSettings();
+        if (_presignError is not null) return;
+
+        var settings = await Db.SystemSettings.FindAsync(1);
+        if (settings is null)
+        {
+            settings = new ObjeX.Core.Models.SystemSettings { Id = 1 };
+            Db.SystemSettings.Add(settings);
+        }
+        settings.PresignedUrlDefaultExpirySeconds = DefaultSeconds;
+        settings.PresignedUrlMaxExpirySeconds     = MaxSeconds;
+        await Db.SaveChangesAsync();
+
+        NotificationService.Notify(NotificationSeverity.Success, "Saved", "Presigned URL settings updated.");
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)

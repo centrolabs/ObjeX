@@ -12,6 +12,7 @@ public class ObjeXDbContext(DbContextOptions<ObjeXDbContext> options) : Identity
     public DbSet<S3Credential> S3Credentials { get; set; } = null!;
     public DbSet<MultipartUpload> MultipartUploads { get; set; } = null!;
     public DbSet<MultipartUploadPart> MultipartUploadParts { get; set; } = null!;
+    public DbSet<SystemSettings> SystemSettings { get; set; } = null!;
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -66,6 +67,13 @@ public class ObjeXDbContext(DbContextOptions<ObjeXDbContext> options) : Identity
                 .WithMany(u => u.Parts)
                 .HasForeignKey(e => e.UploadId)
                 .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<SystemSettings>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).ValueGeneratedNever();
+            entity.HasData(new SystemSettings { Id = 1 }); // seed default row
         });
     }
 }

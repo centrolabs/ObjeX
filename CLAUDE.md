@@ -402,6 +402,10 @@ POST   /{bucket}/{*key}?uploadId=X → CompleteMultipartUpload; assembles parts,
 # - CleanupAbandonedMultipartJob — weekly Hangfire job, deletes uploads older than 7 days
 # - UI single-file downloads use /api/objects/{bucket}/{*key}?download=true on port 9001 (cookie auth)
 # - ZIP downloads use /api/objects/{bucket}/download?prefix= on port 9001
+# - Presigned URL generation: GET /api/presign/{bucket}/{*key}?expires=N (port 9001, cookie auth)
+#   → PresignedUrlGenerator (ObjeX.Core/Utilities/) — pure BCL, no ASP.NET dependency
+#   → Expiry defaults/max: stored in SystemSettings DB row (Id=1); configurable via Settings UI — NOT via appsettings/env vars
+#   → UI: link icon button opens PresignedUrlDialog — chip presets + custom number/unit input, live expiry preview
 ```
 
 ---
@@ -459,7 +463,7 @@ dotnet ef database update  # or just run the app — auto-migrates
 2. ~~**Object listing with prefix/delimiter**~~ ✅ — virtual folder nav, New Folder, ZIP download, folder delete
 3. ~~**S3 Compatibility**~~ ✅ — `/{bucket}/{key}` routes, XML responses, AWS Sig V4, S3 error codes
 4. ~~**Multipart Upload**~~ ✅ — Initiate/UploadPart/Complete/Abort, part storage, multipart ETag, Range support, abandoned upload cleanup
-5. **Presigned URLs** — HMAC-SHA256 signed URLs, expiry enforcement, upload + download
+5. ~~**Presigned URLs**~~ ✅ — GET presigned URLs, configurable expiry, copy-link UI with duration picker
 6. ~~**Enhanced Blazor UI**~~ ✅ — folder nav, dark mode (system preference + cookie persistence)
 7. **Object Tags** — key-value tags, tag-based search, lifecycle/retention policies
 8. **User Management UI** — registration, user list, password reset (Identity backend already in place)
