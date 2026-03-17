@@ -49,7 +49,9 @@ public class FileSystemStorageService : IObjectStorageService
     public async Task<string> StoreAsync(string bucketName, string key, Stream data, CancellationToken ctk = default)
     {
         var filePath = GetFilePath(bucketName, key);
-        if (!Path.GetFullPath(filePath).StartsWith(Path.GetFullPath(BasePath) + Path.DirectorySeparatorChar, StringComparison.Ordinal))
+        var resolvedPath = Path.GetFullPath(filePath);
+        var resolvedBase = Path.GetFullPath(BasePath) + Path.DirectorySeparatorChar;
+        if (!resolvedPath.StartsWith(resolvedBase, StringComparison.Ordinal))
             throw new InvalidOperationException("Computed blob path escapes storage root.");
         var tmpPath = filePath + ".tmp";
         Directory.CreateDirectory(Path.GetDirectoryName(filePath)!);
