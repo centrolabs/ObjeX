@@ -66,7 +66,7 @@
                                     Change="@(v => { if (v) _selected.Add(row); else _selected.Remove(row); StateHasChanged(); })" />
                 </Template>
             </RadzenDataGridColumn>
-            <RadzenDataGridColumn TItem="ListRow" Title="Name">
+            <RadzenDataGridColumn TItem="ListRow" Title="Name" Property="Name">
                 <Template Context="row">
                     @if (row.IsFolder)
                     {
@@ -78,13 +78,13 @@
                     }
                 </Template>
             </RadzenDataGridColumn>
-            <RadzenDataGridColumn TItem="ListRow" Title="Content Type">
+            <RadzenDataGridColumn TItem="ListRow" Title="Content Type" Property="SortContentType">
                 <Template Context="row">@(row.IsFolder ? "" : row.Object!.ContentType)</Template>
             </RadzenDataGridColumn>
-            <RadzenDataGridColumn TItem="ListRow" Title="Size">
+            <RadzenDataGridColumn TItem="ListRow" Title="Size" Property="SortSize">
                 <Template Context="row">@(row.IsFolder ? "" : FileHelper.FormatBytes(row.Object!.Size))</Template>
             </RadzenDataGridColumn>
-            <RadzenDataGridColumn TItem="ListRow" Title="Uploaded">
+            <RadzenDataGridColumn TItem="ListRow" Title="Uploaded" Property="SortDate">
                 <Template Context="row">@(row.IsFolder ? "" : row.Object!.CreatedAt.ToString("yyyy-MM-dd HH:mm"))</Template>
             </RadzenDataGridColumn>
             <RadzenDataGridColumn TItem="ListRow" Title="" Width="240px" Sortable="false">
@@ -145,7 +145,12 @@
     [Parameter] public string BucketName { get; set; } = string.Empty;
     [SupplyParameterFromQuery(Name = "prefix")] public string? PrefixParam { get; set; }
 
-    record ListRow(string Name, bool IsFolder, string? FolderPath = null, BlobObject? Object = null);
+    record ListRow(string Name, bool IsFolder, string? FolderPath = null, BlobObject? Object = null)
+    {
+        public string SortContentType => Object?.ContentType ?? string.Empty;
+        public long   SortSize        => Object?.Size        ?? 0;
+        public DateTime SortDate      => Object?.CreatedAt   ?? DateTime.MinValue;
+    }
 
     List<ListRow> _rows = [];
     List<BlobObject> _objects = [];
