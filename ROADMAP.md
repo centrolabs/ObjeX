@@ -121,7 +121,7 @@
 ## Phase 3 — UI & Object Model Enhancements
 
 ### 5. Enhanced Blazor UI
-- Image and PDF inline previews
+- ~~Image and PDF inline previews~~ ✅ — eye button opens dialog; supports image, video, audio, PDF, text
 - Bulk select: delete multiple
 - Mobile-responsive layout
 - File metadata viewer (content-type, ETag, size, dates)
