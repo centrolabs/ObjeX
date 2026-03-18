@@ -122,7 +122,7 @@
 
 ### 5. Enhanced Blazor UI
 - ~~Image and PDF inline previews~~ ✅ — eye button opens dialog; supports image, video, audio, PDF, text
-- Bulk select: delete multiple
+- ~~Bulk select: delete multiple~~ ✅ — checkbox column, bulk delete + ZIP download, action bar
 - Mobile-responsive layout
 - File metadata viewer (content-type, ETag, size, dates)
 - Storage analytics charts (usage over time, per-bucket breakdown)

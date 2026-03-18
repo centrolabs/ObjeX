@@ -40,9 +40,32 @@
         </RadzenStack>
     </RadzenStack>
 
+    <RadzenCard Style="@($"padding:0.6rem 1rem;visibility:{(_selected.Count > 0 ? "visible" : "hidden")}")">
+        <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="1rem">
+            <RadzenText Style="color:var(--rz-text-secondary-color)">@_selected.Count selected</RadzenText>
+            <RadzenButton Text="Download ZIP" Icon="download" ButtonStyle="ButtonStyle.Primary"
+                          Size="ButtonSize.Small" Click="BulkDownload" />
+            <RadzenButton Text="Delete" Icon="delete" ButtonStyle="ButtonStyle.Danger"
+                          Size="ButtonSize.Small" Click="BulkDelete" />
+            <RadzenButton Text="Clear" Icon="close" ButtonStyle="ButtonStyle.Light"
+                          Size="ButtonSize.Small" Click="@(() => _selected.Clear())" />
+        </RadzenStack>
+    </RadzenCard>
+
     <div class="objects-grid" style="overflow-x:auto">
     <RadzenDataGrid Data="@_rows" TItem="ListRow" AllowSorting="true" EmptyText="No objects in this bucket.">
         <Columns>
+            <RadzenDataGridColumn TItem="ListRow" Width="48px" Sortable="false" Resizable="false">
+                <HeaderTemplate>
+                    <RadzenCheckBox TValue="bool"
+                                    Value="@(_rows.Count > 0 && _selected.Count == _rows.Count)"
+                                    Change="@(v => { if (v) _rows.ForEach(r => _selected.Add(r)); else _selected.Clear(); StateHasChanged(); })" />
+                </HeaderTemplate>
+                <Template Context="row">
+                    <RadzenCheckBox TValue="bool" Value="@_selected.Contains(row)"
+                                    Change="@(v => { if (v) _selected.Add(row); else _selected.Remove(row); StateHasChanged(); })" />
+                </Template>
+            </RadzenDataGridColumn>
             <RadzenDataGridColumn TItem="ListRow" Title="Name">
                 <Template Context="row">
                     @if (row.IsFolder)
@@ -66,19 +89,20 @@
             </RadzenDataGridColumn>
             <RadzenDataGridColumn TItem="ListRow" Title="" Width="200px" Sortable="false">
                 <Template Context="row">
+                    <div style="display:flex;align-items:center;justify-content:flex-end">
                     @if (row.IsFolder)
                     {
-                        <a href="/api/objects/@BucketName/download?prefix=@row.FolderPath" download="@(row.Name[..^1]).zip" target="_blank">
+                        <a href="/api/objects/@BucketName/download?prefix=@row.FolderPath" download="@(row.Name[..^1]).zip" target="_blank" style="display:flex">
                             <RadzenButton Icon="download" ButtonStyle="ButtonStyle.Primary" Variant="Variant.Text" />
                         </a>
-                        <RadzenButton Icon="link"       Variant="Variant.Text" style="visibility:hidden" />
-                        <RadzenButton Icon="visibility" Variant="Variant.Text" style="visibility:hidden" />
-                        <RadzenButton Icon="delete" ButtonStyle="ButtonStyle.Danger" Variant="Variant.Text"
+                        <RadzenButton Icon="link"       ButtonStyle="ButtonStyle.Secondary" Variant="Variant.Text" style="visibility:hidden" />
+                        <RadzenButton Icon="visibility" ButtonStyle="ButtonStyle.Light"     Variant="Variant.Text" style="visibility:hidden" />
+                        <RadzenButton Icon="delete"     ButtonStyle="ButtonStyle.Danger"    Variant="Variant.Text"
                                       Click="@(() => OnDeleteFolder(row.FolderPath!))" />
                     }
                     else
                     {
-                        <a href="@($"/api/objects/{BucketName}/{row.Object!.Key}?download=true")" download="@Path.GetFileName(row.Object!.Key)" target="_blank">
+                        <a href="@($"/api/objects/{BucketName}/{row.Object!.Key}?download=true")" download="@Path.GetFileName(row.Object!.Key)" target="_blank" style="display:flex">
                             <RadzenButton Icon="download" ButtonStyle="ButtonStyle.Primary" Variant="Variant.Text" />
                         </a>
                         <RadzenButton Icon="link" ButtonStyle="ButtonStyle.Secondary" Variant="Variant.Text"
@@ -92,11 +116,12 @@
                         }
                         else
                         {
-                            <RadzenButton Icon="visibility" Variant="Variant.Text" style="visibility:hidden" />
+                            <RadzenButton Icon="visibility" ButtonStyle="ButtonStyle.Light" Variant="Variant.Text" style="visibility:hidden" />
                         }
                         <RadzenButton Icon="delete" ButtonStyle="ButtonStyle.Danger" Variant="Variant.Text"
                                       Click="@(() => OnDeleteObject(row.Object!))" />
                     }
+                    </div>
                 </Template>
             </RadzenDataGridColumn>
         </Columns>
@@ -121,6 +146,7 @@
     List<ListRow> _rows = [];
     List<BlobObject> _objects = [];
     List<string> _folders = [];
+    HashSet<ListRow> _selected = [];
     string _currentPrefix = string.Empty;
     bool _uploading;
     bool _bucketExists = true;
@@ -151,6 +177,7 @@
 
     async Task NavigateToPrefix(string prefix)
     {
+        _selected.Clear();
         _currentPrefix = prefix;
         var url = string.IsNullOrEmpty(prefix)
             ? $"/buckets/{BucketName}"
@@ -294,6 +321,73 @@
         {
             NotificationService.Notify(NotificationSeverity.Error, "Failed to delete object", ex.Message);
         }
+    }
+
+    async Task BulkDelete()
+    {
+        var count = _selected.Count;
+        var confirmed = await DialogService.Confirm(
+            $"Delete {count} selected item(s)? This cannot be undone.",
+            "Delete Selected",
+            new ConfirmOptions { OkButtonText = "Delete", CancelButtonText = "Cancel", CloseDialogOnOverlayClick = true });
+
+        if (confirmed != true) return;
+
+        var errors = new List<string>();
+        foreach (var row in _selected.ToList())
+        {
+            try
+            {
+                if (row.IsFolder)
+                {
+                    var result = await MetadataService.ListObjectsAsync(BucketName, prefix: row.FolderPath!, delimiter: null);
+                    foreach (var obj in result.Objects)
+                    {
+                        await StorageService.DeleteAsync(BucketName, obj.Key);
+                        await MetadataService.DeleteObjectAsync(BucketName, obj.Key);
+                    }
+                }
+                else
+                {
+                    await MetadataService.DeleteObjectAsync(BucketName, row.Object!.Key);
+                }
+            }
+            catch (Exception ex) { errors.Add(ex.Message); }
+        }
+
+        _selected.Clear();
+        await LoadObjects();
+
+        if (errors.Count == 0)
+            NotificationService.Notify(NotificationSeverity.Success, "Deleted", $"{count} item(s) deleted.");
+        else
+            foreach (var err in errors)
+                NotificationService.Notify(NotificationSeverity.Error, "Delete failed", err);
+    }
+
+    async Task BulkDownload()
+    {
+        var allKeys = new List<string>();
+
+        foreach (var row in _selected)
+        {
+            if (row.IsFolder)
+            {
+                var result = await MetadataService.ListObjectsAsync(BucketName, prefix: row.FolderPath!, delimiter: null);
+                allKeys.AddRange(result.Objects.Where(o => !o.Key.EndsWith("/")).Select(o => o.Key));
+            }
+            else
+            {
+                allKeys.Add(row.Object!.Key);
+            }
+        }
+
+        if (allKeys.Count == 0) return;
+
+        var query = string.Join("&", allKeys.Select(k => $"keys={Uri.EscapeDataString(k)}"));
+        var url = $"/api/objects/{BucketName}/download?{query}";
+        await JS.InvokeVoidAsync("eval", $"var a=document.createElement('a');a.href='{url}';a.download='selection.zip';document.body.appendChild(a);a.click();document.body.removeChild(a);");
+        _selected.Clear();
     }
 
     static bool IsPreviewable(string contentType) =>

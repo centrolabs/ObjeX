@@ -27,14 +27,29 @@ public static class DownloadEndpoints
                 enableRangeProcessing: true);
         }).RequireAuthorization();
 
-        // ZIP download of a folder/bucket
-        app.MapGet("/api/objects/{bucketName}/download", async (string bucketName, string? prefix, IMetadataService metadata, IObjectStorageService storage) =>
+        // ZIP download — folder/bucket via ?prefix=, or specific files via ?keys=a&keys=b
+        app.MapGet("/api/objects/{bucketName}/download", async (
+            string bucketName, string? prefix, string[]? keys,
+            IMetadataService metadata, IObjectStorageService storage) =>
         {
             if (!await metadata.ExistsBucketAsync(bucketName))
                 return Results.NotFound();
 
-            var result = await metadata.ListObjectsAsync(bucketName, prefix, delimiter: null);
-            var files = result.Objects.Where(o => !o.Key.EndsWith("/")).ToList();
+            List<ObjeX.Core.Models.BlobObject> files;
+            string zipName;
+
+            if (keys is { Length: > 0 })
+            {
+                var objects = await Task.WhenAll(keys.Select(k => metadata.GetObjectAsync(bucketName, k)));
+                files = objects.Where(o => o is not null && !o.Key.EndsWith("/")).Select(o => o!).ToList();
+                zipName = "selection.zip";
+            }
+            else
+            {
+                var result = await metadata.ListObjectsAsync(bucketName, prefix, delimiter: null);
+                files = result.Objects.Where(o => !o.Key.EndsWith("/")).ToList();
+                zipName = string.IsNullOrEmpty(prefix) ? $"{bucketName}.zip" : $"{prefix.TrimEnd('/')}.zip";
+            }
 
             var ms = new MemoryStream();
             using (var zip = new ZipArchive(ms, ZipArchiveMode.Create, leaveOpen: true))
@@ -49,7 +64,6 @@ public static class DownloadEndpoints
             }
             ms.Position = 0;
 
-            var zipName = string.IsNullOrEmpty(prefix) ? $"{bucketName}.zip" : $"{prefix.TrimEnd('/')}.zip";
             return Results.File(ms, "application/zip", zipName);
         }).RequireAuthorization();
     }
