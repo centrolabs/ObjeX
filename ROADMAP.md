@@ -22,7 +22,7 @@
 
 ### Blazor UI ✅
 - Radzen Blazor component library, Inter font (self-hosted), teal brand theme via CSS variable overrides
-- **Dashboard** (`/`) — total buckets, object count, storage used (10s auto-refresh)
+- **Dashboard** (`/`) — stat cards (buckets, objects, storage, avg size), storage/objects/file-type charts with tooltips, bucket table with share bars (10s auto-refresh)
 - **Buckets page** (`/buckets`) — list all buckets, create (with inline name validation), delete with confirmation
 - **Bucket detail / file browser** (`/buckets/{name}`) — virtual folder nav, breadcrumb, upload into current folder, per-object download (via S3 port 9000), delete, ZIP download
 - **Drag-and-drop upload dialog** — multi-file picker, streams files to `IObjectStorageService` directly from Blazor (no API round-trip)
@@ -125,7 +125,7 @@
 - ~~Bulk select: delete multiple~~ ✅ — checkbox column, bulk delete + ZIP download, action bar
 - Mobile-responsive layout
 - ~~File metadata viewer (content-type, ETag, size, dates)~~ ✅ — info button opens dialog with key, content-type, size, ETag, uploaded, last modified
-- Storage analytics charts (usage over time, per-bucket breakdown)
+- ~~Storage analytics charts (per-bucket breakdown: storage donut, objects column, file types donut — top-N limits, custom tooltips)~~ ✅ — usage over time deferred (requires historical data)
 - ~~Folder navigation~~ ✅, ~~Dark mode~~ ✅, ~~ZIP download~~ ✅
 
 ### 6. Object Metadata & Tags

@@ -59,9 +59,12 @@
         <RadzenStack Orientation="Orientation.Horizontal" Gap="1rem" Style="flex-wrap:wrap">
             <RadzenCard Style="flex:1;min-width:260px;overflow:visible">
                 <RadzenStack Gap="0.75rem">
-                    <RadzenText TextStyle="TextStyle.H6">Storage by Bucket</RadzenText>
+                    <RadzenStack Gap="0.1rem">
+                        <RadzenText TextStyle="TextStyle.H6">Storage by Bucket</RadzenText>
+                        <RadzenText TextStyle="TextStyle.Caption" Style="color:var(--rz-text-secondary-color)">Top 5 by size</RadzenText>
+                    </RadzenStack>
                     <RadzenChart Style="height:240px;overflow:visible">
-                        <RadzenDonutSeries Data="@_buckets" CategoryProperty="Name" ValueProperty="TotalSize"
+                        <RadzenDonutSeries Data="@_topBySize" CategoryProperty="Name" ValueProperty="TotalSize"
                                            TItem="Bucket" InnerRadius="60">
                             <TooltipTemplate Context="data">
                                 <div>
@@ -79,9 +82,12 @@
             </RadzenCard>
             <RadzenCard Style="flex:1;min-width:260px;overflow:visible">
                 <RadzenStack Gap="0.75rem">
-                    <RadzenText TextStyle="TextStyle.H6">Objects by Bucket</RadzenText>
+                    <RadzenStack Gap="0.1rem">
+                        <RadzenText TextStyle="TextStyle.H6">Objects by Bucket</RadzenText>
+                        <RadzenText TextStyle="TextStyle.Caption" Style="color:var(--rz-text-secondary-color)">Top 5 by count</RadzenText>
+                    </RadzenStack>
                     <RadzenChart Style="height:240px;overflow:visible">
-                        <RadzenColumnSeries Data="@_buckets" CategoryProperty="Name" ValueProperty="ObjectCount"
+                        <RadzenColumnSeries Data="@_topByCount" CategoryProperty="Name" ValueProperty="ObjectCount"
                                             TItem="Bucket" Title="Objects" />
                         <RadzenCategoryAxis />
                         <RadzenValueAxis />
@@ -93,7 +99,10 @@
             {
                 <RadzenCard Style="flex:1;min-width:260px;overflow:visible">
                     <RadzenStack Gap="0.75rem">
+                    <RadzenStack Gap="0.1rem">
                         <RadzenText TextStyle="TextStyle.H6">File Types</RadzenText>
+                        <RadzenText TextStyle="TextStyle.Caption" Style="color:var(--rz-text-secondary-color)">Top 8 by extension</RadzenText>
+                    </RadzenStack>
                         <RadzenChart Style="height:240px;overflow:visible">
                             <RadzenDonutSeries Data="@_fileTypeStats" CategoryProperty="Label" ValueProperty="Count"
                                                TItem="FileTypeStat" InnerRadius="60">
@@ -180,6 +189,8 @@
     record FileTypeStat(string Label, int Count);
 
     List<Bucket> _buckets = [];
+    List<Bucket> _topBySize = [];
+    List<Bucket> _topByCount = [];
     List<FileTypeStat> _fileTypeStats = [];
     long _totalObjects;
     long _totalSize;
@@ -202,6 +213,8 @@
         _buckets = (await MetadataService.ListBucketsAsync()).OrderByDescending(b => b.TotalSize).ToList();
         _totalObjects = _buckets.Sum(b => b.ObjectCount);
         _totalSize    = _buckets.Sum(b => b.TotalSize);
+        _topBySize  = _buckets.Take(5).ToList();
+        _topByCount = _buckets.OrderByDescending(b => b.ObjectCount).Take(5).ToList();
 
         var allObjects = (await MetadataService.ListAllObjectsAsync())
             .Where(o => !o.Key.EndsWith("/"))
