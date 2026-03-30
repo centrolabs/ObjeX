@@ -32,7 +32,7 @@
         </RadzenStack>
         <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem">
             <RadzenButton Text="New Folder" Icon="create_new_folder"
-                          ButtonStyle="ButtonStyle.Light" Disabled="@(!_bucketExists)"
+                          ButtonStyle="ButtonStyle.Secondary" Disabled="@(!_bucketExists)"
                           Click="@OnNewFolderClick" />
             <RadzenButton Text="@(_uploading ? "Uploading..." : "Upload")" Icon="upload"
                           ButtonStyle="ButtonStyle.Primary" Disabled="@(_uploading || !_bucketExists)"
@@ -47,7 +47,7 @@
                           Size="ButtonSize.Small" Click="BulkDownload" />
             <RadzenButton Text="Delete" Icon="delete" ButtonStyle="ButtonStyle.Danger"
                           Size="ButtonSize.Small" Click="BulkDelete" />
-            <RadzenButton Text="Clear" Icon="close" ButtonStyle="ButtonStyle.Light"
+            <RadzenButton Text="Clear" Icon="close" ButtonStyle="ButtonStyle.Secondary"
                           Size="ButtonSize.Small" Click="@(() => _selected.Clear())" />
         </RadzenStack>
     </RadzenCard>
@@ -96,8 +96,8 @@
                             <RadzenButton Icon="download" ButtonStyle="ButtonStyle.Primary" Variant="Variant.Text" />
                         </a>
                         <RadzenButton Icon="link"        ButtonStyle="ButtonStyle.Secondary" Variant="Variant.Text" style="visibility:hidden" />
-                        <RadzenButton Icon="visibility" ButtonStyle="ButtonStyle.Light"     Variant="Variant.Text" style="visibility:hidden" />
-                        <RadzenButton Icon="info"       ButtonStyle="ButtonStyle.Light"     Variant="Variant.Text" style="visibility:hidden" />
+                        <RadzenButton Icon="visibility" ButtonStyle="ButtonStyle.Dark"     Variant="Variant.Text" style="visibility:hidden" />
+                        <RadzenButton Icon="info"       ButtonStyle="ButtonStyle.Dark"     Variant="Variant.Text" style="visibility:hidden" />
                         <RadzenButton Icon="delete"     ButtonStyle="ButtonStyle.Danger"    Variant="Variant.Text"
                                       Click="@(() => OnDeleteFolder(row.FolderPath!))" />
                     }
@@ -111,15 +111,15 @@
                                       title="Copy presigned link" />
                         @if (IsPreviewable(row.Object!.ContentType))
                         {
-                            <RadzenButton Icon="visibility" ButtonStyle="ButtonStyle.Light" Variant="Variant.Text"
+                            <RadzenButton Icon="visibility" ButtonStyle="ButtonStyle.Dark" Variant="Variant.Text"
                                           Click="@(() => PreviewObject(row.Object!))"
                                           title="Preview" />
                         }
                         else
                         {
-                            <RadzenButton Icon="visibility" ButtonStyle="ButtonStyle.Light" Variant="Variant.Text" style="visibility:hidden" />
+                            <RadzenButton Icon="visibility" ButtonStyle="ButtonStyle.Dark" Variant="Variant.Text" style="visibility:hidden" />
                         }
-                        <RadzenButton Icon="info" ButtonStyle="ButtonStyle.Light" Variant="Variant.Text"
+                        <RadzenButton Icon="info" ButtonStyle="ButtonStyle.Dark" Variant="Variant.Text"
                                       Click="@(() => ShowMetadata(row.Object!))"
                                       title="File info" />
                         <RadzenButton Icon="delete" ButtonStyle="ButtonStyle.Danger" Variant="Variant.Text"
