@@ -40,6 +40,8 @@ ObjeX uses two auth mechanisms on separate ports:
 | `9001` | Browser / Blazor UI | Cookie (ASP.NET Core Identity) |
 | `9000` | S3 clients, SDKs, CLI | AWS Signature Version 4 |
 
+> **Public exposure:** Only port `9000` (S3 API) needs to be publicly reachable — expose it via reverse proxy or tunnel (e.g. `s3.example.com`). Port `9001` (admin UI) should stay on your internal network. Configure client apps with the public S3 URL as their endpoint so both server-side SDK calls and browser presigned URLs use the same hostname.
+
 ### Roles
 
 | Role | Access |
@@ -120,6 +122,8 @@ No config required for local dev. Defaults (from `appsettings.json`):
 | Admin username | `admin` |
 | Admin email | `admin@objex.local` |
 | Admin password | `admin` |
+| Seed buckets | *(none)* |
+| Seed S3 credential | *(none)* |
 
 Override via `appsettings.json` or environment variables:
 
@@ -140,6 +144,17 @@ Override via `appsettings.json` or environment variables:
 ```
 
 > ⚠️ Change default admin credentials before exposing the instance publicly.
+
+### Seeding Buckets and S3 Credentials
+
+ObjeX can pre-create buckets and an S3 credential on startup so integrations work without manual UI setup. Both are idempotent (skipped if already exists). See `docker-compose.yml` for a full example with comments.
+
+| Setting | Env var | Description |
+|---------|---------|-------------|
+| Seed buckets | `Seed__Buckets` | Comma-separated list, owned by admin |
+| S3 access key | `Seed__S3Credential__AccessKeyId` | You choose the key |
+| S3 secret key | `Seed__S3Credential__SecretAccessKey` | You choose the secret |
+| S3 credential name | `Seed__S3Credential__Name` | Display name (default: `seed-credential`) |
 
 ### Database
 
@@ -221,6 +236,8 @@ Weekly Monday PRs for NuGet packages (grouped: `radzen`, `ef-core`, `hangfire`, 
 ## Testing
 
 **Current state:** CI is build-only — no automated tests exist yet. The scenarios below are the known gaps before ObjeX can be considered production-ready.
+
+**Integration-tested with:** [Outline](https://github.com/outline/outline) (presigned POST uploads + presigned GET retrieval) and [Memos](https://github.com/usememos/memos) (server-side PUT uploads + presigned GET retrieval) as S3 storage backends.
 
 ### Hostile Scenario Coverage
 

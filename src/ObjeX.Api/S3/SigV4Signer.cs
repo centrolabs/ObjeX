@@ -23,7 +23,7 @@ public static class SigV4Signer
         var canonicalRequest = BuildCanonicalRequest(request, parsed);
         var stringToSign     = BuildStringToSign(request, parsed, canonicalRequest);
         var signingKey       = DeriveSigningKey(secretAccessKey, parsed.Date, parsed.Region, parsed.Service);
-        var expected         = ToHex(HMACSHA256(signingKey, Encoding.UTF8.GetBytes(stringToSign)));
+        var expected         = ToHex(HmacSha256(signingKey, Encoding.UTF8.GetBytes(stringToSign)));
 
         if (string.Equals(expected, parsed.Signature, StringComparison.OrdinalIgnoreCase))
             return (true, null);
@@ -139,18 +139,18 @@ public static class SigV4Signer
 
     // ── Step 3: Signing Key ──────────────────────────────────────────────────
 
-    private static byte[] DeriveSigningKey(string secretAccessKey, string date, string region, string service)
+    internal static byte[] DeriveSigningKey(string secretAccessKey, string date, string region, string service)
     {
-        var kDate    = HMACSHA256(Encoding.UTF8.GetBytes("AWS4" + secretAccessKey), Encoding.UTF8.GetBytes(date));
-        var kRegion  = HMACSHA256(kDate,    Encoding.UTF8.GetBytes(region));
-        var kService = HMACSHA256(kRegion,  Encoding.UTF8.GetBytes(service));
-        var kSigning = HMACSHA256(kService, Encoding.UTF8.GetBytes("aws4_request"));
+        var kDate    = HmacSha256(Encoding.UTF8.GetBytes("AWS4" + secretAccessKey), Encoding.UTF8.GetBytes(date));
+        var kRegion  = HmacSha256(kDate,    Encoding.UTF8.GetBytes(region));
+        var kService = HmacSha256(kRegion,  Encoding.UTF8.GetBytes(service));
+        var kSigning = HmacSha256(kService, Encoding.UTF8.GetBytes("aws4_request"));
         return kSigning;
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────────
 
-    private static byte[] HMACSHA256(byte[] key, byte[] data)
+    internal static byte[] HmacSha256(byte[] key, byte[] data)
     {
         using var mac = new HMACSHA256(key);
         return mac.ComputeHash(data);

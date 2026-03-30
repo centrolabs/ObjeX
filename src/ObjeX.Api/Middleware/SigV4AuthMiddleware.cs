@@ -23,6 +23,13 @@ public class SigV4AuthMiddleware(RequestDelegate next, ILogger<SigV4AuthMiddlewa
             return;
         }
 
+        // POST Object (presigned POST): auth via form fields, not headers/query
+        if (parsed is null && context.Request.Method == "POST" && context.Request.HasFormContentType)
+        {
+            await HandlePostObjectAuth(context, db);
+            return;
+        }
+
         if (parsed is null)
         {
             await WriteError(context, S3Errors.AccessDenied, "No credentials provided.", 403);
@@ -88,8 +95,77 @@ public class SigV4AuthMiddleware(RequestDelegate next, ILogger<SigV4AuthMiddlewa
             return;
         }
 
+        SetUserContext(context, credential);
         _ = UpdateLastUsedAsync(db, credential.Id, context.RequestAborted);
 
+        await next(context);
+    }
+
+    private async Task HandlePostObjectAuth(HttpContext context, ObjeXDbContext db)
+    {
+        // ReadFormAsync buffers the upload before we can check auth fields. This matches
+        // AWS S3 behavior (credentials are form fields alongside the file). Upload size is
+        // bounded by Kestrel's MaxRequestBodySize (Storage:MaxUploadBytes config).
+        var form = await context.Request.ReadFormAsync(context.RequestAborted);
+
+        var policyB64 = form["policy"].ToString();
+        var signature = form["X-Amz-Signature"].ToString();
+        var credentialStr = form["X-Amz-Credential"].ToString();
+        var algorithm = form["X-Amz-Algorithm"].ToString();
+
+        if (string.IsNullOrEmpty(policyB64) || string.IsNullOrEmpty(signature) || string.IsNullOrEmpty(credentialStr))
+        {
+            await WriteError(context, S3Errors.AccessDenied, "No credentials provided.", 403);
+            return;
+        }
+
+        if (algorithm != "AWS4-HMAC-SHA256")
+        {
+            await WriteError(context, S3Errors.InvalidArgument, "Only AWS4-HMAC-SHA256 is supported.", 400);
+            return;
+        }
+
+        var credParts = credentialStr.Split('/');
+        if (credParts.Length < 5)
+        {
+            await WriteError(context, S3Errors.InvalidAccessKeyId, "Invalid credential scope.", 400);
+            return;
+        }
+
+        var accessKeyId = credParts[0];
+        var safeKeyId = accessKeyId.Replace("\r", "").Replace("\n", "");
+        var credential = await db.S3Credentials.AsNoTracking()
+            .FirstOrDefaultAsync(c => c.AccessKeyId == accessKeyId, context.RequestAborted);
+
+        if (credential is null)
+        {
+            logger.LogWarning("SigV4 POST: unknown AccessKeyId {KeyId}", safeKeyId);
+            await WriteError(context, S3Errors.InvalidAccessKeyId,
+                "The AWS access key Id you provided does not exist.", 403);
+            return;
+        }
+
+        // Verify: HMAC-SHA256(signing_key, policy_base64) == signature
+        var signingKey = SigV4Signer.DeriveSigningKey(credential.SecretAccessKey, credParts[1], credParts[2], credParts[3]);
+        var expected = Convert.ToHexString(SigV4Signer.HmacSha256(signingKey,
+            System.Text.Encoding.UTF8.GetBytes(policyB64))).ToLowerInvariant();
+
+        if (!string.Equals(expected, signature, StringComparison.OrdinalIgnoreCase))
+        {
+            logger.LogWarning("SigV4 POST: signature mismatch for {KeyId}", safeKeyId);
+            await WriteError(context, S3Errors.SignatureDoesNotMatch,
+                "The request signature we calculated does not match the signature you provided.", 403);
+            return;
+        }
+
+        SetUserContext(context, credential);
+        _ = UpdateLastUsedAsync(db, credential.Id, context.RequestAborted);
+
+        await next(context);
+    }
+
+    private static void SetUserContext(HttpContext context, ObjeX.Core.Models.S3Credential credential)
+    {
         var claims = new[]
         {
             new Claim(ClaimTypes.NameIdentifier, credential.UserId),
@@ -97,8 +173,6 @@ public class SigV4AuthMiddleware(RequestDelegate next, ILogger<SigV4AuthMiddlewa
             new Claim("access_key_id", credential.AccessKeyId),
         };
         context.User = new ClaimsPrincipal(new ClaimsIdentity(claims, "SigV4"));
-
-        await next(context);
     }
 
     private static bool IsTimestampFresh(HttpRequest request)

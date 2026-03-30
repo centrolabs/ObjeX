@@ -266,6 +266,21 @@ public interface IHashService
 
 ---
 
+## Startup Seeding
+
+`Program.cs` seeds buckets and S3 credentials from config on startup (idempotent, skipped if already exists). All seeded resources are owned by the admin user.
+
+| Config key | Env var | Effect |
+|---|---|---|
+| `Seed:Buckets` | `Seed__Buckets` | Comma-separated bucket names to create |
+| `Seed:S3Credential:AccessKeyId` | `Seed__S3Credential__AccessKeyId` | User-chosen access key |
+| `Seed:S3Credential:SecretAccessKey` | `Seed__S3Credential__SecretAccessKey` | User-chosen secret key |
+| `Seed:S3Credential:Name` | `Seed__S3Credential__Name` | Display name (default: `seed-credential`) |
+
+Empty or unset values are no-ops. Invalid bucket names are logged and skipped. See `docker-compose.yml` for usage example.
+
+---
+
 ## Storage Paths
 
 `Program.cs` contains fallback path logic (walks up to solution root) but it is overridden by `appsettings.json` in practice:
@@ -386,6 +401,8 @@ DELETE /{bucket}/{*key}         → delete object (204)
 DELETE /{bucket}/{*key}?uploadId=X → AbortMultipartUpload; deletes parts + session
 POST   /{bucket}/{*key}?uploads → InitiateMultipartUpload; returns UploadId XML
 POST   /{bucket}/{*key}?uploadId=X → CompleteMultipartUpload; assembles parts, saves object, returns ETag
+POST   /{bucket}                → S3 POST Object (presigned POST); multipart form with policy + file
+POST   /                        → S3 POST Object (bucketEndpoint mode); bucket from form field
 
 # S3 implementation details:
 # - SigV4Parser (ObjeX.Api/S3/SigV4Parser.cs) — parses Authorization header + presigned query params
@@ -393,6 +410,8 @@ POST   /{bucket}/{*key}?uploadId=X → CompleteMultipartUpload; assembles parts,
 # - SigV4AuthMiddleware (ObjeX.Api/Middleware/) — orchestrates auth: lookup → timestamp → sig → payload hash
 # - S3Xml helper (ObjeX.Api/S3/S3Xml.cs) — XML response builders, SecurityElement.Escape() for injection prevention
 # - S3Errors constants (ObjeX.Api/S3/S3Errors.cs) — S3 error code strings
+# - S3PostObjectEndpoint (ObjeX.Api/Endpoints/S3Endpoints/) — browser-based uploads via presigned POST policy
+#   Auth is form-field-based (policy + X-Amz-Signature), not header SigV4. Middleware handles this as a third auth path.
 # - S3MultipartEndpoint (ObjeX.Api/Endpoints/S3Endpoints/) — Initiate + Complete (single MapPost dispatch on ?uploads vs ?uploadId)
 # - Parts stored at {BasePath}/_multipart/{uploadId}/{partNumber}.part; cleaned up after Complete or Abort
 # - Final ETag: MD5(binary concat of part MD5 bytes) + "-" + partCount (S3 multipart format)

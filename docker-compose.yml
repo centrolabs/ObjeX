@@ -7,7 +7,12 @@ services:
     volumes:
       - objex-data:/data
     environment:
-      DefaultAdmin__Password: admin
+      DefaultAdmin__Password: ${DEFAULT_ADMIN_PASSWORD:-admin}
+      # Optional: seed buckets and S3 credentials on first startup (leave unset to skip)
+      Seed__Buckets: ${SEED_BUCKETS:-}                                  # e.g. my-app-data,backups
+      Seed__S3Credential__Name: ${SEED_S3_NAME:-}                       # e.g. my-app
+      Seed__S3Credential__AccessKeyId: ${SEED_S3_ACCESS_KEY:-}          # e.g. OBXMYACCESSKEY123456
+      Seed__S3Credential__SecretAccessKey: ${SEED_S3_SECRET:-}          # e.g. use a strong secret
     restart: unless-stopped
 
 volumes:

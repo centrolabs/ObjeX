@@ -237,6 +237,62 @@ using (var scope = app.Services.CreateScope())
                 "(appsettings.json: DefaultAdmin:Password — Docker: DefaultAdmin__Password).");
         }
     }
+
+    // Seed S3 credential and buckets from config (idempotent, skipped if already exists)
+    var seedAccessKey = builder.Configuration["Seed:S3Credential:AccessKeyId"];
+    var seedSecretKey = builder.Configuration["Seed:S3Credential:SecretAccessKey"];
+    var seedBuckets = builder.Configuration["Seed:Buckets"];
+    var needsSeeding = (!string.IsNullOrWhiteSpace(seedAccessKey) && !string.IsNullOrWhiteSpace(seedSecretKey))
+                       || !string.IsNullOrWhiteSpace(seedBuckets);
+
+    if (needsSeeding)
+    {
+        var adminUser = await userManager.FindByNameAsync(
+            builder.Configuration["DefaultAdmin:Username"] ?? "admin");
+
+        if (adminUser is null)
+        {
+            app.Logger.LogWarning("Cannot seed S3 credential or buckets: admin user not found.");
+        }
+        else
+        {
+            if (!string.IsNullOrWhiteSpace(seedAccessKey) && !string.IsNullOrWhiteSpace(seedSecretKey)
+                && !await db.S3Credentials.AnyAsync(c => c.AccessKeyId == seedAccessKey))
+            {
+                var credentialName = builder.Configuration["Seed:S3Credential:Name"] ?? "seed-credential";
+                db.S3Credentials.Add(new S3Credential
+                {
+                    Name = credentialName,
+                    AccessKeyId = seedAccessKey,
+                    SecretAccessKey = seedSecretKey,
+                    UserId = adminUser.Id
+                });
+                await db.SaveChangesAsync();
+                app.Logger.LogInformation("Seeded S3 credential '{Name}' (AccessKeyId: {AccessKeyId})",
+                    credentialName, seedAccessKey);
+            }
+
+            if (!string.IsNullOrWhiteSpace(seedBuckets))
+            {
+                var metadataService = scope.ServiceProvider.GetRequiredService<IMetadataService>();
+                foreach (var bucketName in seedBuckets.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+                {
+                    if (await db.Buckets.AnyAsync(b => b.Name == bucketName))
+                        continue;
+
+                    var error = ObjeX.Core.Validation.BucketNameValidator.GetValidationError(bucketName);
+                    if (error is not null)
+                    {
+                        app.Logger.LogWarning("Skipping invalid seed bucket '{Name}': {Error}", bucketName, error);
+                        continue;
+                    }
+
+                    await metadataService.CreateBucketAsync(new Bucket { Name = bucketName, OwnerId = adminUser.Id });
+                    app.Logger.LogInformation("Seeded bucket '{Name}'", bucketName);
+                }
+            }
+        }
+    }
 }
 
 app.UseWhen(
@@ -320,6 +376,7 @@ var s3Group = app.MapGroup("/").RequireHost("*:9000").RequireAuthorization();
 app.MapS3BucketEndpoints(s3Group);
 app.MapS3ObjectEndpoints(s3Group);
 app.MapS3MultipartEndpoints(s3Group);
+app.MapS3PostObjectEndpoints(s3Group);
 
 app.MapAccountEndpoints();
 
