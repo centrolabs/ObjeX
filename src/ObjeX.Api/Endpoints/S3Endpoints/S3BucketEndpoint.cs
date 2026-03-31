@@ -77,6 +77,10 @@ public static class S3BucketEndpoint
                 return S3Xml.ListMultipartUploads(bucket, uploads);
             }
 
+            string[] unsupported = ["versioning", "lifecycle", "policy", "cors", "encryption", "tagging", "acl"];
+            if (unsupported.Any(q => request.Query.ContainsKey(q)))
+                return S3Xml.Error(S3Errors.NotImplemented, "This operation is not yet supported.", 501);
+
             var result = await metadata.ListObjectsAsync(bucket, prefix, delimiter);
 
             if (request.Query["list-type"] == "2")
