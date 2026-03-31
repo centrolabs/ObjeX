@@ -390,13 +390,16 @@ GET    /hangfire          → Hangfire dashboard (Admin role or localhost)
 # Auth: SigV4AuthMiddleware runs before UseAuthorization, sets context.User on valid signature
 GET    /                        → list all buckets (S3 ListAllMyBuckets XML)
 HEAD   /{bucket}                → bucket exists check (200/404)
+GET    /{bucket}?location       → GetBucketLocation (hardcoded us-east-1)
+GET    /{bucket}?uploads        → ListMultipartUploads XML
+GET    /{bucket}?versioning|lifecycle|policy|cors|encryption|tagging|acl → 501 NotImplemented
 PUT    /{bucket}                → create bucket (S3 XML response)
 DELETE /{bucket}                → delete bucket
-PUT    /{bucket}/{*key}         → upload object (returns ETag header)
+PUT    /{bucket}/{*key}         → upload object (returns ETag header); x-amz-copy-source → CopyObject; x-amz-meta-* captured
 PUT    /{bucket}/{*key}?partNumber=N&uploadId=X → UploadPart; upserts part, returns ETag header
-GET    /{bucket}/{*key}         → download object; ?download=true forces application/octet-stream attachment; Range requests supported
+GET    /{bucket}/{*key}         → download object; ?download=true forces application/octet-stream attachment; Range requests supported; x-amz-meta-* returned
 GET    /{bucket}/{*key}?uploadId=X → ListParts XML
-HEAD   /{bucket}/{*key}         → object metadata (ETag, Content-Length, Content-Type headers)
+HEAD   /{bucket}/{*key}         → object metadata (ETag, Content-Length, Content-Type, x-amz-meta-* headers)
 DELETE /{bucket}/{*key}         → delete object (204)
 DELETE /{bucket}/{*key}?uploadId=X → AbortMultipartUpload; deletes parts + session
 POST   /{bucket}/{*key}?uploads → InitiateMultipartUpload; returns UploadId XML

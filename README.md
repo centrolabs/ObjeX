@@ -86,13 +86,15 @@ Exposed on a dedicated port for drop-in compatibility with S3 clients (`aws-cli`
 |--------|------|-------------|
 | `GET` | `/` | List all buckets (S3 XML) |
 | `HEAD` | `/{bucket}` | Bucket exists check |
+| `GET` | `/{bucket}?location` | Get bucket location (returns `us-east-1`) |
+| `GET` | `/{bucket}?uploads` | List active multipart uploads |
 | `PUT` | `/{bucket}` | Create bucket |
 | `DELETE` | `/{bucket}` | Delete bucket |
-| `PUT` | `/{bucket}/{*key}` | Upload object |
+| `PUT` | `/{bucket}/{*key}` | Upload object; supports `x-amz-copy-source` for server-side copy and `x-amz-meta-*` custom metadata |
 | `PUT` | `/{bucket}/{*key}?partNumber=N&uploadId=X` | Upload part (multipart) |
 | `GET` | `/{bucket}/{*key}` | Download object (`?download=true` forces attachment); Range requests supported |
 | `GET` | `/{bucket}/{*key}?uploadId=X` | List parts |
-| `HEAD` | `/{bucket}/{*key}` | Object metadata |
+| `HEAD` | `/{bucket}/{*key}` | Object metadata (includes `x-amz-meta-*` headers) |
 | `DELETE` | `/{bucket}/{*key}` | Delete object |
 | `POST` | `/{bucket}?delete` | Batch delete objects (XML key list) |
 | `DELETE` | `/{bucket}/{*key}?uploadId=X` | Abort multipart upload |
