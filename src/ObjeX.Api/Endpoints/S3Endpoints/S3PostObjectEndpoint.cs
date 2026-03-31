@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using System.Text.Json;
+using System.Xml.Linq;
 
 using ObjeX.Api.S3;
 using ObjeX.Core.Interfaces;
@@ -20,11 +21,15 @@ public static class S3PostObjectEndpoint
 
     public static void MapS3PostObjectEndpoints(this WebApplication app, RouteGroupBuilder s3)
     {
-        // POST /{bucket} (standard S3 POST Object)
-        s3.MapPost("/{bucket}", (string bucket, HttpRequest request, HttpContext ctx,
+        // POST /{bucket} dispatches: ?delete → batch delete, otherwise → POST Object upload
+        s3.MapPost("/{bucket}", async (string bucket, HttpRequest request, HttpContext ctx,
             IConfiguration config, IMetadataService metadata, IObjectStorageService storage,
-            FileSystemStorageService fs) => HandlePostObject(bucket, request, ctx, config, metadata, storage, fs))
-            .DisableAntiforgery();
+            FileSystemStorageService fs) =>
+        {
+            if (request.Query.ContainsKey("delete") || request.QueryString.Value?.Contains("delete") == true)
+                return await HandleDeleteObjects(bucket, request, ctx, metadata, storage);
+            return await HandlePostObject(bucket, request, ctx, config, metadata, storage, fs);
+        }).DisableAntiforgery();
 
         // POST / (bucketEndpoint mode: bucket is in form fields, not in URL)
         s3.MapPost("/", (HttpRequest request, HttpContext ctx,
@@ -104,6 +109,52 @@ public static class S3PostObjectEndpoint
         ctx.Response.Headers.ETag = $"\"{etag}\"";
         ctx.Response.Headers.Location = $"{s3PublicUrl}/{bucket}/{key}";
         return Results.StatusCode(204);
+    }
+
+    private static async Task<IResult> HandleDeleteObjects(
+        string bucket,
+        HttpRequest request,
+        HttpContext ctx,
+        IMetadataService metadata,
+        IObjectStorageService storage)
+    {
+        if (await metadata.GetBucketAsync(bucket, IsPrivileged(ctx) ? null : GetCallerId(ctx)) is null)
+            return S3Xml.Error(S3Errors.NoSuchBucket, "The specified bucket does not exist.", 404);
+
+        XDocument doc;
+        try { doc = await XDocument.LoadAsync(request.Body, LoadOptions.None, ctx.RequestAborted); }
+        catch { return S3Xml.Error(S3Errors.MalformedXML, "The XML you provided was not well-formed."); }
+
+        var keys = doc.Descendants()
+            .Where(e => e.Name.LocalName == "Key")
+            .Select(e => e.Value)
+            .Where(k => !string.IsNullOrEmpty(k))
+            .ToList();
+
+        if (keys.Count == 0)
+            return S3Xml.Error(S3Errors.MalformedXML, "No keys specified.");
+
+        var deleted = new List<string>();
+        var errors = new List<(string Key, string Code, string Message)>();
+
+        foreach (var key in keys)
+        {
+            try
+            {
+                if (await metadata.ExistsObjectAsync(bucket, key))
+                {
+                    await storage.DeleteAsync(bucket, key);
+                    await metadata.DeleteObjectAsync(bucket, key);
+                }
+                deleted.Add(key);
+            }
+            catch (Exception ex)
+            {
+                errors.Add((key, S3Errors.InternalError, ex.Message));
+            }
+        }
+
+        return S3Xml.DeleteResult(deleted, errors);
     }
 
     private static string? ValidatePolicy(string policyB64, string bucket, string key, IFormCollection form)

@@ -150,4 +150,27 @@ public static class S3Xml
         xml.AppendLine("</ListPartsResult>");
         return Results.Content(xml.ToString(), "application/xml", Encoding.UTF8);
     }
+
+    public static IResult DeleteResult(List<string> deleted, List<(string Key, string Code, string Message)> errors)
+    {
+        var xml = new StringBuilder();
+        xml.AppendLine("<?xml version=\"1.0\" encoding=\"UTF-8\"?>");
+        xml.AppendLine("<DeleteResult xmlns=\"http://s3.amazonaws.com/doc/2006-03-01/\">");
+        foreach (var key in deleted)
+        {
+            xml.AppendLine("  <Deleted>");
+            xml.AppendLine($"    <Key>{Escape(key)}</Key>");
+            xml.AppendLine("  </Deleted>");
+        }
+        foreach (var (key, code, message) in errors)
+        {
+            xml.AppendLine("  <Error>");
+            xml.AppendLine($"    <Key>{Escape(key)}</Key>");
+            xml.AppendLine($"    <Code>{Escape(code)}</Code>");
+            xml.AppendLine($"    <Message>{Escape(message)}</Message>");
+            xml.AppendLine("  </Error>");
+        }
+        xml.AppendLine("</DeleteResult>");
+        return Results.Content(xml.ToString(), "application/xml", Encoding.UTF8);
+    }
 }

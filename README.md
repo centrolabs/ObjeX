@@ -94,6 +94,7 @@ Exposed on a dedicated port for drop-in compatibility with S3 clients (`aws-cli`
 | `GET` | `/{bucket}/{*key}?uploadId=X` | List parts |
 | `HEAD` | `/{bucket}/{*key}` | Object metadata |
 | `DELETE` | `/{bucket}/{*key}` | Delete object |
+| `POST` | `/{bucket}?delete` | Batch delete objects (XML key list) |
 | `DELETE` | `/{bucket}/{*key}?uploadId=X` | Abort multipart upload |
 | `POST` | `/{bucket}/{*key}?uploads` | Initiate multipart upload |
 | `POST` | `/{bucket}/{*key}?uploadId=X` | Complete multipart upload |

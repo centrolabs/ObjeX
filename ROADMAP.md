@@ -94,6 +94,7 @@
 - [x] S3 error response XML format for all error cases — all errors via `S3Xml.Error()` consistently
 - [x] Compatibility testing with `aws-cli` — verified uploads, downloads, multipart, presigned URLs
 - [x] S3 POST Object — browser-based uploads via presigned POST policy (form-field auth, `POST /{bucket}` + `POST /` bucketEndpoint mode)
+- [x] DeleteObjects (batch delete) — `POST /{bucket}?delete` with XML key list; used by `aws s3 rm --recursive` and `aws s3 sync --delete`
 - [x] Startup seeding of S3 credentials and buckets via config/env vars (zero-UI integration setup)
 - [ ] POST Object: `${filename}` variable substitution in key — deferred (no modern SDK uses this)
 - [ ] POST Object: `success_action_redirect` / `success_action_status` — deferred (all SDKs use default 204)

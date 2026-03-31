@@ -402,6 +402,7 @@ DELETE /{bucket}/{*key}?uploadId=X → AbortMultipartUpload; deletes parts + ses
 POST   /{bucket}/{*key}?uploads → InitiateMultipartUpload; returns UploadId XML
 POST   /{bucket}/{*key}?uploadId=X → CompleteMultipartUpload; assembles parts, saves object, returns ETag
 POST   /{bucket}                → S3 POST Object (presigned POST); multipart form with policy + file
+POST   /{bucket}?delete         → DeleteObjects (batch delete); XML body with key list
 POST   /                        → S3 POST Object (bucketEndpoint mode); bucket from form field
 
 # S3 implementation details:
