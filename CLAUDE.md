@@ -106,9 +106,9 @@ No `AddAuthenticationSchemes` on the policy — both auth mechanisms set `contex
 - `ObjeXDbContext` extends `IdentityDbContext<User>`
 - Roles: `Admin`, `Manager`, `User` — all three seeded on every startup (idempotent). See role table below.
 - Role hierarchy: Admin (1, permanent singleton) → Manager (0–N, promoted by Admin) → User (default)
-  - **Admin**: full access, user management, role promotion, Settings incl. presigned URLs, Hangfire, all buckets
-  - **Manager**: Users page, Settings incl. presigned URLs, all buckets — cannot promote/demote roles, no Hangfire
-  - **User**: S3 credentials, dark mode, own buckets only
+  - **Admin**: full access, user management, role promotion, Settings incl. presigned URLs + storage quotas, Hangfire, all buckets, unlimited storage by default
+  - **Manager**: Users page, Settings incl. presigned URLs + storage quotas, all buckets — cannot promote/demote roles, no Hangfire, unlimited storage by default
+  - **User**: S3 credentials, dark mode, own buckets only, subject to global storage quota (configurable in Settings)
 - Password requirements relaxed for MVP (min 4 chars, no complexity rules)
 - Email flows are no-ops — no `IEmailSender` registered, no email verification
 
@@ -247,9 +247,9 @@ public interface IHashService
 
 ```csharp
 // Bucket: Id (Guid), Name, OwnerId (FK → AspNetUsers, Restrict), Owner? (nav), ObjectCount, TotalSize, Objects (nav), CreatedAt, UpdatedAt
-// BlobObject: Id (Guid), BucketName, Key, Size, ContentType, ETag, StoragePath, Bucket (nav), CreatedAt, UpdatedAt
+// BlobObject: Id (Guid), BucketName, Key, Size, ContentType, ETag, StoragePath, CustomMetadata (JSON), Bucket (nav), CreatedAt, UpdatedAt
 // S3Credential: Id (Guid), Name, AccessKeyId, SecretAccessKey (plain), UserId, User (nav), LastUsedAt, CreatedAt, UpdatedAt
-// User: extends IdentityUser — adds StorageUsedBytes, IsDeactivated, MustChangePassword, TemporaryPasswordExpiresAt, CreatedAt, UpdatedAt
+// User: extends IdentityUser — adds StorageUsedBytes, StorageQuotaBytes (nullable, per-user override), IsDeactivated, MustChangePassword, TemporaryPasswordExpiresAt, CreatedAt, UpdatedAt
 // All implement IHasTimestamps (User via explicit properties)
 ```
 

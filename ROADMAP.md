@@ -102,6 +102,7 @@
 - [x] CopyObject — `PUT /{bucket}/{*key}` with `x-amz-copy-source` header; copies blob + metadata server-side
 - [x] ListMultipartUploads — `GET /{bucket}?uploads` lists active multipart uploads
 - [x] Stub 501 responses for unsupported bucket operations (versioning, lifecycle, policy, cors, encryption, tagging, acl)
+- [x] Storage quota enforcement — per-user and global default, checked on all upload paths
 
 ### 3. Multipart Upload ✅
 - [x] `POST /{bucket}/{key}?uploads` — InitiateMultipartUpload

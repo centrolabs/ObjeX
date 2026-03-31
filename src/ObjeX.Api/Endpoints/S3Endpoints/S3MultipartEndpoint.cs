@@ -153,11 +153,15 @@ public static class S3MultipartEndpoint
         if (fs.GetAvailableFreeSpace() < minFreeBytes)
             return S3Xml.Error(S3Errors.EntityTooLarge, "Insufficient disk space.", 507);
 
-        // Assemble parts into final blob
-        var storagePath = await fs.AssemblePartsAsync(bucket, key, orderedPaths, request.HttpContext.RequestAborted);
         var totalSize = upload.Parts
             .Where(p => requestedParts.Any(r => r.PartNumber == p.PartNumber))
             .Sum(p => p.Size);
+
+        var quotaError = await StorageQuota.CheckAsync(db, GetCallerId(ctx), totalSize);
+        if (quotaError is not null) return quotaError;
+
+        // Assemble parts into final blob
+        var storagePath = await fs.AssemblePartsAsync(bucket, key, orderedPaths, request.HttpContext.RequestAborted);
 
         // Compute final ETag: MD5(concat of part MD5 bytes) + "-" + partCount  (S3 multipart format)
         var finalEtag = ComputeMultipartETag(requestedParts.Select(r =>

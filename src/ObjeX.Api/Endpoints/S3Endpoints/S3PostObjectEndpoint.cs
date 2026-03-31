@@ -7,6 +7,7 @@ using ObjeX.Core.Interfaces;
 using ObjeX.Core.Models;
 using ObjeX.Core.Utilities;
 using ObjeX.Core.Validation;
+using ObjeX.Infrastructure.Data;
 using ObjeX.Infrastructure.Storage;
 
 namespace ObjeX.Api.Endpoints.S3Endpoints;
@@ -24,17 +25,17 @@ public static class S3PostObjectEndpoint
         // POST /{bucket} dispatches: ?delete → batch delete, otherwise → POST Object upload
         s3.MapPost("/{bucket}", async (string bucket, HttpRequest request, HttpContext ctx,
             IConfiguration config, IMetadataService metadata, IObjectStorageService storage,
-            FileSystemStorageService fs) =>
+            FileSystemStorageService fs, ObjeXDbContext db) =>
         {
             if (request.Query.ContainsKey("delete") || request.QueryString.Value?.Contains("delete") == true)
                 return await HandleDeleteObjects(bucket, request, ctx, metadata, storage);
-            return await HandlePostObject(bucket, request, ctx, config, metadata, storage, fs);
+            return await HandlePostObject(bucket, request, ctx, config, metadata, storage, fs, db);
         }).DisableAntiforgery();
 
         // POST / (bucketEndpoint mode: bucket is in form fields, not in URL)
         s3.MapPost("/", (HttpRequest request, HttpContext ctx,
             IConfiguration config, IMetadataService metadata, IObjectStorageService storage,
-            FileSystemStorageService fs) => HandlePostObject(null, request, ctx, config, metadata, storage, fs))
+            FileSystemStorageService fs, ObjeXDbContext db) => HandlePostObject(null, request, ctx, config, metadata, storage, fs, db))
             .DisableAntiforgery();
     }
 
@@ -45,7 +46,8 @@ public static class S3PostObjectEndpoint
         IConfiguration config,
         IMetadataService metadata,
         IObjectStorageService storage,
-        FileSystemStorageService fs)
+        FileSystemStorageService fs,
+        ObjeXDbContext db)
     {
         if (!request.HasFormContentType)
             return S3Xml.Error(S3Errors.InvalidArgument, "POST Object requires multipart/form-data.");
@@ -84,6 +86,9 @@ public static class S3PostObjectEndpoint
         var file = form.Files.FirstOrDefault();
         if (file is null || file.Length == 0)
             return S3Xml.Error(S3Errors.InvalidArgument, "No file provided.");
+
+        var quotaError = await StorageQuota.CheckAsync(db, GetCallerId(ctx), file.Length);
+        if (quotaError is not null) return quotaError;
 
         var contentType = form["Content-Type"].ToString();
         if (string.IsNullOrEmpty(contentType))

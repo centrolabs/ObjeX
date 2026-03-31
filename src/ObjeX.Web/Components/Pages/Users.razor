@@ -5,6 +5,7 @@
 @using ObjeX.Core.Models
 @using ObjeX.Infrastructure.Data
 @using ObjeX.Web.Components.Dialogs
+@using ObjeX.Web.Helpers
 @inject UserManager<User> UserManager
 @inject ObjeXDbContext Db
 @inject DialogService DialogService
@@ -40,16 +41,34 @@
                         }
                     </Template>
                 </RadzenDataGridColumn>
+                <RadzenDataGridColumn TItem="UserRow" Title="Storage" Width="180px" Sortable="false">
+                    <Template Context="row">
+                        <RadzenStack Gap="0.15rem">
+                            <RadzenText TextStyle="TextStyle.Caption">
+                                @FileHelper.FormatBytes(row.StorageUsed)@(row.Quota.HasValue ? $" / {FileHelper.FormatBytes(row.Quota.Value)}" : " / ∞")
+                            </RadzenText>
+                            @if (row.Quota.HasValue && row.Quota.Value > 0)
+                            {
+                                <RadzenProgressBar Value="@((double)row.StorageUsed / row.Quota.Value * 100)" Max="100"
+                                                   ShowValue="false" Style="height:4px"
+                                                   ProgressBarStyle="@(row.StorageUsed > row.Quota.Value * 0.9 ? ProgressBarStyle.Danger : ProgressBarStyle.Primary)" />
+                            }
+                        </RadzenStack>
+                    </Template>
+                </RadzenDataGridColumn>
                 <RadzenDataGridColumn TItem="UserRow" Property="CreatedAt" Title="Created" Width="160px">
                     <Template Context="row">
                         @row.CreatedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm")
                     </Template>
                 </RadzenDataGridColumn>
-                <RadzenDataGridColumn TItem="UserRow" Title="" Width="160px" TextAlign="TextAlign.Right" Sortable="false">
+                <RadzenDataGridColumn TItem="UserRow" Title="" Width="190px" TextAlign="TextAlign.Right" Sortable="false">
                     <Template Context="row">
+                        <RadzenStack Orientation="Orientation.Horizontal" Gap="0" JustifyContent="JustifyContent.End">
+                            <RadzenButton Icon="sd_storage" Variant="Variant.Text" ButtonStyle="ButtonStyle.Dark"
+                                          Size="ButtonSize.Small" title="Set storage quota"
+                                          Click="@(() => SetQuota(row))" />
                         @if (row.Id != _currentUserId && row.Role != "Admin")
                         {
-                            <RadzenStack Orientation="Orientation.Horizontal" Gap="0" JustifyContent="JustifyContent.End">
                                 @if (_currentUserIsAdmin)
                                 {
                                     <RadzenButton Icon="@(row.Role == "Manager" ? "person" : "manage_accounts")"
@@ -73,8 +92,15 @@
                                 <RadzenButton Icon="delete" Variant="Variant.Text" ButtonStyle="ButtonStyle.Danger"
                                               Size="ButtonSize.Small" title="Delete user"
                                               Click="@(() => DeleteUser(row))" />
-                            </RadzenStack>
                         }
+                        else
+                        {
+                                <RadzenButton Icon="person" Variant="Variant.Text" Size="ButtonSize.Small" style="visibility:hidden" />
+                                <RadzenButton Icon="lock_reset" Variant="Variant.Text" Size="ButtonSize.Small" style="visibility:hidden" />
+                                <RadzenButton Icon="person_off" Variant="Variant.Text" Size="ButtonSize.Small" style="visibility:hidden" />
+                                <RadzenButton Icon="delete" Variant="Variant.Text" Size="ButtonSize.Small" style="visibility:hidden" />
+                        }
+                        </RadzenStack>
                     </Template>
                 </RadzenDataGridColumn>
             </Columns>
@@ -83,7 +109,7 @@
 </RadzenStack>
 
 @code {
-    record UserRow(string Id, string Username, string Email, string Role, bool IsDeactivated, DateTime CreatedAt)
+    record UserRow(string Id, string Username, string Email, string Role, bool IsDeactivated, DateTime CreatedAt, long StorageUsed, long? Quota)
     {
         public string Status => IsDeactivated ? "Deactivated" : "Active";
     }
@@ -103,12 +129,21 @@
     async Task LoadUsers()
     {
         var users = await Db.Users.OrderBy(u => u.UserName).ToListAsync();
+        var settings = await Db.SystemSettings.FindAsync(1);
+        var bucketSizes = await Db.Buckets
+            .GroupBy(b => b.OwnerId)
+            .Select(g => new { OwnerId = g.Key, Total = g.Sum(b => b.TotalSize) })
+            .ToDictionaryAsync(x => x.OwnerId, x => x.Total);
+
         var rows = new List<UserRow>();
         foreach (var u in users)
         {
             var roles = await UserManager.GetRolesAsync(u);
             var role = roles.Contains("Admin") ? "Admin" : roles.Contains("Manager") ? "Manager" : "User";
-            rows.Add(new UserRow(u.Id, u.UserName ?? string.Empty, u.Email ?? string.Empty, role, u.IsDeactivated, u.CreatedAt));
+            var used = bucketSizes.GetValueOrDefault(u.Id, 0);
+            var isPrivileged = role is "Admin" or "Manager";
+            var quota = u.StorageQuotaBytes ?? (isPrivileged ? null : settings?.DefaultStorageQuotaBytes);
+            rows.Add(new UserRow(u.Id, u.UserName ?? string.Empty, u.Email ?? string.Empty, role, u.IsDeactivated, u.CreatedAt, used, quota));
         }
         _users = rows;
     }
@@ -231,6 +266,40 @@
         await LoadUsers();
 
         NotificationService.Notify(NotificationSeverity.Success, action + "d", $"\"{row.Username}\" {action.ToLower()}d.");
+    }
+
+    async Task SetQuota(UserRow row)
+    {
+        var currentGb = row.Quota.HasValue ? (int)(row.Quota.Value / (1024L * 1024 * 1024)) : 0;
+        var input = await DialogService.OpenAsync("Storage Quota", ds =>
+            @<RadzenStack Gap="1rem" Style="padding:0.5rem">
+                <RadzenText>Set storage quota for <b>@row.Username</b></RadzenText>
+                <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" AlignItems="AlignItems.Center">
+                    <RadzenNumeric @bind-Value="currentGb" Min="0" Style="width:100px" />
+                    <RadzenText>GB</RadzenText>
+                </RadzenStack>
+                <RadzenText TextStyle="TextStyle.Caption" Style="color:var(--rz-text-secondary-color)">
+                    @(row.Role is "Admin" or "Manager" ? "0 = unlimited" : "0 = use system default")
+                </RadzenText>
+                <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.End" Gap="0.5rem">
+                    <RadzenButton Text="Cancel" ButtonStyle="ButtonStyle.Light" Click="@(() => ds.Close(null))" />
+                    <RadzenButton Text="Save" ButtonStyle="ButtonStyle.Primary" Click="@(() => ds.Close(currentGb))" />
+                </RadzenStack>
+            </RadzenStack>,
+            new DialogOptions { Width = "360px", CloseDialogOnOverlayClick = true });
+
+        if (input is not int gb) return;
+
+        var user = await Db.Users.FindAsync(row.Id);
+        if (user is null) return;
+
+        user.StorageQuotaBytes = gb == 0 ? null : gb * 1024L * 1024 * 1024;
+        user.UpdatedAt = DateTime.UtcNow;
+        await Db.SaveChangesAsync();
+        await LoadUsers();
+
+        NotificationService.Notify(NotificationSeverity.Success, "Quota updated",
+            gb == 0 ? $"\"{row.Username}\" set to system default" : $"\"{row.Username}\" set to {gb} GB");
     }
 
     async Task DeleteUser(UserRow row)

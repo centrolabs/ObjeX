@@ -68,6 +68,34 @@
     </RadzenCard>
     }
 
+    @if (_isAdmin || _isManager)
+    {
+    <RadzenCard>
+        <RadzenStack Gap="1rem">
+            <RadzenText TextStyle="TextStyle.H6">Storage Quotas</RadzenText>
+            <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center"
+                         JustifyContent="JustifyContent.SpaceBetween">
+                <RadzenText>Default quota per user</RadzenText>
+                <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" AlignItems="AlignItems.Center">
+                    <input type="number" min="0" @oninput="OnQuotaValueInput" value="@_quotaValue"
+                           class="rz-textbox no-spinner" style="width:72px;text-align:right"
+                           placeholder="∞" />
+                    <RadzenDropDown @bind-Value="_quotaUnit" Data="_sizeUnits"
+                                    TextProperty="@nameof(SizeUnit.Label)" ValueProperty="@nameof(SizeUnit.Id)"
+                                    Style="width:80px" />
+                </RadzenStack>
+            </RadzenStack>
+            <RadzenText TextStyle="TextStyle.Caption" Style="color:var(--rz-text-secondary-color)">
+                Applies to users with the User role only. Admins and Managers are unlimited by default. Per-user overrides can be set on the Users page.
+            </RadzenText>
+            <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.End">
+                <RadzenButton Text="Save" ButtonStyle="ButtonStyle.Primary" Size="ButtonSize.Small"
+                              Click="SaveQuotaSettings" />
+            </RadzenStack>
+        </RadzenStack>
+    </RadzenCard>
+    }
+
     <RadzenCard>
         <RadzenStack Gap="1rem">
             <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center"
@@ -128,6 +156,18 @@
     string _userId = string.Empty;
     List<S3Credential> _credentials = [];
 
+    // Quota config (admin)
+    int _quotaValue;
+    string _quotaUnit = "GB";
+
+    record SizeUnit(string Id, string Label, long Multiplier);
+    static readonly List<SizeUnit> _sizeUnits =
+    [
+        new("MB", "MB", 1024L * 1024),
+        new("GB", "GB", 1024L * 1024 * 1024),
+        new("TB", "TB", 1024L * 1024 * 1024 * 1024),
+    ];
+
     // Presigned URL settings
     int _defaultValue = 1;
     string _defaultUnit = "hours";
@@ -153,7 +193,11 @@
         _isAdmin = auth.User.IsInRole("Admin");
         _isManager = auth.User.IsInRole("Manager");
         await LoadCredentials();
-        if (_isAdmin || _isManager) await LoadPresignSettings();
+        if (_isAdmin || _isManager)
+        {
+            await LoadPresignSettings();
+            await LoadQuotaSettings();
+        }
     }
 
     async Task LoadPresignSettings()
@@ -210,6 +254,51 @@
         await Db.SaveChangesAsync();
 
         NotificationService.Notify(NotificationSeverity.Success, "Saved", "Presigned URL settings updated.");
+    }
+
+    async Task LoadQuotaSettings()
+    {
+        var settings = await Db.SystemSettings.FindAsync(1);
+        var bytes = settings?.DefaultStorageQuotaBytes;
+        if (bytes is null || bytes == 0)
+        {
+            _quotaValue = 0;
+            _quotaUnit = "GB";
+        }
+        else
+        {
+            (_quotaValue, _quotaUnit) = BytesToValueUnit(bytes.Value);
+        }
+    }
+
+    static (int Value, string Unit) BytesToValueUnit(long bytes)
+    {
+        if (bytes % (1024L * 1024 * 1024 * 1024) == 0) return ((int)(bytes / (1024L * 1024 * 1024 * 1024)), "TB");
+        if (bytes % (1024L * 1024 * 1024) == 0) return ((int)(bytes / (1024L * 1024 * 1024)), "GB");
+        return ((int)(bytes / (1024L * 1024)), "MB");
+    }
+
+    void OnQuotaValueInput(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out var v) && v >= 0)
+            _quotaValue = v;
+    }
+
+    async Task SaveQuotaSettings()
+    {
+        var settings = await Db.SystemSettings.FindAsync(1);
+        if (settings is null)
+        {
+            settings = new SystemSettings { Id = 1 };
+            Db.SystemSettings.Add(settings);
+        }
+
+        settings.DefaultStorageQuotaBytes = _quotaValue == 0
+            ? null
+            : _quotaValue * _sizeUnits.First(u => u.Id == _quotaUnit).Multiplier;
+
+        await Db.SaveChangesAsync();
+        NotificationService.Notify(NotificationSeverity.Success, "Saved", "Storage quota updated.");
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)

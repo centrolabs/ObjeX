@@ -322,6 +322,23 @@
             string? storagePath = null;
             try
             {
+                var user = await Db.Users.FindAsync(_currentUserId);
+                var quota = user?.StorageQuotaBytes;
+                if (quota is null && !_isPrivileged)
+                {
+                    var sysSettings = await Db.SystemSettings.FindAsync(1);
+                    quota = sysSettings?.DefaultStorageQuotaBytes;
+                }
+                if (quota is not null)
+                {
+                    var usage = await Db.Buckets.Where(b => b.OwnerId == _currentUserId).SumAsync(b => b.TotalSize);
+                    if (usage + file.Size > quota.Value)
+                    {
+                        errors.Add($"{file.Name}: Storage quota exceeded");
+                        continue;
+                    }
+                }
+
                 await using var hashingStream = new HashingStream(file.Stream);
                 storagePath = await StorageService.StoreAsync(BucketName, key, hashingStream);
                 var etag = hashingStream.GetETag();

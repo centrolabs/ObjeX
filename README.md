@@ -122,6 +122,8 @@ No config required for local dev. Defaults (from `appsettings.json`):
 | Min free disk | `524288000` (500MB) — uploads rejected with 507 if free space drops below this; override via `Storage:MinimumFreeDiskBytes` |
 | Presigned URL default expiry | `3600` seconds (1 hour) — configurable in **Settings → Presigned URLs** |
 | Presigned URL max expiry | `604800` seconds (7 days) — configurable in **Settings → Presigned URLs**; hard cap enforced server-side |
+| Storage quota (global default) | unlimited — configurable in **Settings → Storage Quotas**; applies to User role only; Admin/Manager unlimited by default |
+| Storage quota (per-user) | unlimited — override per user on **Users** page; applies to any role when explicitly set |
 | Admin username | `admin` |
 | Admin email | `admin@objex.local` |
 | Admin password | `admin` |
