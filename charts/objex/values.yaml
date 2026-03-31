@@ -1,0 +1,46 @@
+image:
+  repository: ghcr.io/centrolabs/objex
+  tag: latest
+  pullPolicy: IfNotPresent
+
+replicaCount: 1
+
+service:
+  type: ClusterIP
+  uiPort: 9001
+  s3Port: 9000
+
+ingress:
+  enabled: false
+  className: ""
+  # S3 API ingress (public)
+  s3:
+    host: s3.example.com
+    annotations: {}
+    tls: []
+  # UI ingress (internal, optional)
+  ui:
+    host: objex.example.com
+    annotations: {}
+    tls: []
+
+persistence:
+  enabled: true
+  size: 10Gi
+  storageClass: ""
+  accessMode: ReadWriteOnce
+
+admin:
+  password: admin
+
+seed:
+  buckets: ""
+  s3Credential:
+    name: ""
+    accessKeyId: ""
+    secretAccessKey: ""
+
+metrics:
+  enabled: false
+
+resources: {}

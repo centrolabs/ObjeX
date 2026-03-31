@@ -15,6 +15,14 @@
 Docker image: [`ghcr.io/centrolabs/objex`](https://github.com/centrolabs/ObjeX/pkgs/container/objex)
 
 ```bash
+# Docker
+docker pull ghcr.io/centrolabs/objex:latest
+docker compose up -d
+
+# Kubernetes
+helm install objex ./charts/objex
+
+# From source
 git clone https://github.com/centrolabs/ObjeX.git
 cd ObjeX/src/ObjeX.Api
 dotnet run

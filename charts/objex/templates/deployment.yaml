@@ -1,0 +1,72 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}
+  labels:
+    app.kubernetes.io/name: objex
+    app.kubernetes.io/instance: {{ .Release.Name }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: objex
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: objex
+        app.kubernetes.io/instance: {{ .Release.Name }}
+    spec:
+      containers:
+        - name: objex
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: ui
+              containerPort: 9001
+            - name: s3
+              containerPort: 9000
+          env:
+            - name: DefaultAdmin__Password
+              value: {{ .Values.admin.password | quote }}
+            {{- if .Values.seed.buckets }}
+            - name: Seed__Buckets
+              value: {{ .Values.seed.buckets | quote }}
+            {{- end }}
+            {{- if .Values.seed.s3Credential.accessKeyId }}
+            - name: Seed__S3Credential__Name
+              value: {{ .Values.seed.s3Credential.name | quote }}
+            - name: Seed__S3Credential__AccessKeyId
+              value: {{ .Values.seed.s3Credential.accessKeyId | quote }}
+            - name: Seed__S3Credential__SecretAccessKey
+              value: {{ .Values.seed.s3Credential.secretAccessKey | quote }}
+            {{- end }}
+            - name: Metrics__Enabled
+              value: {{ .Values.metrics.enabled | quote }}
+          volumeMounts:
+            - name: data
+              mountPath: /data
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: ui
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: ui
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          {{- with .Values.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      volumes:
+        - name: data
+          {{- if .Values.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ .Release.Name }}-data
+          {{- else }}
+          emptyDir: {}
+          {{- end }}

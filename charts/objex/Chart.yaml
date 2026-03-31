@@ -1,0 +1,15 @@
+apiVersion: v2
+name: objex
+description: Self-hosted blob storage with S3-compatible API
+type: application
+version: 0.1.0
+appVersion: "0.2.0"
+home: https://github.com/centrolabs/ObjeX
+sources:
+  - https://github.com/centrolabs/ObjeX
+keywords:
+  - s3
+  - storage
+  - blob
+  - object-storage
+  - self-hosted
