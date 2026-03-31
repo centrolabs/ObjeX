@@ -98,7 +98,7 @@
 - [x] Startup seeding of S3 credentials and buckets via config/env vars (zero-UI integration setup)
 - [ ] POST Object: `${filename}` variable substitution in key — deferred (no modern SDK uses this)
 - [ ] POST Object: `success_action_redirect` / `success_action_status` — deferred (all SDKs use default 204)
-- [ ] POST Object: `x-amz-meta-*` custom metadata in form fields — blocked on Object Tags (Phase 3)
+- [x] `x-amz-meta-*` custom metadata — stored as JSON on BlobObject, returned on GET/HEAD, captured on PUT/POST Object
 
 ### 3. Multipart Upload ✅
 - [x] `POST /{bucket}/{key}?uploads` — InitiateMultipartUpload

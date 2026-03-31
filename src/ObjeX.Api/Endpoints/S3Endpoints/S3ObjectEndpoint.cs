@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using System.Text.Json;
 
 using Microsoft.EntityFrameworkCore;
 
@@ -18,6 +19,23 @@ public static class S3ObjectEndpoint
 
     static bool IsPrivileged(HttpContext ctx) =>
         ctx.User.IsInRole("Admin") || ctx.User.IsInRole("Manager");
+
+    static string? ExtractCustomMetadata(IHeaderDictionary headers)
+    {
+        var meta = new Dictionary<string, string>();
+        foreach (var h in headers.Where(h => h.Key.StartsWith("x-amz-meta-", StringComparison.OrdinalIgnoreCase)))
+            meta[h.Key.ToLowerInvariant()] = h.Value.ToString();
+        return meta.Count > 0 ? JsonSerializer.Serialize(meta) : null;
+    }
+
+    static void SetCustomMetadataHeaders(HttpResponse response, string? customMetadata)
+    {
+        if (string.IsNullOrEmpty(customMetadata)) return;
+        var meta = JsonSerializer.Deserialize<Dictionary<string, string>>(customMetadata);
+        if (meta is null) return;
+        foreach (var (key, value) in meta)
+            response.Headers[key] = value;
+    }
     public static void MapS3ObjectEndpoints(this WebApplication app, RouteGroupBuilder s3)
     {
         s3.MapPut("/{bucket}/{*key}", async (
@@ -97,6 +115,7 @@ public static class S3ObjectEndpoint
                 return S3Xml.Error(S3Errors.EntityTooLarge, "Insufficient disk space.", 507);
 
             var contentType = request.ContentType ?? "application/octet-stream";
+            var customMetadata = ExtractCustomMetadata(request.Headers);
 
             await using var hashingStream = new HashingStream(request.Body);
             var storagePath = await storage.StoreAsync(bucket, key, hashingStream);
@@ -110,9 +129,11 @@ public static class S3ObjectEndpoint
                 Size = size,
                 ContentType = contentType,
                 ETag = etag,
-                StoragePath = storagePath
+                StoragePath = storagePath,
+                CustomMetadata = customMetadata
             });
 
+            ctx.Response.Headers.ETag = $"\"{etag}\"";
             return Results.Created($"/{bucket}/{key}", null);
         });
 
@@ -139,6 +160,8 @@ public static class S3ObjectEndpoint
             var obj = await metadata.GetObjectAsync(bucket, key);
             if (obj is null)
                 return S3Xml.Error(S3Errors.NoSuchKey, "The specified key does not exist.", 404);
+
+            SetCustomMetadataHeaders(ctx.Response, obj.CustomMetadata);
 
             var stream = await storage.RetrieveAsync(bucket, key);
             var fileName = Path.GetFileName(obj.Key);
@@ -175,6 +198,7 @@ public static class S3ObjectEndpoint
             ctx.Response.Headers.ContentLength = obj.Size;
             ctx.Response.Headers.ContentType = obj.ContentType;
             ctx.Response.Headers.LastModified = obj.UpdatedAt.ToString("R");
+            SetCustomMetadataHeaders(ctx.Response, obj.CustomMetadata);
             return Results.Ok();
         });
 

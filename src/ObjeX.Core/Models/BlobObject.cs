@@ -14,6 +14,7 @@ public class BlobObject : IHasTimestamps
     public string ContentType { get; set; } = "application/octet-stream";
     public required string ETag { get; set; }
     public string? StoragePath { get; set; }
+    public string? CustomMetadata { get; set; } // JSON dict of x-amz-meta-* headers
 
     // Navigation Properties
     public Bucket? Bucket { get; set; }

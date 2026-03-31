@@ -89,6 +89,12 @@ public static class S3PostObjectEndpoint
         if (string.IsNullOrEmpty(contentType))
             contentType = file.ContentType ?? "application/octet-stream";
 
+        // Extract x-amz-meta-* from form fields
+        var meta = new Dictionary<string, string>();
+        foreach (var field in form.Where(f => f.Key.StartsWith("x-amz-meta-", StringComparison.OrdinalIgnoreCase)))
+            meta[field.Key.ToLowerInvariant()] = field.Value.ToString();
+        var customMetadata = meta.Count > 0 ? System.Text.Json.JsonSerializer.Serialize(meta) : null;
+
         await using var fileStream = file.OpenReadStream();
         await using var hashingStream = new HashingStream(fileStream);
         var storagePath = await storage.StoreAsync(bucket, key, hashingStream);
@@ -102,7 +108,8 @@ public static class S3PostObjectEndpoint
             Size = size,
             ContentType = contentType,
             ETag = etag,
-            StoragePath = storagePath
+            StoragePath = storagePath,
+            CustomMetadata = customMetadata
         });
 
         var s3PublicUrl = config["S3:PublicUrl"] ?? "http://localhost:9000";
