@@ -230,9 +230,13 @@ Planned approach:
 - Implement additional `IObjectStorageService` backends (cloud, chunked, etc.)
 - Swap in without changing any other layer
 
-### 16. PostgreSQL Support
-- Swap SQLite for PostgreSQL via same `IMetadataService` interface
-- Configuration-driven backend selection
+### 16. PostgreSQL Support ✅
+- [x] `DATABASE_PROVIDER` env var — `sqlite` (default) or `postgresql`
+- [x] Separate PostgreSQL migration assembly (`ObjeX.Migrations.PostgreSql`)
+- [x] Hangfire on PostgreSQL via `Hangfire.PostgreSql`
+- [x] `docker-compose.postgres.yml` with Postgres service + health check
+- [x] Fail-fast on invalid provider or mismatched connection string
+- [x] Auto-migration on startup for both providers
 
 ---
 

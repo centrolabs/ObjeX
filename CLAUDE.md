@@ -21,6 +21,7 @@ src/
 │   ├── Metadata/        # SqliteMetadataService
 │   ├── Migrations/      # EF Core migrations
 │   └── Storage/         # FileSystemStorageService
+├── ObjeX.Migrations.PostgreSql/  # PostgreSQL-specific EF Core migrations
 └── ObjeX.Web/           # Blazor Server UI — components, pages, dialogs
     └── Components/
         ├── Pages/       # Dashboard, Buckets, Objects, Settings, Login, NotFound, Users, ChangePassword, AuditLog
@@ -472,13 +473,41 @@ dotnet run
 # → http://localhost:9001/health
 ```
 
+## Database Provider
+
+ObjeX supports SQLite (default) and PostgreSQL. Set via `Database:Provider` config or `DATABASE_PROVIDER` env var.
+
+| Provider | Value | Connection string example |
+|---|---|---|
+| SQLite (default) | `sqlite` | `Data Source=./data/db/objex.db` |
+| PostgreSQL | `postgresql` | `Host=localhost;Database=objex;Username=objex;Password=secret` |
+
+Invalid provider or mismatched connection string → fail-fast at startup with clear error.
+
+Hangfire storage follows the same switch: `Hangfire.Storage.SQLite` for SQLite, `Hangfire.PostgreSql` for PostgreSQL. SQLite PRAGMAs (WAL, busy_timeout) only run on SQLite.
+
+**Docker Compose with Postgres:** `docker compose -f docker-compose.postgres.yml up`
+
 ## EF Migrations
+
+**Dual-provider setup:** SQLite migrations live in `ObjeX.Infrastructure/Migrations/`. PostgreSQL migrations live in `ObjeX.Migrations.PostgreSql/Migrations/`. Each assembly is independent.
 
 ```bash
 cd src/ObjeX.Api
-dotnet ef migrations add <MigrationName> --project ../ObjeX.Infrastructure
-dotnet ef database update  # or just run the app — auto-migrates
+
+# SQLite migration (default)
+dotnet ef migrations add <Name> --project ../ObjeX.Infrastructure
+
+# PostgreSQL migration (requires a running Postgres instance)
+Database__Provider=postgresql \
+  ConnectionStrings__DefaultConnection="Host=localhost;Port=5432;Database=objex;Username=objex;Password=objex" \
+  dotnet ef migrations add <Name> --project ../ObjeX.Migrations.PostgreSql
+
+# Apply — or just run the app (auto-migrates on startup)
+dotnet ef database update
 ```
+
+When adding a new model or changing an existing one, generate a migration for **both** providers.
 
 ---
 

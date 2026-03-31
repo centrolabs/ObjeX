@@ -3,7 +3,7 @@
 # ObjeX - Self-Hosted Blob Storage
 
 **Goal**: Self-hostable, open-source blob storage with S3-compatible API
-**Stack**: .NET 10 API + Blazor Server UI + SQLite + Filesystem storage
+**Stack**: .NET 10 API + Blazor Server UI + SQLite or PostgreSQL + Filesystem storage
 **Status**: Active development — core API, auth, and UI implemented
 
 > **Scope:** Single-node object storage for homelabs, internal tools, and dev/test environments. Not yet suitable for mission-critical data — no replication, high availability, or point-in-time recovery.
@@ -18,6 +18,9 @@ Docker image: [`ghcr.io/centrolabs/objex`](https://github.com/centrolabs/ObjeX/p
 # Docker
 docker pull ghcr.io/centrolabs/objex:latest
 docker compose up -d
+
+# Docker with PostgreSQL
+docker compose -f docker-compose.postgres.yml up -d
 
 # Kubernetes
 helm install objex ./charts/objex
@@ -123,7 +126,8 @@ No config required for local dev. Defaults (from `appsettings.json`):
 | UI / API port | `9001` |
 | S3 API port | `9000` (S3-compatible endpoints; AWS Signature V4 required) |
 | S3 public URL | `http://localhost:9000` — set `S3:PublicUrl` for production |
-| Database | `./data/db/objex.db` (relative to working directory) |
+| Database provider | `sqlite` — set `Database:Provider=postgresql` for Postgres |
+| Database | `./data/db/objex.db` (SQLite default); set `ConnectionStrings:DefaultConnection` for Postgres |
 | Blob storage | `./data/blobs` (relative to working directory) |
 | Log files | `./data/logs/objex-YYYYMMDD.log` — daily rolling, 30 days retention, compact JSON |
 | Auto-migrate | `true` — set `Database:AutoMigrate=false` to disable startup migrations |

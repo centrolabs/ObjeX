@@ -1,4 +1,5 @@
 using Hangfire;
+using Hangfire.PostgreSql;
 using Hangfire.Storage.SQLite;
 
 using Microsoft.AspNetCore.Identity;
@@ -109,16 +110,46 @@ builder.Services.ConfigureApplicationCookie(options =>
 });
 
 
-var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
-                       ?? "Data Source=./data/db/objex.db";
-// Resolve relative path from CWD at startup and lock it to absolute
-// so it stays stable regardless of any later CWD changes.
-string dbFilePath = Path.GetFullPath(connectionString.Replace("Data Source=", "").Trim());
-connectionString = $"Data Source={dbFilePath}";
+var databaseProvider = builder.Configuration["Database:Provider"]?.ToLowerInvariant()
+                      ?? builder.Configuration["DATABASE_PROVIDER"]?.ToLowerInvariant()
+                      ?? "sqlite";
+
+if (databaseProvider is not "sqlite" and not "postgresql")
+    throw new InvalidOperationException($"Invalid database provider '{databaseProvider}'. Supported values: sqlite, postgresql. Set via DATABASE_PROVIDER env var or Database:Provider in config.");
+
+var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+
+if (databaseProvider == "sqlite")
+{
+    connectionString ??= "Data Source=./data/db/objex.db";
+}
+else if (string.IsNullOrEmpty(connectionString) || connectionString.StartsWith("Data Source=", StringComparison.OrdinalIgnoreCase))
+{
+    throw new InvalidOperationException(
+        $"ConnectionStrings:DefaultConnection must be a PostgreSQL connection string when Database:Provider=postgresql. " +
+        $"Example: Host=localhost;Database=objex;Username=objex;Password=secret");
+}
+
+string? dbFilePath = null;
+if (databaseProvider == "sqlite")
+{
+    // Resolve relative path from CWD at startup and lock it to absolute
+    // so it stays stable regardless of any later CWD changes.
+    dbFilePath = Path.GetFullPath(connectionString.Replace("Data Source=", "").Trim());
+    connectionString = $"Data Source={dbFilePath}";
+}
 
 builder.Services.AddDbContext<ObjeXDbContext>(options =>
 {
-    options.UseSqlite(connectionString, o => o.CommandTimeout(30));
+    if (databaseProvider == "postgresql")
+        options.UseNpgsql(connectionString, o =>
+        {
+            o.CommandTimeout(30);
+            o.MigrationsAssembly("ObjeX.Migrations.PostgreSql");
+        });
+    else
+        options.UseSqlite(connectionString, o => o.CommandTimeout(30));
+
     options.UseSnakeCaseNamingConvention();
 
     if (builder.Environment.IsDevelopment())
@@ -128,10 +159,20 @@ builder.Services.AddDbContext<ObjeXDbContext>(options =>
     }
 });
 
-builder.Services.AddHangfire(config => config
-    .UseSimpleAssemblyNameTypeSerializer()
-    .UseRecommendedSerializerSettings()
-    .UseSQLiteStorage(dbFilePath));
+if (databaseProvider == "postgresql")
+{
+    builder.Services.AddHangfire(config => config
+        .UseSimpleAssemblyNameTypeSerializer()
+        .UseRecommendedSerializerSettings()
+        .UsePostgreSqlStorage(opts => opts.UseNpgsqlConnection(connectionString)));
+}
+else
+{
+    builder.Services.AddHangfire(config => config
+        .UseSimpleAssemblyNameTypeSerializer()
+        .UseRecommendedSerializerSettings()
+        .UseSQLiteStorage(dbFilePath!));
+}
 builder.Services.AddHangfireServer();
 if (builder.Configuration.GetValue<bool>("Metrics:Enabled"))
     builder.Services.AddHostedService<ObjeX.Api.Metrics.BucketMetricsSyncJob>();
@@ -188,7 +229,10 @@ using (var scope = app.Services.CreateScope())
     var db = scope.ServiceProvider.GetRequiredService<ObjeXDbContext>();
     var userManager = scope.ServiceProvider.GetRequiredService<UserManager<User>>();
 
-    Directory.CreateDirectory(Path.GetDirectoryName(dbFilePath)!);
+    if (databaseProvider == "sqlite")
+        Directory.CreateDirectory(Path.GetDirectoryName(dbFilePath!)!);
+
+    app.Logger.LogInformation("Database provider: {Provider}", databaseProvider);
 
     var autoMigrate = builder.Configuration.GetValue<bool>("Database:AutoMigrate", defaultValue: true);
     if (autoMigrate)
@@ -201,12 +245,15 @@ using (var scope = app.Services.CreateScope())
         app.Logger.LogInformation("Database:AutoMigrate is disabled — skipping automatic migrations.");
     }
 
-    // Enable WAL mode, synchronous=NORMAL, and busy_timeout — persisted to the DB file.
-    // WAL allows concurrent reads during writes; NORMAL reduces fsync overhead safely.
-    // busy_timeout retries for 5s on SQLITE_BUSY before throwing.
-    db.Database.ExecuteSqlRaw("PRAGMA journal_mode=WAL;");
-    db.Database.ExecuteSqlRaw("PRAGMA synchronous=NORMAL;");
-    db.Database.ExecuteSqlRaw("PRAGMA busy_timeout=5000;");
+    if (databaseProvider == "sqlite")
+    {
+        // Enable WAL mode, synchronous=NORMAL, and busy_timeout — persisted to the DB file.
+        // WAL allows concurrent reads during writes; NORMAL reduces fsync overhead safely.
+        // busy_timeout retries for 5s on SQLITE_BUSY before throwing.
+        db.Database.ExecuteSqlRaw("PRAGMA journal_mode=WAL;");
+        db.Database.ExecuteSqlRaw("PRAGMA synchronous=NORMAL;");
+        db.Database.ExecuteSqlRaw("PRAGMA busy_timeout=5000;");
+    }
     
     var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
     foreach (var roleName in new[] { "Admin", "Manager", "User" })

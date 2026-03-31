@@ -1,0 +1,40 @@
+services:
+  objex:
+    build: .
+    ports:
+      - "9001:9001"
+      - "9000:9000"
+    volumes:
+      - objex-blobs:/data/blobs
+    environment:
+      Database__Provider: postgresql
+      ConnectionStrings__DefaultConnection: Host=postgres;Database=objex;Username=objex;Password=${POSTGRES_PASSWORD:-objex}
+      DefaultAdmin__Password: ${DEFAULT_ADMIN_PASSWORD:-admin}
+      Seed__Buckets: ${SEED_BUCKETS:-}
+      Seed__S3Credential__Name: ${SEED_S3_NAME:-}
+      Seed__S3Credential__AccessKeyId: ${SEED_S3_ACCESS_KEY:-}
+      Seed__S3Credential__SecretAccessKey: ${SEED_S3_SECRET:-}
+      Metrics__Enabled: ${METRICS_ENABLED:-false}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:17-alpine
+    volumes:
+      - objex-pgdata:/var/lib/postgresql/data
+    environment:
+      POSTGRES_USER: objex
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-objex}
+      POSTGRES_DB: objex
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U objex"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
+volumes:
+  objex-blobs:
+  objex-pgdata:
