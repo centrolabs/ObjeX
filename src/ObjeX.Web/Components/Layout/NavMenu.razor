@@ -9,6 +9,7 @@
         <RadzenPanelMenuItem Text="Settings" Path="/settings" Icon="build" />
         @if (_isAdmin)
         {
+            <RadzenPanelMenuItem Text="Audit Log" Path="/audit" Icon="history" />
             <RadzenPanelMenuItem Text="Hangfire" Path="/hangfire" Icon="schedule" />
         }
         @if (_isAdmin || _isManager)

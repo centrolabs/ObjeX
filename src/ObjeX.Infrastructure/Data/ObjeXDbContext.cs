@@ -13,6 +13,7 @@ public class ObjeXDbContext(DbContextOptions<ObjeXDbContext> options) : Identity
     public DbSet<MultipartUpload> MultipartUploads { get; set; } = null!;
     public DbSet<MultipartUploadPart> MultipartUploadParts { get; set; } = null!;
     public DbSet<SystemSettings> SystemSettings { get; set; } = null!;
+    public DbSet<AuditEntry> AuditEntries { get; set; } = null!;
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -72,6 +73,15 @@ public class ObjeXDbContext(DbContextOptions<ObjeXDbContext> options) : Identity
                 .WithMany(u => u.Parts)
                 .HasForeignKey(e => e.UploadId)
                 .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<AuditEntry>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.HasIndex(e => e.Timestamp);
+            entity.HasIndex(e => e.UserId);
+            entity.HasIndex(e => e.Action);
+            entity.HasIndex(e => e.BucketName);
         });
 
         modelBuilder.Entity<SystemSettings>(entity =>

@@ -144,7 +144,7 @@ public static class S3ObjectEndpoint
                     ETag = destEtag,
                     StoragePath = destPath,
                     CustomMetadata = srcObj.CustomMetadata
-                });
+                }, GetCallerId(ctx));
 
                 return S3Xml.CopyObjectResult(destEtag, DateTime.UtcNow);
             }
@@ -191,7 +191,7 @@ public static class S3ObjectEndpoint
                 ETag = etag,
                 StoragePath = storagePath,
                 CustomMetadata = customMetadata
-            });
+            }, GetCallerId(ctx));
 
             ctx.Response.Headers.ETag = $"\"{etag}\"";
             return Results.Created($"/{bucket}/{key}", null);
@@ -297,7 +297,7 @@ public static class S3ObjectEndpoint
             if (await metadata.ExistsObjectAsync(bucket, key))
             {
                 await storage.DeleteAsync(bucket, key);
-                await metadata.DeleteObjectAsync(bucket, key);
+                await metadata.DeleteObjectAsync(bucket, key, GetCallerId(ctx));
             }
             return Results.StatusCode(204);
         });

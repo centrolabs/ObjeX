@@ -10,7 +10,7 @@ namespace ObjeX.Infrastructure.Metadata;
 public class SqliteMetadataService(ObjeXDbContext ctx) : IMetadataService
 {
 
-    public async Task<Bucket> CreateBucketAsync(Bucket bucket, CancellationToken ctk = default)
+    public async Task<Bucket> CreateBucketAsync(Bucket bucket, string? auditUserId = null, CancellationToken ctk = default)
     {
         var error = BucketNameValidator.GetValidationError(bucket.Name);
         if (error is not null)
@@ -20,6 +20,8 @@ public class SqliteMetadataService(ObjeXDbContext ctx) : IMetadataService
             throw new InvalidOperationException($"Bucket '{bucket.Name}' already exists.");
 
         ctx.Buckets.Add(bucket);
+        if (auditUserId is not null)
+            ctx.AuditEntries.Add(new AuditEntry { UserId = auditUserId, Action = "CreateBucket", BucketName = bucket.Name });
         await ctx.SaveChangesAsync(ctk);
         return bucket;
     }
@@ -40,7 +42,7 @@ public class SqliteMetadataService(ObjeXDbContext ctx) : IMetadataService
         return await query.ToListAsync(ctk);
     }
 
-    public async Task DeleteBucketAsync(string bucketName, string userId, bool isPrivileged, CancellationToken ctk = default)
+    public async Task DeleteBucketAsync(string bucketName, string userId, bool isPrivileged, string? auditUserId = null, CancellationToken ctk = default)
     {
         var bucket = await ctx.Buckets.FirstOrDefaultAsync(b => b.Name == bucketName, ctk);
         if (bucket is null) return;
@@ -51,6 +53,8 @@ public class SqliteMetadataService(ObjeXDbContext ctx) : IMetadataService
         var objects = await ctx.BlobObjects.Where(o => o.BucketName == bucketName).ToListAsync(ctk);
         ctx.BlobObjects.RemoveRange(objects);
         ctx.Buckets.Remove(bucket);
+        if (auditUserId is not null)
+            ctx.AuditEntries.Add(new AuditEntry { UserId = auditUserId, Action = "DeleteBucket", BucketName = bucketName, Details = $"Objects deleted: {objects.Count}" });
         await ctx.SaveChangesAsync(ctk);
     }
 
@@ -59,7 +63,7 @@ public class SqliteMetadataService(ObjeXDbContext ctx) : IMetadataService
         return await ctx.Buckets.AnyAsync(b => b.Name == bucketName, ctk);
     }
 
-    public async Task<BlobObject> SaveObjectAsync(BlobObject blobObject, CancellationToken ctk = default)
+    public async Task<BlobObject> SaveObjectAsync(BlobObject blobObject, string? auditUserId = null, CancellationToken ctk = default)
     {
         var existing = await GetObjectAsync(blobObject.BucketName, blobObject.Key, ctk);
         if (existing is not null)
@@ -68,6 +72,7 @@ public class SqliteMetadataService(ObjeXDbContext ctx) : IMetadataService
             existing.ETag = blobObject.ETag;
             existing.ContentType = blobObject.ContentType;
             existing.StoragePath = blobObject.StoragePath;
+            existing.CustomMetadata = blobObject.CustomMetadata;
             existing.UpdatedAt = DateTime.UtcNow;
             ctx.BlobObjects.Update(existing);
         }
@@ -75,9 +80,11 @@ public class SqliteMetadataService(ObjeXDbContext ctx) : IMetadataService
         {
             ctx.BlobObjects.Add(blobObject);
         }
+        if (auditUserId is not null)
+            ctx.AuditEntries.Add(new AuditEntry { UserId = auditUserId, Action = "PutObject", BucketName = blobObject.BucketName, Key = blobObject.Key, Details = $"Size: {FormatBytes(blobObject.Size)}, Type: {blobObject.ContentType}" });
         await ctx.SaveChangesAsync(ctk);
         await UpdateBucketStatsAsync(blobObject.BucketName, ctk);
-        
+
         return blobObject;
     }
 
@@ -119,12 +126,14 @@ public class SqliteMetadataService(ObjeXDbContext ctx) : IMetadataService
         return await ctx.BlobObjects.ToListAsync(ctk);
     }
 
-    public async Task DeleteObjectAsync(string bucketName, string key, CancellationToken ctk = default)
+    public async Task DeleteObjectAsync(string bucketName, string key, string? auditUserId = null, CancellationToken ctk = default)
     {
         var obj = await GetObjectAsync(bucketName, key, ctk);
         if (obj is not null)
         {
             ctx.BlobObjects.Remove(obj);
+            if (auditUserId is not null)
+                ctx.AuditEntries.Add(new AuditEntry { UserId = auditUserId, Action = "DeleteObject", BucketName = bucketName, Key = key });
             await ctx.SaveChangesAsync(ctk);
             await UpdateBucketStatsAsync(bucketName, ctk);
         }
@@ -157,4 +166,12 @@ public class SqliteMetadataService(ObjeXDbContext ctx) : IMetadataService
 
         await ctx.SaveChangesAsync(ctk);
     }
+
+    static string FormatBytes(long bytes) => bytes switch
+    {
+        < 1024 => $"{bytes} B",
+        < 1024 * 1024 => $"{bytes / 1024.0:F1} KB",
+        < 1024 * 1024 * 1024 => $"{bytes / (1024.0 * 1024):F1} MB",
+        _ => $"{bytes / (1024.0 * 1024 * 1024):F1} GB"
+    };
 }

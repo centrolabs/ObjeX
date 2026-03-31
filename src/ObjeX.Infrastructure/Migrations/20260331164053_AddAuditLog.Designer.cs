@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using ObjeX.Infrastructure.Data;
 
@@ -10,9 +11,11 @@ using ObjeX.Infrastructure.Data;
 namespace ObjeX.Infrastructure.Migrations
 {
     [DbContext(typeof(ObjeXDbContext))]
-    partial class ObjeXDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260331164053_AddAuditLog")]
+    partial class AddAuditLog
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "10.0.5");
@@ -212,12 +215,6 @@ namespace ObjeX.Infrastructure.Migrations
 
                     b.HasKey("Id")
                         .HasName("pk_audit_entries");
-
-                    b.HasIndex("Action")
-                        .HasDatabaseName("ix_audit_entries_action");
-
-                    b.HasIndex("BucketName")
-                        .HasDatabaseName("ix_audit_entries_bucket_name");
 
                     b.HasIndex("Timestamp")
                         .HasDatabaseName("ix_audit_entries_timestamp");

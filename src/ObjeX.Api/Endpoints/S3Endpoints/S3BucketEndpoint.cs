@@ -34,7 +34,7 @@ public static class S3BucketEndpoint
         {
             try
             {
-                await metadata.CreateBucketAsync(new Core.Models.Bucket { Name = bucket, OwnerId = GetCallerId(ctx) });
+                await metadata.CreateBucketAsync(new Core.Models.Bucket { Name = bucket, OwnerId = GetCallerId(ctx) }, GetCallerId(ctx));
                 return Results.Ok();
             }
             catch (ArgumentException ex)
@@ -55,7 +55,7 @@ public static class S3BucketEndpoint
             if (objects.Objects.Any())
                 return S3Xml.Error(S3Errors.BucketNotEmpty, "The bucket you tried to delete is not empty.", 409);
 
-            await metadata.DeleteBucketAsync(bucket, callerId, privileged);
+            await metadata.DeleteBucketAsync(bucket, callerId, privileged, callerId);
             return Results.StatusCode(204);
         });
 

@@ -175,7 +175,7 @@ public static class S3MultipartEndpoint
             ContentType = upload.ContentType,
             ETag = finalEtag,
             StoragePath = storagePath
-        });
+        }, GetCallerId(ctx));
 
         // Cleanup
         await fs.DeletePartsAsync(uploadId);

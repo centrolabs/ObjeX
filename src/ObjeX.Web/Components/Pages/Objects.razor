@@ -253,7 +253,7 @@
                 ContentType = "application/x-directory",
                 ETag = hashingStream.GetETag(),
                 StoragePath = storagePath
-            });
+            }, _currentUserId);
             await LoadObjects();
         }
         catch (Exception ex)
@@ -351,7 +351,7 @@
                     ContentType = file.ContentType,
                     ETag = etag,
                     StoragePath = storagePath
-                });
+                }, _currentUserId);
                 done++;
                 _uploadProgress = (double)done / files.Count * 100;
                 _uploadStatus = $"Uploading {done}/{files.Count}...";
@@ -402,7 +402,7 @@
             foreach (var obj in all)
             {
                 await StorageService.DeleteAsync(BucketName, obj.Key);
-                await MetadataService.DeleteObjectAsync(BucketName, obj.Key);
+                await MetadataService.DeleteObjectAsync(BucketName, obj.Key, _currentUserId);
             }
             await LoadObjects();
             NotificationService.Notify(NotificationSeverity.Success, "Folder deleted", folderPath.TrimEnd('/'));
@@ -424,7 +424,7 @@
 
         try
         {
-            await MetadataService.DeleteObjectAsync(BucketName, obj.Key);
+            await MetadataService.DeleteObjectAsync(BucketName, obj.Key, _currentUserId);
             await LoadObjects();
             NotificationService.Notify(NotificationSeverity.Success, "Object deleted", obj.Key);
         }
@@ -455,12 +455,12 @@
                     foreach (var obj in result.Objects)
                     {
                         await StorageService.DeleteAsync(BucketName, obj.Key);
-                        await MetadataService.DeleteObjectAsync(BucketName, obj.Key);
+                        await MetadataService.DeleteObjectAsync(BucketName, obj.Key, _currentUserId);
                     }
                 }
                 else
                 {
-                    await MetadataService.DeleteObjectAsync(BucketName, row.Object!.Key);
+                    await MetadataService.DeleteObjectAsync(BucketName, row.Object!.Key, _currentUserId);
                 }
             }
             catch (Exception ex) { errors.Add(ex.Message); }

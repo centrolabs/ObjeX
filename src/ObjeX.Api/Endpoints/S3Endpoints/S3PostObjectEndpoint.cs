@@ -115,7 +115,7 @@ public static class S3PostObjectEndpoint
             ETag = etag,
             StoragePath = storagePath,
             CustomMetadata = customMetadata
-        });
+        }, GetCallerId(ctx));
 
         var s3PublicUrl = config["S3:PublicUrl"] ?? "http://localhost:9000";
         ctx.Response.Headers.ETag = $"\"{etag}\"";
@@ -156,7 +156,7 @@ public static class S3PostObjectEndpoint
                 if (await metadata.ExistsObjectAsync(bucket, key))
                 {
                     await storage.DeleteAsync(bucket, key);
-                    await metadata.DeleteObjectAsync(bucket, key);
+                    await metadata.DeleteObjectAsync(bucket, key, GetCallerId(ctx));
                 }
                 deleted.Add(key);
             }

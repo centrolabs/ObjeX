@@ -11,7 +11,7 @@ src/
 ├── ObjeX.Api/           # ASP.NET Core host — Program.cs, Endpoints/, Middleware/, Auth/
 ├── ObjeX.Core/          # Domain — zero framework dependencies
 │   ├── Interfaces/      # IMetadataService, IObjectStorageService, IHashService, IHasTimestamps
-│   ├── Models/          # Bucket, BlobObject, S3Credential, User, ListObjectsResult
+│   ├── Models/          # Bucket, BlobObject, S3Credential, User, AuditEntry, ListObjectsResult
 │   ├── Utilities/       # HashingStream (MD5 passthrough for ETag computation during upload)
 │   └── Validation/      # BucketNameValidator (GetValidationError)
 ├── ObjeX.Infrastructure/
@@ -23,7 +23,7 @@ src/
 │   └── Storage/         # FileSystemStorageService
 └── ObjeX.Web/           # Blazor Server UI — components, pages, dialogs
     └── Components/
-        ├── Pages/       # Dashboard, Buckets, Objects, Settings, Login, NotFound, Users, ChangePassword
+        ├── Pages/       # Dashboard, Buckets, Objects, Settings, Login, NotFound, Users, ChangePassword, AuditLog
         ├── Dialogs/     # CreateBucketDialog, UploadObjectDialog, CreateS3CredentialDialog, ShowS3CredentialDialog, CreateFolderDialog, CreateUserDialog, ShowUserPasswordDialog, ChangeOwnerDialog
         └── Layout/      # MainLayout, NavMenu, EmptyLayout
 ```
@@ -213,18 +213,19 @@ public interface IObjectStorageService
 // ObjeX.Core/Interfaces/IMetadataService.cs
 public interface IMetadataService
 {
-    Task<Bucket> CreateBucketAsync(Bucket bucket, CancellationToken ctk = default);
+    Task<Bucket> CreateBucketAsync(Bucket bucket, string? auditUserId = null, CancellationToken ctk = default);
     Task<Bucket?> GetBucketAsync(string bucketName, string? ownerFilter = null, CancellationToken ctk = default);
     Task<IEnumerable<Bucket>> ListBucketsAsync(string? ownerFilter = null, CancellationToken ctk = default);
-    Task DeleteBucketAsync(string bucketName, string userId, bool isPrivileged, CancellationToken ctk = default);
+    Task DeleteBucketAsync(string bucketName, string userId, bool isPrivileged, string? auditUserId = null, CancellationToken ctk = default);
     // ownerFilter: null = no filter (Admin/Manager), userId = restrict to owner (User role)
     // isPrivileged: true = skip ownership check on delete (Admin/Manager bypass)
+    // auditUserId: when non-null, writes an AuditEntry in the same transaction as the mutation
     Task<bool> ExistsBucketAsync(string bucketName, CancellationToken ctk = default);
-    Task<BlobObject> SaveObjectAsync(BlobObject blobObject, CancellationToken ctk = default);
+    Task<BlobObject> SaveObjectAsync(BlobObject blobObject, string? auditUserId = null, CancellationToken ctk = default);
     Task<BlobObject?> GetObjectAsync(string bucketName, string key, CancellationToken ctk = default);
     Task<ListObjectsResult> ListObjectsAsync(string bucketName, string? prefix = null, string? delimiter = null, CancellationToken ctk = default);
     Task<IEnumerable<BlobObject>> ListAllObjectsAsync(CancellationToken ctk = default); // all objects across all buckets — NOT filtered, used by Hangfire cleanup
-    Task DeleteObjectAsync(string bucketName, string key, CancellationToken ctk = default);
+    Task DeleteObjectAsync(string bucketName, string key, string? auditUserId = null, CancellationToken ctk = default);
     Task<bool> ExistsObjectAsync(string bucketName, string key, CancellationToken ctk = default);
     Task UpdateBucketStatsAsync(string bucketName, CancellationToken ctk = default);
 }
@@ -249,8 +250,9 @@ public interface IHashService
 // Bucket: Id (Guid), Name, OwnerId (FK → AspNetUsers, Restrict), Owner? (nav), ObjectCount, TotalSize, Objects (nav), CreatedAt, UpdatedAt
 // BlobObject: Id (Guid), BucketName, Key, Size, ContentType, ETag, StoragePath, CustomMetadata (JSON), Bucket (nav), CreatedAt, UpdatedAt
 // S3Credential: Id (Guid), Name, AccessKeyId, SecretAccessKey (plain), UserId, User (nav), LastUsedAt, CreatedAt, UpdatedAt
+// AuditEntry: Id (long autoincrement), UserId (required), Action (required), BucketName?, Key?, Details?, Timestamp (DateTime.UtcNow default)
 // User: extends IdentityUser — adds StorageUsedBytes, StorageQuotaBytes (nullable, per-user override), IsDeactivated, MustChangePassword, TemporaryPasswordExpiresAt, CreatedAt, UpdatedAt
-// All implement IHasTimestamps (User via explicit properties)
+// All implement IHasTimestamps (User via explicit properties; AuditEntry does not — immutable append-only)
 ```
 
 ---
@@ -364,6 +366,8 @@ Keyboard handling: text-input dialogs (`CreateBucketDialog`, `CreateS3Credential
 
 **Theme colors:** Teal primary via CSS variable overrides in `app.css` loaded after `<RadzenTheme>` in `App.razor` — load order matters, loading before causes Radzen to overwrite the overrides. Overrides only `--rz-primary*` variables; do NOT override base background/text colors as they break light mode.
 
+**Server-side paging with Radzen + prerender:** Radzen DataGrid's `LoadData` event does NOT fire after the interactive WebSocket reconnects — the prerender phase consumes the initial trigger. Fix: call `_grid.Reload()` in `OnAfterRenderAsync(firstRender)`. See `AuditLog.razor` for the pattern.
+
 **Profile page** (`/profile`): username (alphanumeric only, no spaces, validated per-keystroke via `@oninput`), email, and password change sections. Uses `visibility: hidden` (not `@if`) for error messages to prevent layout shift. After username save: `forceLoad: true` reload to refresh NavMenu. After password change: forced logout (`Navigation.NavigateTo("/account/logout", forceLoad: true)`).
 
 ---
@@ -383,6 +387,7 @@ GET    /account/logout    → clears cookie, redirects to /login
 GET    /health            → liveness (200 if process is up, no checks); also at /health/live
 GET    /health/ready      → readiness (checks DB connectivity + blob storage writability)
 GET    /metrics           → Prometheus metrics (HTTP request stats + per-bucket storage gauges, synced every 30s)
+GET    /audit             → Audit log (Admin only); server-side paginated table of bucket/object operations
 GET    /hangfire          → Hangfire dashboard (Admin role or localhost)
 
 # S3-Compatible API — port 9000 (AWS Signature V4 required)

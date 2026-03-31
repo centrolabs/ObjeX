@@ -1,0 +1,90 @@
+@page "/audit"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Admin")]
+@using Microsoft.EntityFrameworkCore
+@using ObjeX.Core.Models
+@using ObjeX.Infrastructure.Data
+@inject ObjeXDbContext Db
+
+<PageTitle>Audit Log — ObjeX</PageTitle>
+
+<RadzenStack Gap="1.5rem" Style="height:calc(100vh - 100px)">
+    <RadzenText TextStyle="TextStyle.H4">Audit Log</RadzenText>
+
+    <RadzenCard Style="padding:0; flex:1; min-height:0; display:flex; flex-direction:column">
+        <RadzenDataGrid @ref="_grid" IsLoading="_loading" Data="_entries" TItem="AuditEntry" Count="_count"
+                        AllowSorting="true" AllowPaging="true" PageSize="20" PagerAlwaysVisible="true"
+                        LoadData="@LoadData" Style="border:none; height:100%">
+            <Columns>
+                <RadzenDataGridColumn TItem="AuditEntry" Property="Timestamp" Title="Time" Width="190px"
+                                      SortOrder="SortOrder.Descending">
+                    <Template Context="e">
+                        @e.Timestamp.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss")
+                    </Template>
+                </RadzenDataGridColumn>
+                <RadzenDataGridColumn TItem="AuditEntry" Property="UserId" Title="User" Width="140px">
+                    <Template Context="e">
+                        @(_userNames.GetValueOrDefault(e.UserId, Truncate(e.UserId, 8)))
+                    </Template>
+                </RadzenDataGridColumn>
+                <RadzenDataGridColumn TItem="AuditEntry" Property="Action" Title="Action" Width="140px" />
+                <RadzenDataGridColumn TItem="AuditEntry" Property="BucketName" Title="Bucket" Width="160px" />
+                <RadzenDataGridColumn TItem="AuditEntry" Property="Key" Title="Key" />
+                <RadzenDataGridColumn TItem="AuditEntry" Property="Details" Title="Details" Width="280px" />
+            </Columns>
+        </RadzenDataGrid>
+    </RadzenCard>
+</RadzenStack>
+
+@code {
+    RadzenDataGrid<AuditEntry> _grid = null!;
+    bool _loading;
+    List<AuditEntry> _entries = [];
+    Dictionary<string, string> _userNames = [];
+    int _count;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+            await _grid.Reload();
+    }
+
+    async Task LoadData(Radzen.LoadDataArgs args)
+    {
+        _loading = true;
+
+        try
+        {
+            var query = Db.AuditEntries.AsQueryable();
+
+            var sort = args.Sorts?.FirstOrDefault();
+            query = sort?.Property switch
+            {
+                "Action" => sort.SortOrder == SortOrder.Ascending ? query.OrderBy(e => e.Action) : query.OrderByDescending(e => e.Action),
+                "BucketName" => sort.SortOrder == SortOrder.Ascending ? query.OrderBy(e => e.BucketName) : query.OrderByDescending(e => e.BucketName),
+                "Key" => sort.SortOrder == SortOrder.Ascending ? query.OrderBy(e => e.Key) : query.OrderByDescending(e => e.Key),
+                "Details" => sort.SortOrder == SortOrder.Ascending ? query.OrderBy(e => e.Details) : query.OrderByDescending(e => e.Details),
+                "UserId" => sort.SortOrder == SortOrder.Ascending ? query.OrderBy(e => e.UserId) : query.OrderByDescending(e => e.UserId),
+                _ => sort?.Property == "Timestamp" && sort.SortOrder == SortOrder.Ascending ? query.OrderBy(e => e.Timestamp) : query.OrderByDescending(e => e.Timestamp),
+            };
+
+            _count = await query.CountAsync();
+
+            _entries = await query
+                .Skip(args.Skip ?? 0)
+                .Take(args.Top ?? 20)
+                .ToListAsync();
+
+            var userIds = _entries.Select(e => e.UserId).Distinct().ToList();
+            _userNames = await Db.Users
+                .Where(u => userIds.Contains(u.Id))
+                .ToDictionaryAsync(u => u.Id, u => u.UserName ?? Truncate(u.Id, 8));
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    static string Truncate(string value, int maxLength) =>
+        value.Length <= maxLength ? value : value[..maxLength];
+}

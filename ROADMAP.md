@@ -104,7 +104,8 @@
 - [x] Stub 501 responses for unsupported bucket operations (versioning, lifecycle, policy, cors, encryption, tagging, acl)
 - [x] Storage quota enforcement — per-user and global default, checked on all upload paths
 - [x] Prometheus `/metrics` endpoint — HTTP request stats + per-bucket storage gauges via `prometheus-net`
-- [x] Helm chart for Kubernetes deployment (`charts/objex/`) — HTTP request stats + per-bucket storage gauges via `prometheus-net`
+- [x] Helm chart for Kubernetes deployment (`charts/objex/`)
+- [x] Audit log — records bucket/object operations with user, action, timestamp; Admin-only UI at `/audit`
 
 ### 3. Multipart Upload ✅
 - [x] `POST /{bucket}/{key}?uploads` — InitiateMultipartUpload
