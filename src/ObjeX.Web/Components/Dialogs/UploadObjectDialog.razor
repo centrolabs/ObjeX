@@ -1,4 +1,5 @@
 @inject DialogService DialogService
+@inject NotificationService NotificationService
 
 <RadzenStack Gap="1rem">
     <div style="position:relative; display:flex; flex-direction:column; align-items:center; justify-content:center;
@@ -7,7 +8,7 @@
                 @(_files.Count > 0 ? "display:none" : "")">
         <span class="rzi rzi-upload" style="font-size:2rem; color:var(--rz-primary)"></span>
         <RadzenText TextStyle="TextStyle.Subtitle1">Drag &amp; drop file(s) here or click to browse</RadzenText>
-        <InputFile OnChange="@((InputFileChangeEventArgs e) => _files = e.GetMultipleFiles().ToList())" multiple
+        <InputFile OnChange="OnFilesSelected" multiple
                    style="position:absolute; inset:0; opacity:0; cursor:pointer; width:100%; height:100%" />
     </div>
 
@@ -34,8 +35,9 @@
     @if (_reading)
     {
         <RadzenStack AlignItems="AlignItems.Center" Gap="0.5rem" Style="padding:1rem">
-            <RadzenProgressBarCircular ShowValue="false" Mode="ProgressBarMode.Indeterminate" />
-            <RadzenText TextStyle="TextStyle.Caption">Reading file(s)...</RadzenText>
+            <RadzenProgressBar Value="@_readProgress" Max="100" ShowValue="false"
+                               Style="height:4px;width:100%" />
+            <RadzenText TextStyle="TextStyle.Caption">Reading @_readCurrent of @_files.Count: @_readFileName</RadzenText>
         </RadzenStack>
     }
 
@@ -52,17 +54,40 @@
 
     List<IBrowserFile> _files = [];
     bool _reading;
+    double _readProgress;
+    int _readCurrent;
+    string _readFileName = "";
 
     const long MaxFileSize = 500L * 1024 * 1024;
+    const int MaxFiles = 10;
+
+    void OnFilesSelected(InputFileChangeEventArgs e)
+    {
+        if (e.FileCount > MaxFiles)
+        {
+            _files = [];
+            NotificationService.Notify(NotificationSeverity.Warning, "Too many files",
+                $"Selected {e.FileCount} files. Maximum is {MaxFiles} at a time.");
+            return;
+        }
+        _files = e.GetMultipleFiles(MaxFiles).ToList();
+    }
 
     async Task OnUpload()
     {
         _reading = true;
+        _readProgress = 0;
         StateHasChanged();
 
         var result = new List<UploadFile>();
-        foreach (var f in _files)
+        for (var i = 0; i < _files.Count; i++)
         {
+            var f = _files[i];
+            _readCurrent = i + 1;
+            _readFileName = f.Name;
+            _readProgress = (double)i / _files.Count * 100;
+            StateHasChanged();
+
             using var ms = new MemoryStream();
             await using var stream = f.OpenReadStream(MaxFileSize);
             await stream.CopyToAsync(ms);

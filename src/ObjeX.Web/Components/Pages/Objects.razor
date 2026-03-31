@@ -17,6 +17,9 @@
 
 <PageTitle>@BucketName — ObjeX</PageTitle>
 
+<div @ref="_dropZoneRef" style="position:relative;min-height:80vh">
+    <InputFile @ref="_inputFileRef" OnChange="OnDropFiles" multiple style="display:none" />
+
 <RadzenStack Gap="1rem">
     <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" JustifyContent="JustifyContent.SpaceBetween">
         <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
@@ -34,11 +37,17 @@
             <RadzenButton Text="New Folder" Icon="create_new_folder"
                           ButtonStyle="ButtonStyle.Secondary" Disabled="@(!_bucketExists)"
                           Click="@OnNewFolderClick" />
-            <RadzenButton Text="@(_uploading ? "Uploading..." : "Upload")" Icon="upload"
+            <RadzenButton Text="@(_uploadStatus ?? "Upload")" Icon="upload"
                           ButtonStyle="ButtonStyle.Primary" Disabled="@(_uploading || !_bucketExists)"
                           Click="@OnUploadClick" />
+            <RadzenButton Text="Cancel" Icon="close" ButtonStyle="ButtonStyle.Light"
+                          Click="@(() => _uploadCts?.Cancel())"
+                          style="@(_uploading ? "" : "display:none")" />
         </RadzenStack>
     </RadzenStack>
+
+    <RadzenProgressBar Value="@_uploadProgress" Max="100" ShowValue="false"
+                       Style="@($"height:4px;margin-top:-0.5rem;visibility:{(_uploading ? "visible" : "hidden")}")" />
 
     <RadzenCard Style="@($"padding:0.6rem 1rem;visibility:{(_selected.Count > 0 ? "visible" : "hidden")}")">
         <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="1rem">
@@ -53,7 +62,7 @@
     </RadzenCard>
 
     <div class="objects-grid" style="overflow-x:auto">
-    <RadzenDataGrid Data="@_rows" TItem="ListRow" AllowSorting="true" EmptyText="No objects in this bucket.">
+    <RadzenDataGrid Data="@_rows" TItem="ListRow" AllowSorting="true" EmptyText="No objects yet. Drag files here or click Upload.">
         <Columns>
             <RadzenDataGridColumn TItem="ListRow" Width="48px" Sortable="false" Resizable="false">
                 <HeaderTemplate>
@@ -132,6 +141,7 @@
     </RadzenDataGrid>
     </div>
 </RadzenStack>
+</div>
 
 <style>
     .objects-grid .rz-data-grid-data td {
@@ -158,9 +168,24 @@
     HashSet<ListRow> _selected = [];
     string _currentPrefix = string.Empty;
     bool _uploading;
+    string? _uploadStatus;
+    double _uploadProgress;
+    CancellationTokenSource? _uploadCts;
     bool _bucketExists = true;
+    ElementReference _dropZoneRef;
+    InputFile? _inputFileRef;
+    IJSObjectReference? _dropZoneModule;
     string _currentUserId = string.Empty;
     bool _isPrivileged;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && _inputFileRef?.Element is not null)
+        {
+            _dropZoneModule = await JS.InvokeAsync<IJSObjectReference>("import", "./Components/Pages/Objects.razor.js");
+            await _dropZoneModule.InvokeVoidAsync("initDropZone", _dropZoneRef, _inputFileRef.Element);
+        }
+    }
 
     protected override async Task OnInitializedAsync()
     {
@@ -248,17 +273,56 @@
         var result = await DialogService.OpenAsync<UploadObjectDialog>("Upload");
         if (result is not List<UploadObjectDialog.UploadFile> selectedFiles || selectedFiles.Count == 0) return;
 
-        _uploading = true;
-        var errors = new List<string>();
+        var files = selectedFiles.Select(f => (f.Name, f.ContentType, f.Size, Stream: (Stream)new MemoryStream(f.Data))).ToList();
+        await UploadFiles(files);
+    }
 
-        foreach (var file in selectedFiles)
+    const int MaxDropFiles = 10;
+    const long MaxFileSize = 500L * 1024 * 1024;
+
+    async Task OnDropFiles(InputFileChangeEventArgs e)
+    {
+        if (_uploading || !_bucketExists || e.FileCount == 0) return;
+
+        if (e.FileCount > MaxDropFiles)
         {
+            NotificationService.Notify(NotificationSeverity.Warning, "Too many files", $"Selected {e.FileCount} files. Maximum is {MaxDropFiles} at a time.");
+            return;
+        }
+
+        var files = new List<(string Name, string ContentType, long Size, Stream Stream)>();
+        foreach (var bf in e.GetMultipleFiles(MaxDropFiles))
+        {
+            var ms = new MemoryStream();
+            await using var stream = bf.OpenReadStream(MaxFileSize);
+            await stream.CopyToAsync(ms);
+            ms.Position = 0;
+            files.Add((bf.Name, bf.ContentType ?? "application/octet-stream", bf.Size, ms));
+        }
+
+        await UploadFiles(files);
+    }
+
+    async Task UploadFiles(List<(string Name, string ContentType, long Size, Stream Stream)> files)
+    {
+        _uploading = true;
+        _uploadProgress = 0;
+        _uploadCts = new CancellationTokenSource();
+        _uploadStatus = $"Uploading 0/{files.Count}...";
+        StateHasChanged();
+
+        var errors = new List<string>();
+        var done = 0;
+
+        foreach (var file in files)
+        {
+            if ((_uploadCts?.IsCancellationRequested == true)) break;
+
             var key = _currentPrefix + file.Name;
             string? storagePath = null;
             try
             {
-                using var ms = new MemoryStream(file.Data);
-                await using var hashingStream = new Core.Utilities.HashingStream(ms);
+                await using var hashingStream = new HashingStream(file.Stream);
                 storagePath = await StorageService.StoreAsync(BucketName, key, hashingStream);
                 var etag = hashingStream.GetETag();
 
@@ -271,6 +335,10 @@
                     ETag = etag,
                     StoragePath = storagePath
                 });
+                done++;
+                _uploadProgress = (double)done / files.Count * 100;
+                _uploadStatus = $"Uploading {done}/{files.Count}...";
+                StateHasChanged();
             }
             catch (Exception ex)
             {
@@ -278,13 +346,24 @@
                     await StorageService.DeleteAsync(BucketName, key);
                 errors.Add($"{file.Name}: {ex.Message}");
             }
+            finally
+            {
+                file.Stream.Dispose();
+            }
         }
 
+        var cancelled = (_uploadCts?.IsCancellationRequested == true);
         await LoadObjects();
         _uploading = false;
+        _uploadStatus = null;
+        _uploadProgress = 0;
+        _uploadCts?.Dispose();
+        _uploadCts = null;
 
-        if (errors.Count == 0)
-            NotificationService.Notify(NotificationSeverity.Success, "Upload complete", $"{selectedFiles.Count} file(s) uploaded");
+        if (cancelled)
+            NotificationService.Notify(NotificationSeverity.Warning, "Upload cancelled", $"{done} of {files.Count} file(s) uploaded before cancel");
+        else if (errors.Count == 0)
+            NotificationService.Notify(NotificationSeverity.Success, "Upload complete", $"{done} file(s) uploaded");
         else
             foreach (var err in errors)
                 NotificationService.Notify(NotificationSeverity.Error, "Upload failed", err);
