@@ -142,7 +142,8 @@
 - [x] Bulk select — checkbox column, bulk delete + ZIP download, action bar
 - [x] File metadata viewer — info button opens dialog with key, content-type, size, ETag, uploaded, last modified
 - [x] Storage analytics charts — per-bucket breakdown: storage donut, objects column, file types donut (top-N limits, custom tooltips)
-- [x] Automated test suite — 111 xUnit tests (unit + integration via `WebApplicationFactory`, real SQLite, no mocks); S3 CRUD, multipart, auth boundaries, path traversal, quotas, audit, copy, batch delete, resilience, cookie auth, health checks, security headers
+- [x] ETag integrity verification on read — opt-in `x-objex-verify-integrity: true` request header; re-hashes blob before streaming, returns 500 on mismatch; zero overhead for normal clients
+- [x] Automated test suite — 113 xUnit tests (unit + integration via `WebApplicationFactory`, real SQLite, no mocks); S3 CRUD, multipart, auth boundaries, path traversal, quotas, audit, copy, batch delete, resilience, cookie auth, health checks, security headers
 
 ---
 
@@ -177,9 +178,8 @@
 - Backup/restore end-to-end drill
 
 ### ETag Verification on Read
-- **v1** — weekly job covers it (already exists)
-- **v2** — opt-in `x-objex-verify-integrity: true` request header; re-hash before streaming, return 500 if mismatch; zero overhead for normal clients
-- **v2+** — streaming MD5 passthrough on all reads, log mismatches silently, expose corruption counters on `/health/integrity`
+- **v1** — weekly job covers it (already exists); opt-in `x-objex-verify-integrity: true` header for per-request verification (done)
+- **v2** — streaming MD5 passthrough on all reads, log mismatches silently, expose corruption counters on `/health/integrity`
 
 ### Webhook Notifications
 - POST to configured URL on bucket/object mutations (upload, delete, create bucket)

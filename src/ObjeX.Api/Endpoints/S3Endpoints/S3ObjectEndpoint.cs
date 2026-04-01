@@ -47,7 +47,7 @@ public static class S3ObjectEndpoint
             IMetadataService metadata,
             IObjectStorageService storage,
             FileSystemStorageService fs,
-            ObjeX.Infrastructure.Data.ObjeXDbContext db) =>
+            Infrastructure.Data.ObjeXDbContext db) =>
         {
             // Multipart UploadPart: PUT /{bucket}/{*key}?partNumber=N&uploadId=X
             if (request.Query.TryGetValue("partNumber", out var pnStr) &&
@@ -88,7 +88,7 @@ public static class S3ObjectEndpoint
                 }
                 else
                 {
-                    db.MultipartUploadParts.Add(new ObjeX.Core.Models.MultipartUploadPart
+                    db.MultipartUploadParts.Add(new MultipartUploadPart
                     {
                         UploadId = uploadId,
                         PartNumber = partNumber,
@@ -205,7 +205,7 @@ public static class S3ObjectEndpoint
             HttpContext ctx,
             IMetadataService metadata,
             IObjectStorageService storage,
-            ObjeX.Infrastructure.Data.ObjeXDbContext db) =>
+            Infrastructure.Data.ObjeXDbContext db) =>
         {
             // ListParts: GET /{bucket}/{*key}?uploadId=X
             if (request.Query.TryGetValue("uploadId", out var listPartsUploadId))
@@ -223,7 +223,25 @@ public static class S3ObjectEndpoint
 
             SetCustomMetadataHeaders(ctx.Response, obj.CustomMetadata);
 
-            var stream = await storage.RetrieveAsync(bucket, key);
+            Stream stream = await storage.RetrieveAsync(bucket, key);
+
+            // Opt-in integrity verification: re-hash the blob and compare against stored ETag.
+            // Buffers the entire file in memory — only use when integrity matters more than speed.
+            if (request.Headers.ContainsKey("x-objex-verify-integrity"))
+            {
+                await using var hashingStream = new HashingStream(stream);
+                var buffer = new MemoryStream();
+                await hashingStream.CopyToAsync(buffer, ctx.RequestAborted);
+                var computedETag = hashingStream.GetETag();
+
+                if (computedETag != obj.ETag)
+                    return S3Xml.Error(S3Errors.InternalError,
+                        $"Integrity check failed: stored ETag {obj.ETag} does not match computed {computedETag}.", 500);
+
+                buffer.Position = 0;
+                stream = buffer;
+            }
+
             var fileName = Path.GetFileName(obj.Key);
 
             // ?download=true forces browser download regardless of content type
@@ -270,7 +288,7 @@ public static class S3ObjectEndpoint
             IMetadataService metadata,
             IObjectStorageService storage,
             FileSystemStorageService fs,
-            ObjeX.Infrastructure.Data.ObjeXDbContext db) =>
+            Infrastructure.Data.ObjeXDbContext db) =>
         {
             if (await metadata.GetBucketAsync(bucket, IsPrivileged(ctx) ? null : GetCallerId(ctx)) is null)
                 return Results.StatusCode(204); // S3 spec: DELETE is idempotent, non-owned = treat as non-existent

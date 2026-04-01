@@ -406,7 +406,7 @@ PUT    /{bucket}                → create bucket (S3 XML response)
 DELETE /{bucket}                → delete bucket
 PUT    /{bucket}/{*key}         → upload object (returns ETag header); x-amz-copy-source → CopyObject; x-amz-meta-* captured
 PUT    /{bucket}/{*key}?partNumber=N&uploadId=X → UploadPart; upserts part, returns ETag header
-GET    /{bucket}/{*key}         → download object; ?download=true forces application/octet-stream attachment; Range requests supported; x-amz-meta-* returned
+GET    /{bucket}/{*key}         → download object; ?download=true forces application/octet-stream attachment; Range requests supported; x-amz-meta-* returned; x-objex-verify-integrity header triggers ETag re-hash (500 on mismatch)
 GET    /{bucket}/{*key}?uploadId=X → ListParts XML
 HEAD   /{bucket}/{*key}         → object metadata (ETag, Content-Length, Content-Type, x-amz-meta-* headers)
 DELETE /{bucket}/{*key}         → delete object (204)

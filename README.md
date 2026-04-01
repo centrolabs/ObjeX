@@ -231,7 +231,7 @@ Weekly Monday PRs for NuGet packages (grouped: `radzen`, `ef-core`, `hangfire`, 
 
 ## Testing
 
-111 automated tests (xUnit, ~5 seconds). Integration tests use real SQLite via `WebApplicationFactory` — no mocks.
+113 automated tests (xUnit, ~5 seconds). Integration tests use real SQLite via `WebApplicationFactory` — no mocks.
 
 ```bash
 dotnet test src/ObjeX.Tests/
@@ -255,7 +255,7 @@ dotnet test src/ObjeX.Tests/
 - Health endpoints — liveness, readiness
 - Security headers — X-Content-Type-Options, X-Frame-Options, Referrer-Policy, no Server header
 - S3 compatibility — stub 501 for unimplemented ops, GetBucketLocation, ListMultipartUploads
-- Resilience — missing blob file returns error (not 200), concurrent uploads maintain consistent state
+- Resilience — missing blob file returns error (not 200), concurrent uploads maintain consistent state, ETag integrity verification on corrupt blobs
 - Core validators — BucketNameValidator, ObjectKeyValidator, HashingStream, Sha256HashService
 
 ### Known gaps
@@ -264,7 +264,7 @@ dotnet test src/ObjeX.Tests/
 |----------|--------|
 | Disk full during upload | ⚠️ Not tested under real disk pressure |
 | DB locked under concurrent writes | ⚠️ No explicit retry policy tuning |
-| Corrupt blob on read | ❌ No integrity check — ETag stored but not verified on download |
+| Corrupt blob on read | ✅ Opt-in — send `x-objex-verify-integrity: true` header to re-hash before streaming |
 | Large file upload (500MB+) | ⚠️ Streaming behavior under memory pressure unknown |
 
 ---

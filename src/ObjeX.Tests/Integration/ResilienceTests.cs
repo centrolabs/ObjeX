@@ -78,4 +78,62 @@ public class ResilienceTests(ObjeXFactory factory) : IClassFixture<ObjeXFactory>
         var downloaded = await getResponse.Content.ReadAsByteArrayAsync();
         Assert.Equal(4096, downloaded.Length); // correct size, not a corrupt mix
     }
+
+    [Fact]
+    public async Task IntegrityCheck_ValidBlob_Returns200()
+    {
+        var bucket = "test-bucket";
+        var key = "integrity-ok-" + Guid.NewGuid().ToString("N")[..6] + ".txt";
+        var content = "integrity check content"u8.ToArray();
+
+        var putRequest = new HttpRequestMessage(HttpMethod.Put, $"/{bucket}/{key}");
+        putRequest.Content = new ByteArrayContent(content);
+        S3RequestSigner.SignRequest(putRequest, factory.AccessKeyId, factory.SecretAccessKey, content);
+        await _client.SendAsync(putRequest);
+
+        // GET with integrity verification header — should pass
+        var getRequest = new HttpRequestMessage(HttpMethod.Get, $"/{bucket}/{key}");
+        getRequest.Headers.TryAddWithoutValidation("x-objex-verify-integrity", "true");
+        S3RequestSigner.SignRequest(getRequest, factory.AccessKeyId, factory.SecretAccessKey);
+        var response = await _client.SendAsync(getRequest);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var downloaded = await response.Content.ReadAsByteArrayAsync();
+        Assert.Equal(content, downloaded);
+    }
+
+    [Fact]
+    public async Task IntegrityCheck_CorruptBlob_Returns500()
+    {
+        var bucket = "test-bucket";
+        var key = "integrity-corrupt-" + Guid.NewGuid().ToString("N")[..6] + ".txt";
+        var content = "original content"u8.ToArray();
+
+        var putRequest = new HttpRequestMessage(HttpMethod.Put, $"/{bucket}/{key}");
+        putRequest.Content = new ByteArrayContent(content);
+        S3RequestSigner.SignRequest(putRequest, factory.AccessKeyId, factory.SecretAccessKey, content);
+        await _client.SendAsync(putRequest);
+
+        // Corrupt the blob file on disk (overwrite with different bytes)
+        using (var scope = factory.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<ObjeXDbContext>();
+            var obj = await db.BlobObjects.FirstAsync(o => o.BucketName == bucket && o.Key == key);
+            await File.WriteAllBytesAsync(obj.StoragePath!, "CORRUPTED DATA"u8.ToArray());
+        }
+
+        // GET without integrity header — returns 200 with corrupt content (no check)
+        var normalGet = new HttpRequestMessage(HttpMethod.Get, $"/{bucket}/{key}");
+        S3RequestSigner.SignRequest(normalGet, factory.AccessKeyId, factory.SecretAccessKey);
+        var normalResponse = await _client.SendAsync(normalGet);
+        Assert.Equal(HttpStatusCode.OK, normalResponse.StatusCode);
+
+        // GET with integrity header — should detect mismatch and return 500
+        var verifyGet = new HttpRequestMessage(HttpMethod.Get, $"/{bucket}/{key}");
+        verifyGet.Headers.TryAddWithoutValidation("x-objex-verify-integrity", "true");
+        S3RequestSigner.SignRequest(verifyGet, factory.AccessKeyId, factory.SecretAccessKey);
+        var verifyResponse = await _client.SendAsync(verifyGet);
+        Assert.Equal(HttpStatusCode.InternalServerError, verifyResponse.StatusCode);
+        var body = await verifyResponse.Content.ReadAsStringAsync();
+        Assert.Contains("Integrity check failed", body);
+    }
 }

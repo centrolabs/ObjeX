@@ -11,7 +11,8 @@ All notable changes to ObjeX are documented here.
 - Prometheus `/metrics` endpoint with per-bucket storage gauges
 - Helm chart for Kubernetes deployment
 - Storage quota enforcement (per-user and global default)
-- Automated test suite — 111 xUnit tests (unit + integration), CI runs tests on every push and PR
+- ETag integrity verification on read — opt-in `x-objex-verify-integrity: true` header re-hashes blob before streaming
+- Automated test suite — 113 xUnit tests (unit + integration), CI runs tests on every push and PR
 
 ### Fixed
 - BucketNameValidator rejected bucket names starting/ending with digits (`char.IsLower` → `char.IsLower || char.IsAsciiDigit`)

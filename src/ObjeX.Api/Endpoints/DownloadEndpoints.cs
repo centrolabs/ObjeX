@@ -2,6 +2,7 @@ using System.IO.Compression;
 using System.Security.Claims;
 
 using ObjeX.Core.Interfaces;
+using ObjeX.Core.Utilities;
 
 namespace ObjeX.Api.Endpoints;
 
@@ -27,7 +28,22 @@ public static class DownloadEndpoints
             if (obj is null)
                 return Results.NotFound();
 
-            var stream = await storage.RetrieveAsync(bucketName, key);
+            Stream stream = await storage.RetrieveAsync(bucketName, key);
+
+            if (ctx.Request.Headers.ContainsKey("x-objex-verify-integrity"))
+            {
+                await using var hashingStream = new HashingStream(stream);
+                var buffer = new MemoryStream();
+                await hashingStream.CopyToAsync(buffer, ctx.RequestAborted);
+                var computedETag = hashingStream.GetETag();
+
+                if (computedETag != obj.ETag)
+                    return Results.Problem($"Integrity check failed: stored ETag {obj.ETag} does not match computed {computedETag}.", statusCode: 500);
+
+                buffer.Position = 0;
+                stream = buffer;
+            }
+
             var contentType = download == true ? "application/octet-stream" : obj.ContentType;
             var fileName = download == true ? Path.GetFileName(key) : null;
             var entityTag = new Microsoft.Net.Http.Headers.EntityTagHeaderValue($"\"{obj.ETag}\"");
@@ -46,7 +62,7 @@ public static class DownloadEndpoints
             if (await metadata.GetBucketAsync(bucketName, IsPrivileged(ctx) ? null : GetCallerId(ctx)) is null)
                 return Results.NotFound();
 
-            List<ObjeX.Core.Models.BlobObject> files;
+            List<Core.Models.BlobObject> files;
             string zipName;
 
             if (keys is { Length: > 0 })
