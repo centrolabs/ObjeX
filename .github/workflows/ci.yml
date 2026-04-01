@@ -25,3 +25,6 @@ jobs:
 
       - name: Build
         run: dotnet build ObjeX.slnx --no-restore --configuration Release
+
+      - name: Test
+        run: dotnet test ObjeX.slnx --no-build --configuration Release --verbosity normal

@@ -97,7 +97,7 @@
 - `IMetadataService.ListAllObjectsAsync()` added for cross-bucket object enumeration
 
 ### CI/CD
-- **CI** (`ci.yml`) — triggers on push to `main` and all PRs; runs on `ubuntu-latest`; restore → build Release; fails fast on compile errors; no tests yet
+- **CI** (`ci.yml`) — triggers on push to `main` and all PRs; runs on `ubuntu-latest`; restore → build Release → run xUnit test suite
 - **CD** (`cd.yml`) — triggers on push to `main`; builds multi-arch image (amd64/arm64) and pushes to GitHub Container Registry (`ghcr.io/centrolabs/objex:latest` + `ghcr.io/centrolabs/objex:<tag>`)
 
 ### Dockerize
@@ -142,6 +142,7 @@
 - [x] Bulk select — checkbox column, bulk delete + ZIP download, action bar
 - [x] File metadata viewer — info button opens dialog with key, content-type, size, ETag, uploaded, last modified
 - [x] Storage analytics charts — per-bucket breakdown: storage donut, objects column, file types donut (top-N limits, custom tooltips)
+- [x] Automated test suite — 108 xUnit tests (unit + integration via `WebApplicationFactory`, real SQLite, no mocks); S3 CRUD, multipart, auth boundaries, path traversal, quotas, audit, copy, batch delete, resilience, cookie auth, health checks, security headers
 
 ---
 
@@ -167,17 +168,13 @@
 - Permission management UI (admin)
 - Permission checks enforced in all API endpoints
 
-### Automated Test Suite
-- Integration tests (real SQLite + PostgreSQL, no mocks)
-- Upload → download round-trip with ETag verification
-- Upload → delete → confirm 404
-- Bucket CRUD lifecycle
-- Auth boundary: no key, expired key, wrong key, valid cookie, valid API key
-- Path traversal fuzzing on object keys (`../`, `..\\`, URL-encoded variants)
-- Concurrent uploads to same key (race condition validation)
-- Large file streaming (500MB+)
-- Fault injection: disk full mid-upload, corrupt blob, missing blob, `SQLITE_BUSY`
-- Operational: backup/restore drill, Hangfire job verification
+### Extended Test Coverage
+- PostgreSQL integration tests (currently SQLite-only)
+- Large file streaming (500MB+) under memory pressure
+- Fault injection: disk full mid-upload, `SQLITE_BUSY` contention
+- S3 POST Object (presigned POST form-field auth)
+- Hangfire job verification (orphan cleanup, integrity check)
+- Backup/restore end-to-end drill
 
 ### ETag Verification on Read
 - **v1** — weekly job covers it (already exists)

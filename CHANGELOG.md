@@ -11,6 +11,7 @@ All notable changes to ObjeX are documented here.
 - Prometheus `/metrics` endpoint with per-bucket storage gauges
 - Helm chart for Kubernetes deployment
 - Storage quota enforcement (per-user and global default)
+- Automated test suite — 108 xUnit tests (unit + integration), CI runs tests on every push and PR
 
 ## v0.2.0 — 2026-03-31
 

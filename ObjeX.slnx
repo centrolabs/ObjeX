@@ -6,4 +6,7 @@
     <Project Path="src/ObjeX.Migrations.PostgreSql/ObjeX.Migrations.PostgreSql.csproj" />
     <Project Path="src/ObjeX.Web/ObjeX.Web.csproj" />
   </Folder>
+  <Folder Name="/test/">
+    <Project Path="src/ObjeX.Tests/ObjeX.Tests.csproj" />
+  </Folder>
 </Solution>

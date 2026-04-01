@@ -22,6 +22,9 @@ src/
 │   ├── Migrations/      # EF Core migrations
 │   └── Storage/         # FileSystemStorageService
 ├── ObjeX.Migrations.PostgreSql/  # PostgreSQL-specific EF Core migrations
+├── ObjeX.Tests/         # xUnit — unit (Core validators, hashing) + integration (WebApplicationFactory, real SQLite)
+│   ├── Unit/            # BucketNameValidator, ObjectKeyValidator, HashingStream, Sha256HashService
+│   └── Integration/     # S3 API round-trips, auth, multipart, quotas, resilience, cookie auth, health
 └── ObjeX.Web/           # Blazor Server UI — components, pages, dialogs
     └── Components/
         ├── Pages/       # Dashboard, Buckets, Objects, Settings, Login, NotFound, Users, ChangePassword, AuditLog
@@ -453,7 +456,7 @@ POST   /                        → S3 POST Object (bucketEndpoint mode); bucket
 
 ## CI/CD
 
-**`ci.yml`** — build gate, GitHub-hosted runner (`ubuntu-latest`). Triggers on push to `main` and all PRs. Steps: checkout → setup .NET (from `global.json`) → restore → build Release. No tests yet.
+**`ci.yml`** — build + test gate, GitHub-hosted runner (`ubuntu-latest`). Triggers on push to `main` and all PRs. Steps: checkout → setup .NET (from `global.json`) → restore → build Release → run xUnit test suite.
 
 **`cd.yml`** — triggers on push to `main`. Builds multi-arch image (amd64/arm64) via Buildx + QEMU and pushes to GitHub Container Registry (`ghcr.io/centrolabs/objex:latest` + `ghcr.io/centrolabs/objex:<tag>`). Uses `GITHUB_TOKEN` (automatic, no manual secrets needed).
 

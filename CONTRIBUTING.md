@@ -16,13 +16,13 @@ UI at http://localhost:9001 (admin / admin), S3 API at http://localhost:9000.
 
 - **.NET 10** — check `global.json` for exact version
 - **EF Migrations** — generate for both SQLite and PostgreSQL when changing models (see [CLAUDE.md](CLAUDE.md#ef-migrations))
-- **No tests yet** — CI is build-only; don't break the build
+- **Tests** — xUnit, run with `dotnet test`. Add tests for new features; don't break existing ones.
 
 ## Pull Requests
 
 - One feature per PR
 - Keep changes focused — don't refactor unrelated code
-- Ensure `dotnet build` passes
+- Ensure `dotnet build` and `dotnet test` pass
 - Describe what and why in the PR description
 
 ## Reporting Issues
