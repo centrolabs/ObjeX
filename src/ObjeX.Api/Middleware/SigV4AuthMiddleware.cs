@@ -1,3 +1,4 @@
+using System.Security;
 using System.Security.Cryptography;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Identity;
@@ -97,7 +98,12 @@ public class SigV4AuthMiddleware(RequestDelegate next, ILogger<SigV4AuthMiddlewa
             return;
         }
 
-        await SetUserContextAsync(context, credential);
+        if (!await SetUserContextAsync(context, credential))
+        {
+            logger.LogWarning("SigV4: user account deactivated for {KeyId}", safeKeyId);
+            await WriteError(context, S3Errors.AccessDenied, "Your account has been deactivated.", 403);
+            return;
+        }
         _ = UpdateLastUsedAsync(db, credential.Id, context.RequestAborted);
 
         await next(context);
@@ -160,14 +166,24 @@ public class SigV4AuthMiddleware(RequestDelegate next, ILogger<SigV4AuthMiddlewa
             return;
         }
 
-        await SetUserContextAsync(context, credential);
+        if (!await SetUserContextAsync(context, credential))
+        {
+            logger.LogWarning("SigV4 POST: user account deactivated for {KeyId}", safeKeyId);
+            await WriteError(context, S3Errors.AccessDenied, "Your account has been deactivated.", 403);
+            return;
+        }
         _ = UpdateLastUsedAsync(db, credential.Id, context.RequestAborted);
 
         await next(context);
     }
 
-    private static async Task SetUserContextAsync(HttpContext context, ObjeX.Core.Models.S3Credential credential)
+    private static async Task<bool> SetUserContextAsync(HttpContext context, ObjeX.Core.Models.S3Credential credential)
     {
+        var userManager = context.RequestServices.GetRequiredService<UserManager<User>>();
+        var user = await userManager.FindByIdAsync(credential.UserId);
+        if (user is null || user.IsDeactivated)
+            return false;
+
         var claims = new List<Claim>
         {
             new(ClaimTypes.NameIdentifier, credential.UserId),
@@ -175,17 +191,12 @@ public class SigV4AuthMiddleware(RequestDelegate next, ILogger<SigV4AuthMiddlewa
             new("access_key_id", credential.AccessKeyId),
         };
 
-        // Add role claims so IsInRole() works for Admin/Manager privilege checks
-        var userManager = context.RequestServices.GetRequiredService<UserManager<User>>();
-        var user = await userManager.FindByIdAsync(credential.UserId);
-        if (user is not null)
-        {
-            var roles = await userManager.GetRolesAsync(user);
-            foreach (var role in roles)
-                claims.Add(new Claim(ClaimTypes.Role, role));
-        }
+        var roles = await userManager.GetRolesAsync(user);
+        foreach (var role in roles)
+            claims.Add(new Claim(ClaimTypes.Role, role));
 
         context.User = new ClaimsPrincipal(new ClaimsIdentity(claims, "SigV4"));
+        return true;
     }
 
     private static bool IsTimestampFresh(HttpRequest request)
@@ -248,8 +259,8 @@ public class SigV4AuthMiddleware(RequestDelegate next, ILogger<SigV4AuthMiddlewa
             $"""
             <?xml version="1.0" encoding="UTF-8"?>
             <Error>
-              <Code>{code}</Code>
-              <Message>{message}</Message>
+              <Code>{SecurityElement.Escape(code)}</Code>
+              <Message>{SecurityElement.Escape(message)}</Message>
             </Error>
             """);
     }
