@@ -97,7 +97,6 @@ public class RoleBasedAccessTests(ObjeXFactory factory) : IClassFixture<ObjeXFac
             UserName = username,
             Email = $"{username}@test.local",
             EmailConfirmed = true,
-            StorageUsedBytes = 0
         };
         var result = await userManager.CreateAsync(user, "test1234");
         Assert.True(result.Succeeded, string.Join(", ", result.Errors.Select(e => e.Description)));

@@ -5,7 +5,6 @@ namespace ObjeX.Core.Models;
 
 public class User : IdentityUser, IHasTimestamps
 {
-    public long StorageUsedBytes { get; set; }
     public long? StorageQuotaBytes { get; set; } // null = use system default
     public bool IsDeactivated { get; set; }
     public bool MustChangePassword { get; set; }

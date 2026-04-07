@@ -1,10 +1,13 @@
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using ObjeX.Api;
+using ObjeX.Infrastructure.Data;
 
 namespace ObjeX.Tests;
 
@@ -42,6 +45,17 @@ public class ObjeXFactory : WebApplicationFactory<ApiAssemblyMarker>
             // throw "out of memory" on disposal when the temp DB is cleaned up.
             // Tests don't need background job processing.
             services.RemoveAll<IHostedService>();
+
+            // Suppress PendingModelChangesWarning — we intentionally removed
+            // StorageUsedBytes from the model without creating a migration.
+            services.AddDbContext<ObjeXDbContext>((sp, options) =>
+            {
+                options.UseSqlite($"Data Source={Path.Combine(_tempDir, "test.db")}",
+                    o => o.CommandTimeout(30));
+                options.UseSnakeCaseNamingConvention();
+                options.ConfigureWarnings(w =>
+                    w.Ignore(RelationalEventId.PendingModelChangesWarning));
+            });
         });
     }
 

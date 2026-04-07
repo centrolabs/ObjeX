@@ -30,7 +30,7 @@ namespace ObjeX.Infrastructure.Migrations
                 columns: table => new
                 {
                     id = table.Column<string>(type: "TEXT", nullable: false),
-                    storage_used_bytes = table.Column<long>(type: "INTEGER", nullable: false),
+                    storage_used_bytes = table.Column<long>(type: "INTEGER", nullable: false, defaultValue: 0L),
                     created_at = table.Column<DateTime>(type: "TEXT", nullable: false),
                     updated_at = table.Column<DateTime>(type: "TEXT", nullable: false),
                     user_name = table.Column<string>(type: "TEXT", maxLength: 256, nullable: true),

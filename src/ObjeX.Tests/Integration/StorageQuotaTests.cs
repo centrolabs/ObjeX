@@ -122,7 +122,6 @@ public class StorageQuotaTests(ObjeXFactory factory) : IClassFixture<ObjeXFactor
             UserName = username,
             Email = $"{username}@test.local",
             EmailConfirmed = true,
-            StorageUsedBytes = 0,
             StorageQuotaBytes = quotaBytes
         };
         var result = await userManager.CreateAsync(user, "test1234");

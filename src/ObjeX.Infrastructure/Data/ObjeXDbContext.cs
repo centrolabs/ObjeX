@@ -19,6 +19,13 @@ public class ObjeXDbContext(DbContextOptions<ObjeXDbContext> options) : Identity
     {
         base.OnModelCreating(modelBuilder);
 
+        // StorageUsedBytes was removed from the User model but the column
+        // remains in the DB. Configure it as a shadow property with a default
+        // so INSERTs don't violate the NOT NULL constraint.
+        modelBuilder.Entity<User>()
+            .Property<long>("StorageUsedBytes")
+            .HasDefaultValue(0L);
+
         modelBuilder.Entity<Bucket>(entity =>
         {
             entity.HasKey(e => e.Id);

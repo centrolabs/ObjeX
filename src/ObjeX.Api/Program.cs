@@ -273,7 +273,6 @@ using (var scope = app.Services.CreateScope())
             UserName = defaultUsername,
             Email = defaultEmail,
             EmailConfirmed = true,
-            StorageUsedBytes = 0 // TODO: make 0 default in model property
         };
 
         var result = await userManager.CreateAsync(adminUser, defaultPassword);
