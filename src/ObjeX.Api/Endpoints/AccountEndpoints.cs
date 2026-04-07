@@ -44,7 +44,9 @@ public static class AccountEndpoints
                         return Results.Redirect("/change-password");
                     }
 
-                    return Results.Redirect(string.IsNullOrEmpty(returnUrl) ? "/" : returnUrl);
+                    var safeUrl = !string.IsNullOrEmpty(returnUrl) && returnUrl.StartsWith('/') && !returnUrl.StartsWith("//") && !returnUrl.StartsWith("/\\")
+                        ? returnUrl : "/";
+                    return Results.Redirect(safeUrl);
                 }
             }
 
@@ -54,7 +56,8 @@ public static class AccountEndpoints
             var qs = $"error=1&login={Uri.EscapeDataString(login)}";
             if (!string.IsNullOrEmpty(returnUrl)) qs += $"&returnUrl={Uri.EscapeDataString(returnUrl)}";
             return Results.Redirect($"/login?{qs}");
-        }).DisableAntiforgery().RequireRateLimiting("login");
+        }).DisableAntiforgery() // Login.razor uses plain HTML form (not Blazor form) — antiforgery token generation from static SSR is non-trivial. Login CSRF is low impact (attacker can only log victim into attacker's account). Rate limiting mitigates abuse.
+          .RequireRateLimiting("login");
 
         app.MapGet("/account/logout", async (SignInManager<User> signInManager) =>
         {
