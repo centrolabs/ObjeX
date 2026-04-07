@@ -109,6 +109,9 @@ public static class S3ObjectEndpoint
             var copySource = request.Headers["x-amz-copy-source"].ToString();
             if (!string.IsNullOrEmpty(copySource))
             {
+                if (ObjectKeyValidator.GetValidationError(key) is { } destKeyError)
+                    return S3Xml.Error(S3Errors.InvalidArgument, destKeyError);
+
                 var decoded = Uri.UnescapeDataString(copySource).TrimStart('/');
                 var slashIdx = decoded.IndexOf('/');
                 if (slashIdx < 1)
@@ -210,7 +213,7 @@ public static class S3ObjectEndpoint
         {
             // ListParts: GET /{bucket}/{*key}?uploadId=X
             if (request.Query.TryGetValue("uploadId", out var listPartsUploadId))
-                return await S3MultipartEndpoint.HandleListParts(bucket, key, listPartsUploadId!, db);
+                return await S3MultipartEndpoint.HandleListParts(bucket, key, listPartsUploadId!, db, ctx);
 
             if (ObjectKeyValidator.GetValidationError(key) is { } keyError)
                 return S3Xml.Error(S3Errors.InvalidArgument, keyError);

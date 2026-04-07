@@ -146,6 +146,9 @@ public static class S3PostObjectEndpoint
         if (keys.Count == 0)
             return S3Xml.Error(S3Errors.MalformedXML, "No keys specified.");
 
+        if (keys.Count > 1000)
+            return S3Xml.Error(S3Errors.MalformedXML, "The batch delete request may contain a maximum of 1000 keys.");
+
         var deleted = new List<string>();
         var errors = new List<(string Key, string Code, string Message)>();
 

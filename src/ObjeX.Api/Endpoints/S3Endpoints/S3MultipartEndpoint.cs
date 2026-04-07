@@ -55,7 +55,7 @@ public static class S3MultipartEndpoint
 
     // Called from S3ObjectEndpoint.MapGet when ?uploadId is present
     internal static async Task<IResult> HandleListParts(
-        string bucket, string key, string uploadIdStr, ObjeXDbContext db)
+        string bucket, string key, string uploadIdStr, ObjeXDbContext db, HttpContext ctx)
     {
         if (!Guid.TryParse(uploadIdStr, out var uid))
             return S3Xml.Error(S3Errors.NoSuchUpload, "The specified upload does not exist.", 404);
@@ -65,6 +65,9 @@ public static class S3MultipartEndpoint
             .FirstOrDefaultAsync(u => u.Id == uid && u.BucketName == bucket && u.Key == key);
 
         if (upload is null)
+            return S3Xml.Error(S3Errors.NoSuchUpload, "The specified upload does not exist.", 404);
+
+        if (!IsPrivileged(ctx) && upload.InitiatedByUserId != GetCallerId(ctx))
             return S3Xml.Error(S3Errors.NoSuchUpload, "The specified upload does not exist.", 404);
 
         return S3Xml.ListParts(bucket, key, uid, upload.Parts);
