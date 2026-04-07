@@ -21,6 +21,9 @@ Dockerfile
 docker-compose*.yml
 .dockerignore
 
+# Test projects (not needed in production image)
+src/ObjeX.Tests/
+
 # Logs
 logs/
 *.log
