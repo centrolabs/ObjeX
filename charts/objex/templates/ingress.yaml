@@ -2,10 +2,9 @@
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: {{ .Release.Name }}-s3
+  name: {{ include "objex.fullname" . }}-s3
   labels:
-    app.kubernetes.io/name: objex
-    app.kubernetes.io/instance: {{ .Release.Name }}
+    {{- include "objex.labels" . | nindent 4 }}
   {{- with .Values.ingress.s3.annotations }}
   annotations:
     {{- toYaml . | nindent 4 }}
@@ -26,7 +25,7 @@ spec:
             pathType: Prefix
             backend:
               service:
-                name: {{ .Release.Name }}
+                name: {{ include "objex.fullname" . }}
                 port:
                   name: s3
 ---
@@ -34,10 +33,9 @@ spec:
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: {{ .Release.Name }}-ui
+  name: {{ include "objex.fullname" . }}-ui
   labels:
-    app.kubernetes.io/name: objex
-    app.kubernetes.io/instance: {{ .Release.Name }}
+    {{- include "objex.labels" . | nindent 4 }}
   {{- with .Values.ingress.ui.annotations }}
   annotations:
     {{- toYaml . | nindent 4 }}
@@ -58,7 +56,7 @@ spec:
             pathType: Prefix
             backend:
               service:
-                name: {{ .Release.Name }}
+                name: {{ include "objex.fullname" . }}
                 port:
                   name: ui
 {{- end }}

@@ -1,0 +1,23 @@
+ObjeX has been deployed!
+
+1. Get the UI URL:
+{{- if .Values.ingress.enabled }}
+  http{{ if (index .Values.ingress.ui "tls") }}s{{ end }}://{{ .Values.ingress.ui.host }}
+{{- else }}
+  kubectl port-forward svc/{{ .Release.Name }} {{ .Values.service.uiPort }}:{{ .Values.service.uiPort }}
+  Then open http://localhost:{{ .Values.service.uiPort }}
+{{- end }}
+
+2. Default admin login:
+   Username: admin
+   Password: (set via admin.password in values.yaml)
+
+   WARNING: Change the default admin password for production use!
+
+3. S3-compatible API:
+{{- if .Values.ingress.enabled }}
+  Endpoint: http{{ if (index .Values.ingress.s3 "tls") }}s{{ end }}://{{ .Values.ingress.s3.host }}
+{{- else }}
+  kubectl port-forward svc/{{ .Release.Name }} {{ .Values.service.s3Port }}:{{ .Values.service.s3Port }}
+  Endpoint: http://localhost:{{ .Values.service.s3Port }}
+{{- end }}

@@ -2,10 +2,9 @@
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: {{ .Release.Name }}-data
+  name: {{ include "objex.fullname" . }}-data
   labels:
-    app.kubernetes.io/name: objex
-    app.kubernetes.io/instance: {{ .Release.Name }}
+    {{- include "objex.labels" . | nindent 4 }}
 spec:
   accessModes:
     - {{ .Values.persistence.accessMode }}

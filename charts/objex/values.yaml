@@ -30,6 +30,7 @@ persistence:
   storageClass: ""
   accessMode: ReadWriteOnce
 
+# WARNING: Change the default admin password before deploying to production!
 admin:
   password: admin
 
@@ -43,4 +44,9 @@ seed:
 metrics:
   enabled: false
 
-resources: {}
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    memory: 512Mi
