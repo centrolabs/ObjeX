@@ -56,7 +56,11 @@ public sealed class HashingStream : Stream
 
     protected override void Dispose(bool disposing)
     {
-        if (disposing) _hash.Dispose();
+        if (disposing)
+        {
+            _hash.Dispose();
+            _inner.Dispose();
+        }
         base.Dispose(disposing);
     }
 }

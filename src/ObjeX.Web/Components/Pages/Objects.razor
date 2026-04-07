@@ -499,7 +499,7 @@
 
         var query = string.Join("&", allKeys.Select(k => $"keys={Uri.EscapeDataString(k)}"));
         var url = $"/api/objects/{BucketName}/download?{query}";
-        await JS.InvokeVoidAsync("eval", $"var a=document.createElement('a');a.href='{url}';a.download='selection.zip';document.body.appendChild(a);a.click();document.body.removeChild(a);");
+        await JS.InvokeVoidAsync("ObjeX.triggerDownload", url, "selection.zip");
         _selected.Clear();
     }
 

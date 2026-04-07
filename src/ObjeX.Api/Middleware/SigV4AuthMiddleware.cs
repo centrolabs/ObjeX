@@ -104,7 +104,7 @@ public class SigV4AuthMiddleware(RequestDelegate next, ILogger<SigV4AuthMiddlewa
             await WriteError(context, S3Errors.AccessDenied, "Your account has been deactivated.", 403);
             return;
         }
-        _ = UpdateLastUsedAsync(db, credential.Id, context.RequestAborted);
+        await UpdateLastUsedAsync(db, credential.Id, context.RequestAborted);
 
         await next(context);
     }
@@ -172,7 +172,7 @@ public class SigV4AuthMiddleware(RequestDelegate next, ILogger<SigV4AuthMiddlewa
             await WriteError(context, S3Errors.AccessDenied, "Your account has been deactivated.", 403);
             return;
         }
-        _ = UpdateLastUsedAsync(db, credential.Id, context.RequestAborted);
+        await UpdateLastUsedAsync(db, credential.Id, context.RequestAborted);
 
         await next(context);
     }
