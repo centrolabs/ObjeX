@@ -25,7 +25,7 @@
     <ReconnectModal />
     <script src="@Assets["_framework/blazor.web.js"]"></script>
     <script src="_content/Radzen.Blazor/Radzen.Blazor.js?v=@(typeof(Colors).Assembly.GetName().Version)"></script>
-    <script>window.ObjeX={triggerDownload:function(u,n){var a=document.createElement('a');a.href=u;a.download=n;document.body.appendChild(a);a.click();document.body.removeChild(a);}}</script>
+    <script>window.ObjeX={triggerDownload:function(u,n){var a=document.createElement('a');a.href=u;a.download=n;document.body.appendChild(a);a.click();document.body.removeChild(a);},getCookie:function(k){var m=document.cookie.split('; ').find(function(r){return r.startsWith(k+'=')});return m?m.split('=')[1]:'';},setCookie:function(k,v){document.cookie=k+'='+v+';path=/;max-age=31536000';},getWindowWidth:function(){return window.innerWidth;}}</script>
 </body>
 
 </html>

@@ -304,7 +304,7 @@
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (!firstRender) return;
-        var cookie = await JS.InvokeAsync<string>("eval", "document.cookie.split('; ').find(r=>r.startsWith('objex-theme='))?.split('=')[1]??''");
+        var cookie = await JS.InvokeAsync<string>("ObjeX.getCookie", "objex-theme");
         _isDark = cookie.Contains("dark");
         StateHasChanged();
     }
@@ -358,6 +358,6 @@
     {
         var theme = value ? "material-dark" : "material";
         ThemeService.SetTheme(theme);
-        await JS.InvokeVoidAsync("eval", $"document.cookie='objex-theme={theme};path=/;max-age=31536000'");
+        await JS.InvokeVoidAsync("ObjeX.setCookie", "objex-theme", theme);
     }
 }
