@@ -28,7 +28,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends curl \
     && rm -rf /var/lib/apt/lists/*
 
 # Create non-root user
-RUN adduser --disabled-password --no-create-home app
+RUN useradd --no-create-home --shell /usr/sbin/nologin app
 
 WORKDIR /app
 RUN mkdir -p /data/db /data/blobs && chown -R app:app /data

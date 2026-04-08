@@ -28,6 +28,7 @@ jobs:
         with:
           global-json-file: global.json
           cache: true
+          cache-dependency-path: src/*/packages.lock.json
 
       - name: Restore dependencies
         run: dotnet restore ObjeX.slnx

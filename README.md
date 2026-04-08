@@ -4,7 +4,7 @@
 
 **Goal**: Self-hostable, open-source blob storage with S3-compatible API
 **Stack**: .NET 10 API + Blazor Server UI + SQLite or PostgreSQL + Filesystem storage
-**Status**: Active development — core API, auth, and UI implemented
+**Status**: v1.1.0 — production-ready single-node deployment
 
 > **Scope:** Single-node object storage for homelabs, internal tools, and dev/test environments. Not yet suitable for mission-critical data — no replication, high availability, or point-in-time recovery.
 

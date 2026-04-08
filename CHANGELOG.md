@@ -4,6 +4,49 @@ All notable changes to ObjeX are documented here.
 
 ---
 
+## v1.1.0 — 2026-04-09
+
+### Added
+- NuGet lock files for reproducible builds
+- Dockerfile HEALTHCHECK instruction
+- Helm chart: Kubernetes Secret for sensitive values, securityContext, ServiceAccount, NOTES.txt, `_helpers.tpl`
+- CI: NuGet cache, job timeout, concurrency control with cancel-in-progress
+- CD: CI gate before publish, Docker layer cache, concurrency control
+- docker-compose healthcheck for objex service
+
+### Fixed
+- Deactivated users could still access S3 API via SigV4 credentials
+- Open redirect on login via unvalidated `returnUrl`
+- XML injection in SigV4 error responses
+- CORS policy applied globally instead of S3 port only
+- Custom metadata headers writable to arbitrary response headers (now filtered to `x-amz-meta-*` on read)
+- Insecure password generation using `Random.Shared` instead of `RandomNumberGenerator`
+- CopyObject skipped destination key validation
+- Batch delete accepted unlimited keys (now capped at 1000 per S3 spec)
+- ListParts returned parts without ownership check
+- Blazor object delete only removed metadata, left orphaned blob on disk
+- HashingStream did not dispose inner stream (file handle leak)
+- Fire-and-forget task using scoped DbContext in SigV4 middleware
+- `eval()` calls in Settings and MainLayout replaced with proper JS interop
+- Dashboard file type chart showing raw MIME subtypes instead of file extensions
+- Objects by Bucket chart label overlap
+- Upload dialog drag-and-drop not working (missing JS interop wiring)
+
+### Improved
+- Dashboard loads file type stats via server-side query instead of all objects into memory
+- Users page N+1 role query eliminated with batch loading
+- CancellationToken propagation in S3 upload, download, copy, and delete paths
+- UpdateBucketStats uses direct update instead of load-then-save
+- Dockerfile runs as non-root user, NuGet restore layer caching
+- Radzen.Blazor pinned to exact version (was `*` wildcard)
+- Microsoft packages aligned to 10.0.5
+- Duplicate Identity package reference removed from Api project
+
+### Removed
+- Unused `User.StorageUsedBytes` property
+
+---
+
 ## v1.0.0 — 2026-04-01
 
 ### Added
