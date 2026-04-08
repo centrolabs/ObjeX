@@ -4,6 +4,11 @@ All notable changes to ObjeX are documented here.
 
 ---
 
+## Next release
+- ZIP download streams directly to response instead of buffering entire archive in memory
+
+---
+
 ## v1.1.0 — 2026-04-09
 
 ### Added

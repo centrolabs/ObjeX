@@ -57,10 +57,14 @@ public static class DownloadEndpoints
         // ZIP download — folder/bucket via ?prefix=, or specific files via ?keys=a&keys=b
         app.MapGet("/api/objects/{bucketName}/download", async (
             string bucketName, string? prefix, string[]? keys,
-            HttpContext ctx, IMetadataService metadata, IObjectStorageService storage) =>
+            HttpContext ctx, IMetadataService metadata, IObjectStorageService storage,
+            ILogger<IObjectStorageService> logger) =>
         {
             if (await metadata.GetBucketAsync(bucketName, IsPrivileged(ctx) ? null : GetCallerId(ctx)) is null)
-                return Results.NotFound();
+            {
+                ctx.Response.StatusCode = 404;
+                return;
+            }
 
             List<Core.Models.BlobObject> files;
             string zipName;
@@ -78,20 +82,33 @@ public static class DownloadEndpoints
                 zipName = string.IsNullOrEmpty(prefix) ? $"{bucketName}.zip" : $"{prefix.TrimEnd('/')}.zip";
             }
 
-            var ms = new MemoryStream();
-            using (var zip = new ZipArchive(ms, ZipArchiveMode.Create, leaveOpen: true))
+            // ZipArchive.Dispose() writes data descriptors and central directory synchronously —
+            // Kestrel blocks sync IO by default, so we must opt in for this endpoint.
+            var syncIoFeature = ctx.Features.Get<Microsoft.AspNetCore.Http.Features.IHttpBodyControlFeature>();
+            if (syncIoFeature is not null) syncIoFeature.AllowSynchronousIO = true;
+
+            ctx.Response.ContentType = "application/zip";
+            ctx.Response.Headers["Content-Disposition"] = $"attachment; filename=\"{zipName}\"";
+
+            using (var zip = new ZipArchive(ctx.Response.Body, ZipArchiveMode.Create, leaveOpen: true))
             {
                 foreach (var obj in files)
                 {
-                    var entry = zip.CreateEntry(obj.Key, CompressionLevel.Fastest);
-                    await using var fileStream = await storage.RetrieveAsync(bucketName, obj.Key);
-                    await using var entryStream = entry.Open();
-                    await fileStream.CopyToAsync(entryStream);
+                    try
+                    {
+                        await using var fileStream = await storage.RetrieveAsync(bucketName, obj.Key);
+                        var entry = zip.CreateEntry(obj.Key, CompressionLevel.Fastest);
+                        using var entryStream = entry.Open();
+                        await fileStream.CopyToAsync(entryStream, ctx.RequestAborted);
+                    }
+                    catch (Exception ex)
+                    {
+                        logger.LogWarning(ex, "Skipping {Key} in ZIP download — blob missing or unreadable", obj.Key);
+                    }
                 }
             }
-            ms.Position = 0;
 
-            return Results.File(ms, "application/zip", zipName);
+            await ctx.Response.Body.FlushAsync(ctx.RequestAborted);
         }).RequireAuthorization();
     }
 }
