@@ -243,6 +243,12 @@ dotnet test src/ObjeX.Tests/
 
 **Integration-tested with:** [Outline](https://github.com/outline/outline) (presigned POST uploads + presigned GET retrieval) and [Memos](https://github.com/usememos/memos) (server-side PUT uploads + presigned GET retrieval) as S3 storage backends.
 
+**Benchmarked with [MinIO warp](https://github.com/minio/warp)** — S3 benchmarking tool for GET, PUT, DELETE, STAT, and mixed workloads. Zero errors on mixed benchmark:
+
+```bash
+warp mixed --host {host}:{port} --access-key {access-key} --secret-key {secret-key} --tls=false --duration 30s --concurrent 4 --obj.size 1KiB
+```
+
 ### What's covered
 
 - S3 object lifecycle — upload, download, ETag verification, delete, 404 confirmation, range requests, custom metadata

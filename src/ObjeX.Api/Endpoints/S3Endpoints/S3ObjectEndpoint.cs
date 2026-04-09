@@ -170,7 +170,14 @@ public static class S3ObjectEndpoint
             var contentType = request.ContentType ?? "application/octet-stream";
             var customMetadata = ExtractCustomMetadata(request.Headers);
 
-            await using var hashingStream = new HashingStream(request.Body);
+            Stream bodyStream = request.Body;
+            var contentSha = request.Headers["x-amz-content-sha256"].ToString();
+            var contentEncoding = request.Headers.ContentEncoding.ToString();
+            if (contentEncoding.Contains("aws-chunked", StringComparison.OrdinalIgnoreCase)
+                || contentSha.StartsWith("STREAMING-", StringComparison.OrdinalIgnoreCase))
+                bodyStream = new S3.AwsChunkedStream(bodyStream);
+
+            await using var hashingStream = new HashingStream(bodyStream);
             var storagePath = await storage.StoreAsync(bucket, key, hashingStream, ctx.RequestAborted);
             var size = await storage.GetSizeAsync(bucket, key, ctx.RequestAborted);
             var etag = hashingStream.GetETag();
@@ -198,7 +205,7 @@ public static class S3ObjectEndpoint
             }, GetCallerId(ctx));
 
             ctx.Response.Headers.ETag = $"\"{etag}\"";
-            return Results.Created($"/{bucket}/{key}", null);
+            return Results.Ok();
         });
 
         s3.MapGet("/{bucket}/{*key}", async (

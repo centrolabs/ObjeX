@@ -396,7 +396,9 @@ app.UseSerilogRequestLogging();
 var metricsEnabled = builder.Configuration.GetValue<bool>("Metrics:Enabled");
 if (metricsEnabled)
     app.UseHttpMetrics();
-app.UseResponseCompression();
+app.UseWhen(
+    ctx => ctx.Connection.LocalPort != 9000,
+    branch => branch.UseResponseCompression());
 
 app.UseHangfireDashboard("/hangfire", new DashboardOptions
 {
