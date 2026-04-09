@@ -22,7 +22,7 @@ public class StorageQuotaTests(ObjeXFactory factory) : IClassFixture<ObjeXFactor
         putRequest.Content = new ByteArrayContent(content);
         S3RequestSigner.SignRequest(putRequest, accessKeyId, secretKey, content);
         var response = await _client.SendAsync(putRequest);
-        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
 
     [Fact]
@@ -62,7 +62,7 @@ public class StorageQuotaTests(ObjeXFactory factory) : IClassFixture<ObjeXFactor
             putRequest.Content.Headers.ContentLength = content.Length;
             S3RequestSigner.SignRequest(putRequest, factory.AccessKeyId, factory.SecretAccessKey, content);
             var response = await _client.SendAsync(putRequest);
-            Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         }
         finally
         {

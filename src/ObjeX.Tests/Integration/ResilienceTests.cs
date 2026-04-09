@@ -22,7 +22,7 @@ public class ResilienceTests(ObjeXFactory factory) : IClassFixture<ObjeXFactory>
         putRequest.Content = new ByteArrayContent(content);
         S3RequestSigner.SignRequest(putRequest, factory.AccessKeyId, factory.SecretAccessKey, content);
         var putResponse = await _client.SendAsync(putRequest);
-        Assert.Equal(HttpStatusCode.Created, putResponse.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, putResponse.StatusCode);
 
         // Delete the physical blob file from disk (simulate crash/corruption)
         using (var scope = factory.CreateScope())
@@ -67,7 +67,7 @@ public class ResilienceTests(ObjeXFactory factory) : IClassFixture<ObjeXFactory>
         var responses = await Task.WhenAll(tasks);
 
         // At least one must succeed; some may 500 due to DB concurrency
-        var succeeded = responses.Count(r => r.StatusCode == HttpStatusCode.Created);
+        var succeeded = responses.Count(r => r.StatusCode == HttpStatusCode.OK);
         Assert.True(succeeded >= 1, "At least one concurrent upload should succeed");
 
         // Final state must be consistent: download returns one coherent upload

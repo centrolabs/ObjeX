@@ -22,7 +22,7 @@ public class S3ObjectLifecycleTests(ObjeXFactory factory) : IClassFixture<ObjeXF
         putRequest.Content.Headers.ContentType = new("text/plain");
         S3RequestSigner.SignRequest(putRequest, factory.AccessKeyId, factory.SecretAccessKey, content);
         var putResponse = await _client.SendAsync(putRequest);
-        Assert.Equal(HttpStatusCode.Created, putResponse.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, putResponse.StatusCode);
 
         var returnedETag = putResponse.Headers.ETag?.Tag.Trim('"');
         Assert.Equal(expectedETag, returnedETag);
@@ -64,7 +64,7 @@ public class S3ObjectLifecycleTests(ObjeXFactory factory) : IClassFixture<ObjeXF
         putRequest.Content = new ByteArrayContent(content);
         S3RequestSigner.SignRequest(putRequest, factory.AccessKeyId, factory.SecretAccessKey, content);
         var putResponse = await _client.SendAsync(putRequest);
-        Assert.Equal(HttpStatusCode.Created, putResponse.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, putResponse.StatusCode);
 
         // HEAD to check content type
         var headRequest = new HttpRequestMessage(HttpMethod.Head, $"/{bucket}/{key}");
@@ -121,7 +121,7 @@ public class S3ObjectLifecycleTests(ObjeXFactory factory) : IClassFixture<ObjeXF
         putRequest.Content = new ByteArrayContent(content);
         S3RequestSigner.SignRequest(putRequest, factory.AccessKeyId, factory.SecretAccessKey, content);
         var putResponse = await _client.SendAsync(putRequest);
-        Assert.Equal(HttpStatusCode.Created, putResponse.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, putResponse.StatusCode);
 
         var getRequest = new HttpRequestMessage(HttpMethod.Get, $"/{bucket}/{key}");
         S3RequestSigner.SignRequest(getRequest, factory.AccessKeyId, factory.SecretAccessKey);

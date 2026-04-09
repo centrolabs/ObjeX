@@ -29,7 +29,7 @@ public class PathTraversalTests(ObjeXFactory factory) : IClassFixture<ObjeXFacto
         putRequest.Content = new ByteArrayContent(content);
         S3RequestSigner.SignRequest(putRequest, factory.AccessKeyId, factory.SecretAccessKey, content);
         var putResponse = await _client.SendAsync(putRequest);
-        Assert.Equal(HttpStatusCode.Created, putResponse.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, putResponse.StatusCode);
 
         // Verify no blob files exist outside the base path
         AssertAllBlobsWithinBasePath();
@@ -55,7 +55,7 @@ public class PathTraversalTests(ObjeXFactory factory) : IClassFixture<ObjeXFacto
         putRequest.Content = new ByteArrayContent(content);
         S3RequestSigner.SignRequest(putRequest, factory.AccessKeyId, factory.SecretAccessKey, content);
         var putResponse = await _client.SendAsync(putRequest);
-        Assert.Equal(HttpStatusCode.Created, putResponse.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, putResponse.StatusCode);
 
         AssertAllBlobsWithinBasePath();
 

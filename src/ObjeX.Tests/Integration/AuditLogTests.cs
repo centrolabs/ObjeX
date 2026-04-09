@@ -39,7 +39,7 @@ public class AuditLogTests(ObjeXFactory factory) : IClassFixture<ObjeXFactory>
         putRequest.Content = new ByteArrayContent(content);
         S3RequestSigner.SignRequest(putRequest, factory.AccessKeyId, factory.SecretAccessKey, content);
         var response = await _client.SendAsync(putRequest);
-        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
         using var scope = factory.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ObjeXDbContext>();

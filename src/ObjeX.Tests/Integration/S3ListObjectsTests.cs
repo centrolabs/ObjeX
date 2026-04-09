@@ -92,6 +92,6 @@ public class S3ListObjectsTests(ObjeXFactory factory) : IClassFixture<ObjeXFacto
         request.Content = new ByteArrayContent(content);
         S3RequestSigner.SignRequest(request, factory.AccessKeyId, factory.SecretAccessKey, content);
         var response = await _client.SendAsync(request);
-        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
 }
