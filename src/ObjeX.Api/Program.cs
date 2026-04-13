@@ -351,9 +351,10 @@ using (var scope = app.Services.CreateScope())
 }
 
 app.UseWhen(
-    ctx => !ctx.Request.Path.StartsWithSegments("/api"),
+    ctx => !ctx.Request.Path.StartsWithSegments("/api")
+        && !ctx.Request.Path.StartsWithSegments("/_framework")
+        && !ctx.Request.Path.StartsWithSegments("/_content"),
     branch => branch.UseStatusCodePagesWithRedirects("/not-found"));
-app.UseStaticFiles();
 app.UseWhen(
     ctx => ctx.Connection.LocalPort == 9000,
     branch => branch.UseCors("S3"));
@@ -361,7 +362,8 @@ app.UseRateLimiter();
 app.Use(async (ctx, next) =>
 {
     ctx.Response.Headers.Remove("X-Powered-By");
-    ctx.Response.Headers["X-Content-Type-Options"] = "nosniff";
+    if (!ctx.Request.Path.StartsWithSegments("/_framework"))
+        ctx.Response.Headers["X-Content-Type-Options"] = "nosniff";
     ctx.Response.Headers["X-Frame-Options"] = "SAMEORIGIN";
     ctx.Response.Headers["X-Permitted-Cross-Domain-Policies"] = "none";
     ctx.Response.Headers["Referrer-Policy"] = "strict-origin-when-cross-origin";
@@ -429,6 +431,8 @@ app.MapHealthChecks("/health/ready", new Microsoft.AspNetCore.Diagnostics.Health
     Predicate = check => check.Tags.Contains("ready")
 });
 
+app.UseStaticFiles();
+app.MapStaticAssets();
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
 
