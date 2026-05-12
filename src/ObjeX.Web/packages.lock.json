@@ -4,9 +4,9 @@
     "net10.0": {
       "Radzen.Blazor": {
         "type": "Direct",
-        "requested": "[10.3.0, )",
-        "resolved": "10.3.0",
-        "contentHash": "SlAlmJWjlprgOUCWS2KW7UaEPg/A+N3lY1102mxkVbpAfisQ5DqVVxQmVxPN/nV1CR7tu4/NqTIi8EJLpZIHfQ=="
+        "requested": "[10.4.1, )",
+        "resolved": "10.4.1",
+        "contentHash": "yWvLz8nQrO2iDTuUkRNwinwg2yPKn0TyTnO5oqebGQVXpDI5VoC2YBAMlujfwqBmfCoHw2ZRAxeVK/01Ig2qZA=="
       },
       "EFCore.NamingConventions": {
         "type": "Transitive",
