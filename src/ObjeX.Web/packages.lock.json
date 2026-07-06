@@ -25,9 +25,9 @@
       },
       "Radzen.Blazor": {
         "type": "Direct",
-        "requested": "[10.4.3, )",
-        "resolved": "10.4.3",
-        "contentHash": "5FC56PcZPzGXu1KRMSChK5lEX4Scym2M9b/vRgWBU0TtfHgBzAsRwnfGbAHDQO+hfWGX6rKAj4gqeVfQpKaphg=="
+        "requested": "[11.1.2, )",
+        "resolved": "11.1.2",
+        "contentHash": "m4/SKWjIAniY/IktzRMxYM2HMYV96IsBsy2F0B4vKzWyneki05HA8jPxzT3vR/fG3tUMjIR/SnRO9Aw6V4n97A=="
       },
       "EFCore.NamingConventions": {
         "type": "Transitive",
