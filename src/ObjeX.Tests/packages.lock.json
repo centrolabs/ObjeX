@@ -62,26 +62,26 @@
       },
       "Hangfire.AspNetCore": {
         "type": "Transitive",
-        "resolved": "1.8.23",
-        "contentHash": "TXpOl7kX4xXq5bLEqqWCpt9zh3TaouDwtb3GDtzGHX5uSC2RaAqZzn2swevivx3Uki16slXIigiPtgr4TPKpsg==",
+        "resolved": "1.8.24",
+        "contentHash": "K7eugZIFcBgGI+lI6Z3H9a7Ax6ZkauWjOUJxE5xawu5UQmH+WS7gXBlar1zGUqLTWqWxNAMj+K95OE0zvAtHNg==",
         "dependencies": {
-          "Hangfire.NetCore": "[1.8.23]"
+          "Hangfire.NetCore": "[1.8.24]"
         }
       },
       "Hangfire.Core": {
         "type": "Transitive",
-        "resolved": "1.8.23",
-        "contentHash": "YCOTtF3NNOQI83PlfjeNDDBkofJDfdET2CwhfQsiVBwmsU6lP19QW9NVTIH9epl+MnOsyFC2G1RnlPSGV8F1FQ==",
+        "resolved": "1.8.24",
+        "contentHash": "XhiE55abcXXw4jEe0EClnU1fainkfi7ZVINbcCB+Se6ZatfVAglLsvNc6wtTMq5aZz0tv2DuW+U5lx1R0DcWOg==",
         "dependencies": {
           "Newtonsoft.Json": "11.0.1"
         }
       },
       "Hangfire.NetCore": {
         "type": "Transitive",
-        "resolved": "1.8.23",
-        "contentHash": "SmvUJF/u5MCP666R5Y1V+GntqBc4RCWJqn5ztMMN67d53Cx5cuaWR0YNLMrabjylwLarFYJ7EdR9RnGEZzp/dg==",
+        "resolved": "1.8.24",
+        "contentHash": "iKRSO7gzMq4KhI+px98OtRubI5FaDHJgHvhLqlILvsuCPVFraTdVWdRgwjIS4bIyahl/3RaiGhFOqlpwgU724Q==",
         "dependencies": {
-          "Hangfire.Core": "[1.8.23]",
+          "Hangfire.Core": "[1.8.24]",
           "Microsoft.Extensions.DependencyInjection.Abstractions": "3.0.0",
           "Microsoft.Extensions.Hosting.Abstractions": "3.0.0",
           "Microsoft.Extensions.Logging.Abstractions": "3.0.0"
@@ -877,8 +877,8 @@
       "objex.api": {
         "type": "Project",
         "dependencies": {
-          "Hangfire.AspNetCore": "[1.8.23, )",
-          "Hangfire.Core": "[1.8.23, )",
+          "Hangfire.AspNetCore": "[1.8.24, )",
+          "Hangfire.Core": "[1.8.24, )",
           "Hangfire.PostgreSql": "[1.21.1, )",
           "Hangfire.Storage.SQLite": "[0.4.3, )",
           "Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore": "[10.0.8, )",
