@@ -325,8 +325,8 @@
       },
       "Radzen.Blazor": {
         "type": "Transitive",
-        "resolved": "10.4.3",
-        "contentHash": "5FC56PcZPzGXu1KRMSChK5lEX4Scym2M9b/vRgWBU0TtfHgBzAsRwnfGbAHDQO+hfWGX6rKAj4gqeVfQpKaphg=="
+        "resolved": "11.2.5",
+        "contentHash": "AGTCEn3q7AbPuTAnm9QkPV4r+EycyL0g7nGZNOTH0JJxugeYWYI5s6WspGoK+/HahR1SWA1GXeZ7YDdDJnyflQ=="
       },
       "Serilog": {
         "type": "Transitive",
@@ -501,7 +501,7 @@
         "dependencies": {
           "ObjeX.Core": "[1.0.0, )",
           "ObjeX.Infrastructure": "[1.0.0, )",
-          "Radzen.Blazor": "[10.4.3, )"
+          "Radzen.Blazor": "[11.2.5, )"
         }
       }
     }
