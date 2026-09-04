@@ -1,14 +1,20 @@
-# Pin to 10.0 — intentional for .NET 10 preview/RC; update when GA lands
+# Floating 10.0 tag: always the current .NET 10 SDK patch. global.json (copied below) governs
+# the minimum SDK feature band via rollForward=latestFeature.
 FROM --platform=$BUILDPLATFORM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 ARG TARGETARCH
 WORKDIR /src
 
-# Copy project files first for layer caching on NuGet restore
-COPY src/ObjeX.Api/ObjeX.Api.csproj ObjeX.Api/
-COPY src/ObjeX.Core/ObjeX.Core.csproj ObjeX.Core/
-COPY src/ObjeX.Infrastructure/ObjeX.Infrastructure.csproj ObjeX.Infrastructure/
-COPY src/ObjeX.Migrations.PostgreSql/ObjeX.Migrations.PostgreSql.csproj ObjeX.Migrations.PostgreSql/
-COPY src/ObjeX.Web/ObjeX.Web.csproj ObjeX.Web/
+# Repo-wide build settings must be an ancestor of the project dirs, otherwise MSBuild silently
+# builds without TreatWarningsAsErrors / lockfile enforcement / LangVersion inside the image.
+COPY Directory.Build.props global.json ./
+
+# Copy project files + lockfiles first for layer caching on NuGet restore.
+# Lockfiles make the restore in this layer resolve the same graph the repo pins.
+COPY src/ObjeX.Api/ObjeX.Api.csproj src/ObjeX.Api/packages.lock.json ObjeX.Api/
+COPY src/ObjeX.Core/ObjeX.Core.csproj src/ObjeX.Core/packages.lock.json ObjeX.Core/
+COPY src/ObjeX.Infrastructure/ObjeX.Infrastructure.csproj src/ObjeX.Infrastructure/packages.lock.json ObjeX.Infrastructure/
+COPY src/ObjeX.Migrations.PostgreSql/ObjeX.Migrations.PostgreSql.csproj src/ObjeX.Migrations.PostgreSql/packages.lock.json ObjeX.Migrations.PostgreSql/
+COPY src/ObjeX.Web/ObjeX.Web.csproj src/ObjeX.Web/packages.lock.json ObjeX.Web/
 RUN dotnet restore ObjeX.Api/ObjeX.Api.csproj -a $TARGETARCH
 
 # Copy remaining source and publish
@@ -20,7 +26,6 @@ RUN dotnet publish ObjeX.Api/ObjeX.Api.csproj \
     --no-restore \
     -o /app/publish
 
-# Pin to 10.0 — intentional for .NET 10 preview/RC; update when GA lands
 FROM mcr.microsoft.com/dotnet/aspnet:10.0
 
 # Install curl for container healthcheck, then clean up
