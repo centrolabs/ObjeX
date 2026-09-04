@@ -56,7 +56,7 @@ ObjeX uses two auth mechanisms on separate ports:
 | `9001` | Browser / Blazor UI | Cookie (ASP.NET Core Identity) |
 | `9000` | S3 clients, SDKs, CLI | AWS Signature Version 4 |
 
-> **Public exposure:** Only port `9000` (S3 API) needs to be publicly reachable — expose it via reverse proxy or tunnel (e.g. `s3.example.com`). Port `9001` (admin UI) should stay on your internal network. Configure client apps with the public S3 URL as their endpoint so both server-side SDK calls and browser presigned URLs use the same hostname.
+> **Public exposure:** Only the S3 port needs to be publicly reachable — put it behind a reverse proxy or tunnel (e.g. `s3.example.com`). The UI port should stay on your internal network. Requests are dispatched by the port they arrive on, not by hostname, so any public hostname or port works in front — see [Reverse proxy](#reverse-proxy) for the two things the proxy must do. Configure client apps with the public S3 URL as their endpoint so both server-side SDK calls and browser presigned URLs use the same hostname.
 
 ### Roles
 
@@ -132,8 +132,9 @@ No config required for local dev. Defaults (from `appsettings.json`):
 
 | Setting | Default |
 |---------|---------|
-| UI / API port | `9001` |
-| S3 API port | `9000` (S3-compatible endpoints; AWS Signature V4 required) |
+| UI / API port | `9001` — set `Server:UiPort` |
+| S3 API port | `9000` — set `Server:S3Port`; S3-compatible endpoints, AWS Signature V4 required |
+| Reverse proxy | off — set `ReverseProxy:Enabled=true` plus `ReverseProxy:KnownProxies` / `ReverseProxy:KnownNetworks` to trust `X-Forwarded-For` / `X-Forwarded-Proto` |
 | S3 public URL | `http://localhost:9000` — set `S3:PublicUrl` for production |
 | Database provider | `sqlite` — set `Database:Provider=postgresql` for Postgres |
 | Database | `./data/db/objex.db` (SQLite default); set `ConnectionStrings:DefaultConnection` for Postgres |
@@ -172,6 +173,25 @@ Override via `appsettings.json` or environment variables:
 ```
 
 > ⚠️ Change default admin credentials before exposing the instance publicly.
+
+### Reverse proxy
+
+ObjeX decides which API a request belongs to by the port it arrived on, never by the `Host` header, so any hostname and any public port work in front of it. Two things the proxy must do:
+
+1. **Pass the `Host` header through unchanged.** S3 clients include it in the signature; a rewritten `Host` fails with `SignatureDoesNotMatch`.
+2. **Forward the client address and scheme** in `X-Forwarded-For` / `X-Forwarded-Proto`, and tell ObjeX which proxies to trust:
+
+```json
+{
+  "ReverseProxy": {
+    "Enabled": true,
+    "KnownProxies": ["10.0.0.5"],
+    "KnownNetworks": ["172.16.0.0/12"]
+  }
+}
+```
+
+As environment variables: `ReverseProxy__Enabled=true`, `ReverseProxy__KnownNetworks__0=172.16.0.0/12`. Loopback is always trusted once enabled. While disabled, forwarded headers are ignored and the proxy's own address is logged as the client.
 
 ### Seeding Buckets and S3 Credentials
 

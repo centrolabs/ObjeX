@@ -20,7 +20,7 @@ public static class S3PostObjectEndpoint
     static bool IsPrivileged(HttpContext ctx) =>
         ctx.User.IsInRole("Admin") || ctx.User.IsInRole("Manager");
 
-    public static void MapS3PostObjectEndpoints(this WebApplication app, RouteGroupBuilder s3)
+    public static void MapS3PostObjectEndpoints(this RouteGroupBuilder s3)
     {
         // POST /{bucket} dispatches: ?delete → batch delete, otherwise → POST Object upload
         s3.MapPost("/{bucket}", async (string bucket, HttpRequest request, HttpContext ctx,

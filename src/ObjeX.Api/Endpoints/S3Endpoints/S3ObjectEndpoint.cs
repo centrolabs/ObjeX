@@ -37,7 +37,7 @@ public static class S3ObjectEndpoint
             if (key.StartsWith("x-amz-meta-", StringComparison.OrdinalIgnoreCase))
                 response.Headers[key] = value;
     }
-    public static void MapS3ObjectEndpoints(this WebApplication app, RouteGroupBuilder s3)
+    public static void MapS3ObjectEndpoints(this RouteGroupBuilder s3)
     {
         s3.MapPut("/{bucket}/{*key}", async (
             string bucket,

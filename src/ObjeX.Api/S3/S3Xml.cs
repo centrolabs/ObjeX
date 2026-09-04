@@ -94,6 +94,17 @@ public static class S3Xml
     }
 
     public static IResult Error(string code, string message, int statusCode = 400)
+        => Results.Content(ErrorDocument(code, message), "application/xml", Encoding.UTF8, statusCode);
+
+    /// <summary>Writes an S3 error document straight to the response. For middleware, which has no IResult.</summary>
+    public static Task WriteErrorAsync(HttpContext context, string code, string message, int statusCode)
+    {
+        context.Response.StatusCode = statusCode;
+        context.Response.ContentType = "application/xml";
+        return context.Response.WriteAsync(ErrorDocument(code, message));
+    }
+
+    private static string ErrorDocument(string code, string message)
     {
         var xml = new StringBuilder();
         xml.AppendLine("<?xml version=\"1.0\" encoding=\"UTF-8\"?>");
@@ -101,7 +112,7 @@ public static class S3Xml
         xml.AppendLine($"  <Code>{Escape(code)}</Code>");
         xml.AppendLine($"  <Message>{Escape(message)}</Message>");
         xml.AppendLine("</Error>");
-        return Results.Content(xml.ToString(), "application/xml", Encoding.UTF8, statusCode);
+        return xml.ToString();
     }
 
     public static IResult InitiateMultipartUpload(string bucket, string key, Guid uploadId)

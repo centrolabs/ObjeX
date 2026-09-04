@@ -17,7 +17,8 @@ using ObjeX.Web.Components;
 using ObjeX.Api.Auth;
 using ObjeX.Api.Endpoints;
 using ObjeX.Api.Endpoints.S3Endpoints;
-using ObjeX.Api.Middleware;
+using ObjeX.Api.Options;
+using ObjeX.Api.S3;
 using ObjeX.Core.Models;
 
 using Prometheus;
@@ -29,12 +30,23 @@ var builder = WebApplication.CreateBuilder(args);
 // Upload size limit — null = unlimited (disk space guard is the real protection).
 // Override via Storage:MaxUploadBytes in config.
 var maxUploadBytes = builder.Configuration.GetValue<long?>("Storage:MaxUploadBytes");
+var metricsEnabled = builder.Configuration.GetValue<bool>("Metrics:Enabled");
+
+// Ports come from Server:UiPort / Server:S3Port only. Kestrel listeners defined in code take
+// precedence over ASPNETCORE_URLS, so that variable is intentionally not used anywhere.
+var server = builder.Configuration.GetSection(ServerOptions.SectionName).Get<ServerOptions>() ?? new ServerOptions();
+server.Validate();
+
+var reverseProxy = builder.Configuration.GetSection(ReverseProxyOptions.SectionName).Get<ReverseProxyOptions>() ?? new ReverseProxyOptions();
+if (reverseProxy.Enabled)
+    builder.Services.Configure<ForwardedHeadersOptions>(reverseProxy.Apply);
+
 builder.WebHost.ConfigureKestrel(o =>
 {
     o.Limits.MaxRequestBodySize = maxUploadBytes;
     o.AddServerHeader = false; // don't leak "Server: Kestrel"
-    o.ListenAnyIP(9001); // UI 
-    o.ListenAnyIP(9000); // S3-compatible API
+    o.ListenAnyIP(server.UiPort);
+    o.ListenAnyIP(server.S3Port);
 });
 
 builder.Services.AddScoped<IMetadataService, SqliteMetadataService>();
@@ -174,7 +186,7 @@ else
         .UseSQLiteStorage(dbFilePath!));
 }
 builder.Services.AddHangfireServer();
-if (builder.Configuration.GetValue<bool>("Metrics:Enabled"))
+if (metricsEnabled)
     builder.Services.AddHostedService<ObjeX.Api.Metrics.BucketMetricsSyncJob>();
 builder.Services.AddScoped<CleanupOrphanedBlobsJob>();
 builder.Services.AddScoped<VerifyBlobIntegrityJob>();
@@ -343,22 +355,21 @@ using (var scope = app.Services.CreateScope())
         }
     }
 
-    if (builder.Configuration.GetValue<bool>("Metrics:Enabled"))
+    if (metricsEnabled)
     {
         foreach (var bucket in await db.Buckets.ToListAsync())
             ObjeX.Api.Metrics.ObjeXMetrics.SetBucketStats(bucket.Name, bucket.TotalSize, bucket.ObjectCount);
     }
 }
 
-app.UseWhen(
-    ctx => !ctx.Request.Path.StartsWithSegments("/api")
-        && !ctx.Request.Path.StartsWithSegments("/_framework")
-        && !ctx.Request.Path.StartsWithSegments("/_content"),
-    branch => branch.UseStatusCodePagesWithRedirects("/not-found"));
-app.UseWhen(
-    ctx => ctx.Connection.LocalPort == 9000,
-    branch => branch.UseCors("S3"));
-app.UseRateLimiter();
+// ---- Shared by both ports ----------------------------------------------------------------
+if (reverseProxy.Enabled)
+    app.UseForwardedHeaders();
+
+app.UseSerilogRequestLogging();
+if (metricsEnabled)
+    app.UseHttpMetrics();
+
 app.Use(async (ctx, next) =>
 {
     ctx.Response.Headers.Remove("X-Powered-By");
@@ -371,13 +382,11 @@ app.Use(async (ctx, next) =>
         ctx.Response.Headers["Strict-Transport-Security"] = "max-age=63072000; includeSubDomains";
     await next();
 });
-app.UseAuthentication();
-// SigV4 auth runs only on port 9000 (S3 API) — must be after UseAuthentication
-app.UseWhen(ctx => ctx.Connection.LocalPort == 9000, branch =>
-    branch.UseMiddleware<SigV4AuthMiddleware>());
-app.UseAuthorization();
 
-app.UseAntiforgery();
+// ---- S3 port: terminal branch, see S3Pipeline.cs ---------------------------------------
+app.UseS3Api(server.S3Port);
+
+// ---- UI port: Blazor + cookie-authenticated internal endpoints -----------------------
 if (app.Environment.IsDevelopment())
 {
     app.UseDeveloperExceptionPage();
@@ -394,13 +403,20 @@ else
         });
     });
 }
-app.UseSerilogRequestLogging();
-var metricsEnabled = builder.Configuration.GetValue<bool>("Metrics:Enabled");
-if (metricsEnabled)
-    app.UseHttpMetrics();
 app.UseWhen(
-    ctx => ctx.Connection.LocalPort != 9000,
-    branch => branch.UseResponseCompression());
+    ctx => !ctx.Request.Path.StartsWithSegments("/api")
+        && !ctx.Request.Path.StartsWithSegments("/_framework")
+        && !ctx.Request.Path.StartsWithSegments("/_content"),
+    branch => branch.UseStatusCodePagesWithRedirects("/not-found"));
+app.UseResponseCompression();
+app.UseStaticFiles();
+// Explicit so routing runs after the S3 split. Without this call WebApplication inserts
+// routing at the very start of the pipeline, ahead of the port check.
+app.UseRouting();
+app.UseRateLimiter();
+app.UseAuthentication();
+app.UseAuthorization();
+app.UseAntiforgery();
 
 app.UseHangfireDashboard("/hangfire", new DashboardOptions
 {
@@ -431,21 +447,12 @@ app.MapHealthChecks("/health/ready", new Microsoft.AspNetCore.Diagnostics.Health
     Predicate = check => check.Tags.Contains("ready")
 });
 
-app.UseStaticFiles();
 app.MapStaticAssets();
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
 
 app.MapDownloadEndpoints();
 app.MapPresignEndpoints();
-
-// S3 Endpoints — port 9000 only, auth via SigV4AuthMiddleware above
-var s3Group = app.MapGroup("/").RequireHost("*:9000").RequireAuthorization();
-app.MapS3BucketEndpoints(s3Group);
-app.MapS3ObjectEndpoints(s3Group);
-app.MapS3MultipartEndpoints(s3Group);
-app.MapS3PostObjectEndpoints(s3Group);
-
 app.MapAccountEndpoints();
 
 app.Run();

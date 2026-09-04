@@ -13,7 +13,8 @@ src/
 │   │   └── S3Endpoints/ # S3BucketEndpoint, S3ObjectEndpoint, S3MultipartEndpoint, S3PostObjectEndpoint
 │   ├── Middleware/      # SigV4AuthMiddleware
 │   ├── Auth/            # HangfireAuthorizationFilter
-│   ├── S3/              # SigV4Parser, SigV4Signer, S3Xml, S3Errors, StorageQuota
+│   ├── Options/         # ServerOptions (ports), ReverseProxyOptions (forwarded headers)
+│   ├── S3/              # S3Pipeline (the S3 port's request pipeline), SigV4Parser, SigV4Signer, S3Xml, S3Errors, StorageQuota
 │   └── Metrics/         # ObjeXMetrics, BucketMetricsSyncJob
 ├── ObjeX.Core/          # Domain — zero framework dependencies
 │   ├── Interfaces/      # IMetadataService, IObjectStorageService, IHashService, IHasTimestamps
@@ -65,19 +66,39 @@ ObjeX uses **two authentication mechanisms** operating independently:
 
 The cookie is the default for the browser. S3 clients on port 9000 authenticate via AWS Sig V4 — no cookie, no `X-API-Key`.
 
-### Middleware Pipeline Order
+### Ports and Pipelines
+
+Ports come from `Server:UiPort` (default 9001) and `Server:S3Port` (default 9000) — `ObjeX.Api/Options/ServerOptions.cs`. Kestrel listeners are defined in code, so `ASPNETCORE_URLS` is ignored; do not set it anywhere. A request is dispatched by the TCP port it arrived on (`Connection.LocalPort`), never by the Host header — S3 clients sign the Host header, and behind a proxy it carries no port.
 
 ```
-UseWhen(!api)              ← UseStatusCodePagesWithRedirects("/not-found") — only non-API paths
-UseStaticFiles
-UseWhen(port == 9000)      ← UseCors("S3") — permissive CORS for S3 clients only; port 9001 has no CORS (same-origin)
-UseRateLimiter
-app.Use(...)               ← security headers (X-Content-Type-Options, X-Frame-Options, etc.)
-UseAuthentication          ← runs Identity cookie handler, sets context.User for cookie sessions
-UseWhen(port == 9000)      ← SigV4AuthMiddleware: validates Sig V4, sets context.User for S3 clients
-UseAuthorization           ← enforces policies on the already-resolved context.User
-UseAntiforgery
+Shared (both ports)
+  UseForwardedHeaders      ← only if ReverseProxy:Enabled (X-Forwarded-For/Proto from trusted proxies)
+  UseSerilogRequestLogging
+  UseHttpMetrics           ← only if Metrics:Enabled
+  app.Use(...)             ← security headers (X-Content-Type-Options, X-Frame-Options, etc.)
+  UseS3Api(s3Port)         ← terminal: S3-port requests enter the S3 pipeline and never continue below
+
+S3 pipeline (ObjeX.Api/S3/S3Pipeline.cs — own ApplicationBuilder, own routing, invisible to the UI port)
+  UseExceptionHandler      ← S3 XML InternalError 500
+  UseCors("S3")            ← permissive CORS for S3 clients only; the UI port has no CORS (same-origin)
+  SigV4AuthMiddleware      ← validates Sig V4, sets context.User; S3 XML error + short-circuit on failure
+  UseRouting / UseAuthorization / MapGroup("/").RequireAuthorization() with the S3 endpoints
+  Run                      ← fallback S3 XML 404 — nothing on this port answers with HTML or an empty body
+
+UI pipeline (everything else)
+  UseExceptionHandler      ← JSON 500 (Development: developer exception page)
+  UseWhen(!api)            ← UseStatusCodePagesWithRedirects("/not-found") — only non-API paths
+  UseResponseCompression
+  UseStaticFiles
+  UseRouting               ← explicit, so routing runs after the port split (WebApplication would otherwise insert it first)
+  UseRateLimiter
+  UseAuthentication        ← Identity cookie handler, sets context.User for cookie sessions
+  UseAuthorization         ← enforces policies on the already-resolved context.User
+  UseAntiforgery
+  UseHangfireDashboard, health, metrics, Blazor, /api/*, /account/*
 ```
+
+The S3 pipeline is a fresh `ApplicationBuilder`, not an `app.MapWhen` branch: a branch of `app` shares the global endpoint route builder, and UI endpoints would match inside it. Integration tests select the pipeline with the `X-ObjeX-Test-Port` header (see `ObjeXFactory`), because TestServer has no sockets and `LocalPort` is always 0.
 
 ### HTTP Security Headers
 
@@ -95,7 +116,7 @@ Set in a raw `app.Use` middleware in `Program.cs` (after `UseCors`, before auth)
 
 CSP is intentionally omitted — Blazor Server requires inline scripts and a SignalR WebSocket (`ws://`/`wss://`), making a safe policy non-trivial. Deferred.
 
-`SigV4AuthMiddleware` (`ObjeX.Api/Middleware/`) runs only on port 9000 via `app.UseWhen(ctx => ctx.Connection.LocalPort == 9000, ...)`. It: parses the `Authorization: AWS4-HMAC-SHA256 ...` header (or presigned query params), looks up the `AccessKeyId` in `db.S3Credentials`, validates the HMAC-SHA256 signature, checks timestamp freshness (±15 min, presigned URLs use `X-Amz-Expires`), verifies the payload hash against `x-amz-content-sha256`, then sets `context.User` to a `ClaimsIdentity` with scheme `"SigV4"`. Returns S3 XML error responses on failure.
+`SigV4AuthMiddleware` (`ObjeX.Api/Middleware/`) runs inside the S3 pipeline (`S3Pipeline.UseS3Api`), i.e. for every request arriving on `Server:S3Port`. It: parses the `Authorization: AWS4-HMAC-SHA256 ...` header (or presigned query params), looks up the `AccessKeyId` in `db.S3Credentials`, validates the HMAC-SHA256 signature, checks timestamp freshness (±15 min, presigned URLs use `X-Amz-Expires`), verifies the payload hash against `x-amz-content-sha256`, then sets `context.User` to a `ClaimsIdentity` with scheme `"SigV4"`. Returns S3 XML error responses on failure.
 
 ### 401 vs 302 for API Paths
 
@@ -399,8 +420,9 @@ GET    /metrics           → Prometheus metrics (HTTP request stats + per-bucke
 GET    /audit             → Audit log (Admin only); server-side paginated table of bucket/object operations
 GET    /hangfire          → Hangfire dashboard (Admin role or localhost)
 
-# S3-Compatible API — port 9000 (AWS Signature V4 required)
-# Single shared RouteGroupBuilder: app.MapGroup("/").RequireHost("*:9000").RequireAuthorization()
+# S3-Compatible API — Server:S3Port, default 9000 (AWS Signature V4 required)
+# Own pipeline (ObjeX.Api/S3/S3Pipeline.cs): MapGroup("/").RequireAuthorization() inside its own routing.
+# Selected by TCP port, no RequireHost — the Host header is free (proxies, ingresses, tunnels).
 # Auth: SigV4AuthMiddleware runs before UseAuthorization, sets context.User on valid signature
 GET    /                        → list all buckets (S3 ListAllMyBuckets XML)
 HEAD   /{bucket}                → bucket exists check (200/404)

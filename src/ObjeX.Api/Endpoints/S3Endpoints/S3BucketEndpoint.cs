@@ -16,7 +16,7 @@ public static class S3BucketEndpoint
     static bool IsPrivileged(HttpContext ctx) =>
         ctx.User.IsInRole("Admin") || ctx.User.IsInRole("Manager");
 
-    public static void MapS3BucketEndpoints(this WebApplication app, RouteGroupBuilder s3)
+    public static void MapS3BucketEndpoints(this RouteGroupBuilder s3)
     {
         s3.MapGet("/", async (HttpContext ctx, IMetadataService metadata) =>
         {

@@ -23,7 +23,7 @@ public static class S3MultipartEndpoint
     static bool IsPrivileged(HttpContext ctx) =>
         ctx.User.IsInRole("Admin") || ctx.User.IsInRole("Manager");
 
-    public static void MapS3MultipartEndpoints(this WebApplication app, RouteGroupBuilder s3)
+    public static void MapS3MultipartEndpoints(this RouteGroupBuilder s3)
     {
         // Initiate (POST ?uploads) and Complete (POST ?uploadId=X) share the same route
         s3.MapPost("/{bucket}/{*key}", async (

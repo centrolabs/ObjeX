@@ -1,4 +1,3 @@
-using System.Security;
 using System.Security.Cryptography;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Identity;
@@ -251,17 +250,6 @@ public class SigV4AuthMiddleware(RequestDelegate next, ILogger<SigV4AuthMiddlewa
         catch { /* non-critical */ }
     }
 
-    private static async Task WriteError(HttpContext context, string code, string message, int status)
-    {
-        context.Response.StatusCode = status;
-        context.Response.ContentType = "application/xml";
-        await context.Response.WriteAsync(
-            $"""
-            <?xml version="1.0" encoding="UTF-8"?>
-            <Error>
-              <Code>{SecurityElement.Escape(code)}</Code>
-              <Message>{SecurityElement.Escape(message)}</Message>
-            </Error>
-            """);
-    }
+    private static Task WriteError(HttpContext context, string code, string message, int status)
+        => S3Xml.WriteErrorAsync(context, code, message, status);
 }

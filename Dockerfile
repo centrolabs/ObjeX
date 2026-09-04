@@ -39,7 +39,9 @@ COPY --from=build --chown=app:app /app/publish .
 # Entrypoint: fix bind mount ownership, then drop to non-root
 RUN printf '#!/bin/sh\nif [ "$(id -u)" = "0" ]; then\n  chown -R app:app /data 2>/dev/null || true\n  exec setpriv --reuid=app --regid=app --init-groups dotnet ObjeX.Api.dll "$@"\nelse\n  exec dotnet ObjeX.Api.dll "$@"\nfi\n' > /entrypoint.sh && chmod 755 /entrypoint.sh
 
-ENV ASPNETCORE_URLS=http://+:9001
+# The aspnet base image sets ASPNETCORE_HTTP_PORTS=8080. Ports come from Server:UiPort/Server:S3Port
+# (Kestrel listeners in code); clearing this avoids an "Overriding address(es)" warning on every start.
+ENV ASPNETCORE_HTTP_PORTS=
 ENV ConnectionStrings__DefaultConnection="Data Source=/data/db/objex.db"
 ENV Storage__BasePath="/data/blobs"
 VOLUME ["/data"]
