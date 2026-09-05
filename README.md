@@ -139,7 +139,8 @@ No config required for local dev. Defaults (from `appsettings.json`):
 | S3 public URL | `http://localhost:9000` — set `S3:PublicUrl` for production |
 | Database provider | `sqlite` — set `Database:Provider=postgresql` for Postgres |
 | Database | `./data/db/objex.db` (SQLite default); set `ConnectionStrings:DefaultConnection` for Postgres |
-| Blob storage | `./data/blobs` (relative to working directory) |
+| Blob storage | `./data/blobs` |
+| Relative paths | resolved against the content root: `src/ObjeX.Api/` under `dotnet run`, `/app` in the container — never against the shell's working directory |
 | Log files | `./data/logs/objex-YYYYMMDD.log` — daily rolling, 30 days retention, compact JSON |
 | Auto-migrate | `true` — set `Database:AutoMigrate=false` to disable startup migrations |
 | Max upload size | unlimited — set `Storage:MaxUploadBytes` (bytes) to cap per-upload size |

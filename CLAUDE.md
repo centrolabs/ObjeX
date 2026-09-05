@@ -317,10 +317,11 @@ Empty or unset values are no-ops. Invalid bucket names are logged and skipped. S
 
 ## Storage Paths
 
-- **Database**: `./data/db/objex.db` (relative to working directory, set in `ConnectionStrings:DefaultConnection`; hardcoded default when absent from config)
-- **Blob storage**: `./data/blobs` (relative to working directory, set in `Storage:BasePath`; hardcoded default when absent from config)
+- **Database**: `data/db/objex.db` (set in `ConnectionStrings:DefaultConnection`; hardcoded default when absent from config)
+- **Blob storage**: `data/blobs` (set in `Storage:BasePath`; hardcoded default when absent from config)
+- **Logs**: `data/logs/objex-.log` (Serilog file sink in `appsettings.json`)
 
-Both paths are resolved to absolute paths at startup via `Path.GetFullPath()`. Always configure explicit paths in appsettings for deployed instances.
+Relative paths resolve against the **content root** via `ResolvePath()` in `Program.cs` — the project directory under `dotnet run` (so `src/ObjeX.Api/data/`), `/app` in the container. Never against the process working directory: that used to leave a second `data/` behind whenever the app was started from a different shell location. `launchSettings.json` must not set `workingDirectory` (`dotnet run` ignores it anyway). Deployed instances should still configure absolute paths.
 
 ### Content-Addressable Blob Layout
 

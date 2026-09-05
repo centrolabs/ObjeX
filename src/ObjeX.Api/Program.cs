@@ -26,6 +26,18 @@ using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Relative paths in config (DB file, blob root, log files) resolve against the content root:
+// the project directory under `dotnet run`, /app in the container. Never against the process
+// working directory, which differs between IDE, CLI and service managers.
+string ResolvePath(string path) => Path.GetFullPath(path, builder.Environment.ContentRootPath);
+
+foreach (var sink in builder.Configuration.GetSection("Serilog:WriteTo").GetChildren())
+{
+    var key = $"{sink.Path}:Args:path";
+    if (builder.Configuration[key] is { Length: > 0 } logPath && !Path.IsPathRooted(logPath))
+        builder.Configuration[key] = ResolvePath(logPath);
+}
+
 // Upload size limit — null = unlimited (disk space guard is the real protection).
 // Override via Storage:MaxUploadBytes in config.
 var maxUploadBytes = builder.Configuration.GetValue<long?>("Storage:MaxUploadBytes");
@@ -55,8 +67,7 @@ builder.Services.AddScoped<IMetadataService, SqliteMetadataService>();
 builder.Services.AddSingleton<IHashService, Sha256HashService>();
 builder.Services.AddSingleton<FileSystemStorageService>(sp =>
 {
-    var basePath = builder.Configuration["Storage:BasePath"] ?? "./data/blobs";
-    basePath = Path.GetFullPath(basePath);
+    var basePath = ResolvePath(builder.Configuration["Storage:BasePath"] ?? "data/blobs");
     return new FileSystemStorageService(basePath, sp.GetRequiredService<IHashService>(), sp.GetRequiredService<ILogger<FileSystemStorageService>>());
 });
 builder.Services.AddSingleton<IObjectStorageService>(sp => sp.GetRequiredService<FileSystemStorageService>());
@@ -140,7 +151,7 @@ var connectionString = builder.Configuration.GetConnectionString("DefaultConnect
 
 if (databaseProvider == "sqlite")
 {
-    connectionString ??= "Data Source=./data/db/objex.db";
+    connectionString ??= "Data Source=data/db/objex.db";
 }
 else if (string.IsNullOrEmpty(connectionString) || connectionString.StartsWith("Data Source=", StringComparison.OrdinalIgnoreCase))
 {
@@ -152,9 +163,9 @@ else if (string.IsNullOrEmpty(connectionString) || connectionString.StartsWith("
 string? dbFilePath = null;
 if (databaseProvider == "sqlite")
 {
-    // Resolve relative path from CWD at startup and lock it to absolute
-    // so it stays stable regardless of any later CWD changes.
-    dbFilePath = Path.GetFullPath(connectionString.Replace("Data Source=", "").Trim());
+    // Absolute path, anchored at the content root (see ResolvePath), so EF Core and Hangfire
+    // open the same file no matter where the process was started from.
+    dbFilePath = ResolvePath(connectionString.Replace("Data Source=", "").Trim());
     connectionString = $"Data Source={dbFilePath}";
 }
 

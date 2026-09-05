@@ -4,7 +4,6 @@
     "http": {
       "commandName": "Project",
       "dotnetRunMessages": true,
-      "workingDirectory": "../../",
       "environmentVariables": {
         "ASPNETCORE_ENVIRONMENT": "Development"
       }
