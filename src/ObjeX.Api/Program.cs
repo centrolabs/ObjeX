@@ -3,7 +3,6 @@ using Hangfire.PostgreSql;
 using Hangfire.Storage.SQLite;
 
 using Microsoft.AspNetCore.Identity;
-using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 
 using ObjeX.Core.Interfaces;
@@ -36,6 +35,9 @@ var metricsEnabled = builder.Configuration.GetValue<bool>("Metrics:Enabled");
 // precedence over ASPNETCORE_URLS, so that variable is intentionally not used anywhere.
 var server = builder.Configuration.GetSection(ServerOptions.SectionName).Get<ServerOptions>() ?? new ServerOptions();
 server.Validate();
+
+var auth = builder.Configuration.GetSection(AuthOptions.SectionName).Get<AuthOptions>() ?? new AuthOptions();
+auth.Validate();
 
 var reverseProxy = builder.Configuration.GetSection(ReverseProxyOptions.SectionName).Get<ReverseProxyOptions>() ?? new ReverseProxyOptions();
 if (reverseProxy.Enabled)
@@ -79,6 +81,11 @@ builder.Services.AddIdentity<User, IdentityRole>(options =>
         options.Password.RequireNonAlphanumeric = false;
         options.Password.RequiredLength = 4;
         options.User.RequireUniqueEmail = true;
+
+        // Per-account lockout on failed logins (see AuthOptions). Enforced via lockoutOnFailure in AccountEndpoints.
+        options.Lockout.AllowedForNewUsers = true;
+        options.Lockout.MaxFailedAccessAttempts = auth.Lockout.MaxFailedAttempts;
+        options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(auth.Lockout.DurationMinutes);
     })
     .AddEntityFrameworkStores<ObjeXDbContext>()
     .AddDefaultTokenProviders()
@@ -207,30 +214,6 @@ builder.Services.AddCors(options =>
         policy.AllowAnyOrigin()
             .AllowAnyMethod()
             .AllowAnyHeader();
-    });
-});
-
-builder.Services.AddRateLimiter(options =>
-{
-    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
-
-    // Login: 5 attempts per 2 minutes per IP — brute-force protection
-    options.AddSlidingWindowLimiter("login", o =>
-    {
-        o.Window = TimeSpan.FromMinutes(2);
-        o.SegmentsPerWindow = 4;
-        o.PermitLimit = 5;
-        o.QueueLimit = 0;
-        o.QueueProcessingOrder = System.Threading.RateLimiting.QueueProcessingOrder.NewestFirst;
-    });
-
-    // API key creation: 10 per minute per IP — sensitive write
-    options.AddFixedWindowLimiter("key-create", o =>
-    {
-        o.Window = TimeSpan.FromMinutes(1);
-        o.PermitLimit = 10;
-        o.QueueLimit = 0;
-        o.QueueProcessingOrder = System.Threading.RateLimiting.QueueProcessingOrder.NewestFirst;
     });
 });
 
@@ -413,7 +396,6 @@ app.UseStaticFiles();
 // Explicit so routing runs after the S3 split. Without this call WebApplication inserts
 // routing at the very start of the pipeline, ahead of the port check.
 app.UseRouting();
-app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();
 app.UseAntiforgery();

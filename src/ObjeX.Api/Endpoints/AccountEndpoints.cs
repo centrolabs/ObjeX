@@ -14,6 +14,15 @@ public static class AccountEndpoints
             var password = form["password"].ToString();
             var returnUrl = form["returnUrl"].ToString();
             var ip = ctx.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+            var sanitizedLogin = login.Replace("\r", "").Replace("\n", "");
+
+            string LoginRedirect(string? message)
+            {
+                var qs = $"error=1&login={Uri.EscapeDataString(login)}";
+                if (message is not null) qs += $"&msg={Uri.EscapeDataString(message)}";
+                if (!string.IsNullOrEmpty(returnUrl)) qs += $"&returnUrl={Uri.EscapeDataString(returnUrl)}";
+                return $"/login?{qs}";
+            }
 
             var user = login.Contains('@')
                 ? await signInManager.UserManager.FindByEmailAsync(login)
@@ -21,15 +30,26 @@ public static class AccountEndpoints
 
             if (user is not null)
             {
-                var result = await signInManager.PasswordSignInAsync(user, password, isPersistent: true, lockoutOnFailure: false);
+                // lockoutOnFailure: failed attempts count against the account (Auth:Lockout in config).
+                var result = await signInManager.PasswordSignInAsync(user, password, isPersistent: true, lockoutOnFailure: true);
+
+                if (result.IsLockedOut)
+                {
+                    var lockoutEnd = await signInManager.UserManager.GetLockoutEndDateAsync(user);
+                    var remaining = lockoutEnd.HasValue ? lockoutEnd.Value - DateTimeOffset.UtcNow : TimeSpan.Zero;
+                    var minutes = Math.Max(1, (int)Math.Ceiling(remaining.TotalMinutes));
+
+                    logger.LogWarning("Login refused for locked-out account {Login} from {IP}", sanitizedLogin, ip);
+                    return Results.Redirect(LoginRedirect(
+                        $"Too many failed attempts. This account is locked for {minutes} more minute{(minutes == 1 ? "" : "s")}."));
+                }
+
                 if (result.Succeeded)
                 {
                     if (user.IsDeactivated)
                     {
                         await signInManager.SignOutAsync();
-                        var dqs = $"error=1&msg={Uri.EscapeDataString("Your account has been deactivated.")}&login={Uri.EscapeDataString(login)}";
-                        if (!string.IsNullOrEmpty(returnUrl)) dqs += $"&returnUrl={Uri.EscapeDataString(returnUrl)}";
-                        return Results.Redirect($"/login?{dqs}");
+                        return Results.Redirect(LoginRedirect("Your account has been deactivated."));
                     }
 
                     if (user.MustChangePassword)
@@ -37,9 +57,7 @@ public static class AccountEndpoints
                         if (user.TemporaryPasswordExpiresAt.HasValue && user.TemporaryPasswordExpiresAt.Value < DateTime.UtcNow)
                         {
                             await signInManager.SignOutAsync();
-                            var eqs = $"error=1&msg={Uri.EscapeDataString("Temporary password expired, contact your administrator.")}&login={Uri.EscapeDataString(login)}";
-                            if (!string.IsNullOrEmpty(returnUrl)) eqs += $"&returnUrl={Uri.EscapeDataString(returnUrl)}";
-                            return Results.Redirect($"/login?{eqs}");
+                            return Results.Redirect(LoginRedirect("Temporary password expired, contact your administrator."));
                         }
                         return Results.Redirect("/change-password");
                     }
@@ -50,14 +68,9 @@ public static class AccountEndpoints
                 }
             }
 
-            var sanitizedLogin = login.Replace("\r", "").Replace("\n", "");
             logger.LogWarning("Failed login attempt for {Login} from {IP}", sanitizedLogin, ip);
-
-            var qs = $"error=1&login={Uri.EscapeDataString(login)}";
-            if (!string.IsNullOrEmpty(returnUrl)) qs += $"&returnUrl={Uri.EscapeDataString(returnUrl)}";
-            return Results.Redirect($"/login?{qs}");
-        }).DisableAntiforgery() // Login.razor uses plain HTML form (not Blazor form) — antiforgery token generation from static SSR is non-trivial. Login CSRF is low impact (attacker can only log victim into attacker's account). Rate limiting mitigates abuse.
-          .RequireRateLimiting("login");
+            return Results.Redirect(LoginRedirect(null));
+        }).DisableAntiforgery(); // Login.razor uses a plain HTML form (not a Blazor form) — antiforgery token generation from static SSR is non-trivial. Login CSRF is low impact (attacker can only log the victim into the attacker's account). Account lockout limits abuse.
 
         app.MapGet("/account/logout", async (SignInManager<User> signInManager) =>
         {

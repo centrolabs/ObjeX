@@ -13,7 +13,7 @@ src/
 │   │   └── S3Endpoints/ # S3BucketEndpoint, S3ObjectEndpoint, S3MultipartEndpoint, S3PostObjectEndpoint
 │   ├── Middleware/      # SigV4AuthMiddleware
 │   ├── Auth/            # HangfireAuthorizationFilter
-│   ├── Options/         # ServerOptions (ports), ReverseProxyOptions (forwarded headers)
+│   ├── Options/         # ServerOptions (ports), ReverseProxyOptions (forwarded headers), AuthOptions (login lockout)
 │   ├── S3/              # S3Pipeline (the S3 port's request pipeline), SigV4Parser, SigV4Signer, S3Xml, S3Errors, StorageQuota
 │   └── Metrics/         # ObjeXMetrics, BucketMetricsSyncJob
 ├── ObjeX.Core/          # Domain — zero framework dependencies
@@ -91,7 +91,6 @@ UI pipeline (everything else)
   UseResponseCompression
   UseStaticFiles
   UseRouting               ← explicit, so routing runs after the port split (WebApplication would otherwise insert it first)
-  UseRateLimiter
   UseAuthentication        ← Identity cookie handler, sets context.User for cookie sessions
   UseAuthorization         ← enforces policies on the already-resolved context.User
   UseAntiforgery
@@ -140,6 +139,7 @@ No named policies are defined. S3 endpoints use `.RequireAuthorization()` on the
   - **Manager**: Users page, Settings incl. presigned URLs + storage quotas, all buckets — cannot promote/demote roles, no Hangfire, unlimited storage by default
   - **User**: S3 credentials, dark mode, own buckets only, subject to global storage quota (configurable in Settings)
 - Password requirements relaxed for MVP (min 4 chars, no complexity rules)
+- Account lockout: `Auth:Lockout:MaxFailedAttempts` (default 5) failed logins lock the account for `Auth:Lockout:DurationMinutes` (default 5). Per account, failures only, enforced by Identity via `lockoutOnFailure: true` in `AccountEndpoints`. No IP-based rate limiting by design — CGNAT and shared proxies put many users behind one IP.
 - Email flows are no-ops — no `IEmailSender` registered, no email verification
 
 **Default admin** (seeded on first run if no `admin` user exists):
@@ -159,7 +159,7 @@ POST /account/login   ← HTML form POST; sets Identity cookie; redirects to ret
 GET  /account/logout  ← clears Identity cookie; redirects to /login
 ```
 
-The login endpoint accepts `login` (username or email — detected by `@` presence), `password`, and `returnUrl` form fields. On failure it redirects back to `/login?error=1&login={value}` so the form can pre-fill the username.
+The login endpoint accepts `login` (username or email — detected by `@` presence), `password`, and `returnUrl` form fields. On failure it redirects back to `/login?error=1&login={value}` so the form can pre-fill the username; `&msg=` carries a specific reason for locked, deactivated, or temporary-password-expired accounts.
 
 `Login.razor` uses `@layout EmptyLayout` and `[AllowAnonymous]`. It renders a plain HTML `<form method="post" action="/account/login">` — not a Blazor event handler. It shows a Radzen toast notification on error (detected via `?error=1` query param in `OnAfterRenderAsync`).
 

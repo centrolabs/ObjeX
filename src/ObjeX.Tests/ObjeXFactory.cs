@@ -38,6 +38,8 @@ public class ObjeXFactory : WebApplicationFactory<ApiAssemblyMarker>
         builder.UseSetting("Server:UiPort", UiPort.ToString());
         builder.UseSetting("Server:S3Port", S3Port.ToString());
         builder.UseSetting("Metrics:Enabled", "false");
+        builder.UseSetting("Auth:Lockout:MaxFailedAttempts", "5");
+        builder.UseSetting("Auth:Lockout:DurationMinutes", "5");
         builder.UseSetting("Seed:S3Credential:AccessKeyId", AccessKeyId);
         builder.UseSetting("Seed:S3Credential:SecretAccessKey", SecretAccessKey);
         builder.UseSetting("Seed:S3Credential:Name", "test-credential");

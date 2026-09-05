@@ -135,6 +135,7 @@ No config required for local dev. Defaults (from `appsettings.json`):
 | UI / API port | `9001` — set `Server:UiPort` |
 | S3 API port | `9000` — set `Server:S3Port`; S3-compatible endpoints, AWS Signature V4 required |
 | Reverse proxy | off — set `ReverseProxy:Enabled=true` plus `ReverseProxy:KnownProxies` / `ReverseProxy:KnownNetworks` to trust `X-Forwarded-For` / `X-Forwarded-Proto` |
+| Login lockout | `5` failed attempts lock the account for `5` minutes — set `Auth:Lockout:MaxFailedAttempts` / `Auth:Lockout:DurationMinutes` |
 | S3 public URL | `http://localhost:9000` — set `S3:PublicUrl` for production |
 | Database provider | `sqlite` — set `Database:Provider=postgresql` for Postgres |
 | Database | `./data/db/objex.db` (SQLite default); set `ConnectionStrings:DefaultConnection` for Postgres |
@@ -208,7 +209,7 @@ ObjeX can pre-create buckets and an S3 credential on startup so integrations wor
 
 See [SECURITY.md](SECURITY.md) for vulnerability reporting and encryption guidance.
 
-Login rate-limited to 5 attempts per 2 minutes per IP. Hangfire dashboard restricted to Admin role. Security headers set on all responses (`X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, `HSTS`).
+Login: 5 failed attempts lock the account for 5 minutes (per account, configurable via `Auth:Lockout`). There is no IP-based limiting by design — behind CGNAT or a shared proxy one IP is many users. Hangfire dashboard restricted to Admin role. Security headers set on all responses (`X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, `HSTS`).
 
 ### Blob Layout on Disk
 
