@@ -60,7 +60,10 @@ public class ObjeXFactory : WebApplicationFactory<ApiAssemblyMarker>
 
             // Suppress PendingModelChangesWarning — StorageUsedBytes lives on as a shadow
             // property in ObjeXDbContext, which EF flags as a pending change.
-            services.AddDbContext<ObjeXDbContext>((sp, options) =>
+            // EF registers the options with TryAdd, so the originals are removed first or this override is a silent no-op.
+            services.RemoveAll<DbContextOptions<ObjeXDbContext>>();
+            services.RemoveAll<DbContextOptions>();
+            services.AddDbContextFactory<ObjeXDbContext>(options =>
             {
                 options.UseSqlite($"Data Source={Path.Combine(_tempDir, "test.db")}",
                     o => o.CommandTimeout(30));

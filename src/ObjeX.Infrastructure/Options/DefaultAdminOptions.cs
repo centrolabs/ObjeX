@@ -1,4 +1,4 @@
-namespace ObjeX.Api.Options;
+namespace ObjeX.Infrastructure.Options;
 
 /// <summary>Credentials of the admin account created on first start when no such user exists.</summary>
 public sealed class DefaultAdminOptions

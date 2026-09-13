@@ -6,12 +6,14 @@
 @using ObjeX.Infrastructure.Data
 @using ObjeX.Web.Components.Dialogs
 @using ObjeX.Web.Helpers
+@using Microsoft.Extensions.Options
+@using ObjeX.Infrastructure.Options
 @inject UserManager<User> UserManager
-@inject ObjeXDbContext Db
+@inject IDbContextFactory<ObjeXDbContext> DbFactory
 @inject DialogService DialogService
 @inject NotificationService NotificationService
 @inject AuthenticationStateProvider AuthStateProvider
-@inject IConfiguration Configuration
+@inject IOptions<DefaultAdminOptions> DefaultAdmin
 
 <PageTitle>Users — ObjeX</PageTitle>
 
@@ -34,6 +36,14 @@
                         @if (row.IsDeactivated)
                         {
                             <RadzenBadge Text="Deactivated" BadgeStyle="BadgeStyle.Danger" Shade="Shade.Lighter" />
+                        }
+                        else if (row.IsLocked)
+                        {
+                            <RadzenStack Orientation="Orientation.Horizontal" Gap="0.25rem" AlignItems="AlignItems.Center">
+                                <RadzenText TextStyle="TextStyle.Caption" Style="margin:0">Locked</RadzenText>
+                                <RadzenButton Text="Unlock" Variant="Variant.Text" ButtonStyle="ButtonStyle.Warning"
+                                              Size="ButtonSize.Small" Click="@(() => Unlock(row))" />
+                            </RadzenStack>
                         }
                         else
                         {
@@ -109,9 +119,9 @@
 </RadzenStack>
 
 @code {
-    record UserRow(string Id, string Username, string Email, string Role, bool IsDeactivated, DateTime CreatedAt, long StorageUsed, long? Quota)
+    record UserRow(string Id, string Username, string Email, string Role, bool IsDeactivated, bool IsLocked, DateTime CreatedAt, long StorageUsed, long? Quota)
     {
-        public string Status => IsDeactivated ? "Deactivated" : "Active";
+        public string Status => IsDeactivated ? "Deactivated" : IsLocked ? "Locked" : "Active";
     }
 
     List<UserRow> _users = [];
@@ -128,20 +138,22 @@
 
     async Task LoadUsers()
     {
-        var users = await Db.Users.OrderBy(u => u.UserName).ToListAsync();
-        var settings = await Db.SystemSettings.FindAsync(1);
-        var bucketSizes = await Db.Buckets
+        await using var db = await DbFactory.CreateDbContextAsync();
+        var users = await db.Users.OrderBy(u => u.UserName).ToListAsync();
+        var settings = await db.SystemSettings.FindAsync(1);
+        var bucketSizes = await db.Buckets
             .GroupBy(b => b.OwnerId)
             .Select(g => new { OwnerId = g.Key, Total = g.Sum(b => b.TotalSize) })
             .ToDictionaryAsync(x => x.OwnerId, x => x.Total);
 
         // Batch-load all user-role mappings in a single query to avoid N+1
-        var userRoles = await Db.UserRoles
-            .Join(Db.Roles, ur => ur.RoleId, r => r.Id, (ur, r) => new { ur.UserId, RoleName = r.Name! })
+        var userRoles = await db.UserRoles
+            .Join(db.Roles, ur => ur.RoleId, r => r.Id, (ur, r) => new { ur.UserId, RoleName = r.Name! })
             .ToListAsync();
         var rolesByUser = userRoles.GroupBy(x => x.UserId)
             .ToDictionary(g => g.Key, g => g.Select(x => x.RoleName).ToList());
 
+        var now = DateTimeOffset.UtcNow;
         var rows = new List<UserRow>();
         foreach (var u in users)
         {
@@ -150,7 +162,8 @@
             var used = bucketSizes.GetValueOrDefault(u.Id, 0);
             var isPrivileged = role is "Admin" or "Manager";
             var quota = u.StorageQuotaBytes ?? (isPrivileged ? null : settings?.DefaultStorageQuotaBytes);
-            rows.Add(new UserRow(u.Id, u.UserName ?? string.Empty, u.Email ?? string.Empty, role, u.IsDeactivated, u.CreatedAt, used, quota));
+            rows.Add(new UserRow(u.Id, u.UserName ?? string.Empty, u.Email ?? string.Empty, role, u.IsDeactivated,
+                u.LockoutEnd > now, u.CreatedAt, used, quota));
         }
         _users = rows;
     }
@@ -299,16 +312,35 @@
 
         if (input is not int gb) return;
 
-        var user = await Db.Users.FindAsync(row.Id);
+        var user = await UserManager.FindByIdAsync(row.Id);
         if (user is null) return;
 
         user.StorageQuotaBytes = gb == 0 ? null : gb * 1024L * 1024 * 1024;
         user.UpdatedAt = DateTime.UtcNow;
-        await Db.SaveChangesAsync();
+        await UserManager.UpdateAsync(user);
         await LoadUsers();
 
         NotificationService.Notify(NotificationSeverity.Success, "Quota updated",
             gb == 0 ? $"\"{row.Username}\" set to system default" : $"\"{row.Username}\" set to {gb} GB");
+    }
+
+    async Task Unlock(UserRow row)
+    {
+        var confirmed = await DialogService.Confirm(
+            $"Unlock \"{row.Username}\"? Failed login attempts are reset.",
+            "Unlock",
+            new ConfirmOptions { OkButtonText = "Unlock", CancelButtonText = "Cancel" });
+
+        if (confirmed != true) return;
+
+        var user = await UserManager.FindByIdAsync(row.Id);
+        if (user is null) return;
+
+        await UserManager.SetLockoutEndDateAsync(user, null);
+        await UserManager.ResetAccessFailedCountAsync(user);
+        await LoadUsers();
+
+        NotificationService.Notify(NotificationSeverity.Success, "Unlocked", $"\"{row.Username}\" unlocked.");
     }
 
     async Task DeleteUser(UserRow row)
@@ -320,23 +352,25 @@
 
         if (confirmed != true) return;
 
-        var user = await UserManager.FindByIdAsync(row.Id);
-        if (user is null) return;
+        // The bucket FK is Restrict, so the rows must move to admin on the same fresh context that deletes the user.
+        var adminUser = await UserManager.FindByNameAsync(DefaultAdmin.Value.Username);
 
-        // Transfer any buckets owned by this user to admin before deletion
-        var adminUsername = Configuration["DefaultAdmin:Username"] ?? "admin";
-        var adminUser = await UserManager.FindByNameAsync(adminUsername);
-        if (adminUser is not null)
+        await using (var db = await DbFactory.CreateDbContextAsync())
         {
-            await Db.Buckets
-                .Where(b => b.OwnerId == user.Id)
-                .ExecuteUpdateAsync(s => s.SetProperty(b => b.OwnerId, adminUser.Id));
+            var user = await db.Users.FindAsync(row.Id);
+            if (user is null) return;
+
+            if (adminUser is not null)
+            {
+                await db.Buckets
+                    .Where(b => b.OwnerId == user.Id)
+                    .ExecuteUpdateAsync(s => s.SetProperty(b => b.OwnerId, adminUser.Id));
+            }
+
+            db.Users.Remove(user);
+            await db.SaveChangesAsync();
         }
 
-        // Clear tracked Bucket entities to prevent EF Core from nulling owner_id when deleting the user
-        Db.ChangeTracker.Clear();
-
-        await UserManager.DeleteAsync(user);
         await LoadUsers();
 
         NotificationService.Notify(NotificationSeverity.Success, "Deleted", $"User \"{row.Username}\" deleted.");

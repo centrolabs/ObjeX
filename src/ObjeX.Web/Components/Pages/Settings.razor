@@ -5,7 +5,7 @@
 @using ObjeX.Web.Components.Dialogs
 @inject ThemeService ThemeService
 @inject IJSRuntime JS
-@inject ObjeXDbContext Db
+@inject IDbContextFactory<ObjeXDbContext> DbFactory
 @inject DialogService DialogService
 @inject NotificationService NotificationService
 @inject AuthenticationStateProvider AuthStateProvider
@@ -202,7 +202,8 @@
 
     async Task LoadPresignSettings()
     {
-        var settings = await Db.SystemSettings.FindAsync(1);
+        await using var db = await DbFactory.CreateDbContextAsync();
+        var settings = await db.SystemSettings.FindAsync(1);
         var defaultSec = settings?.PresignedUrlDefaultExpirySeconds ?? 3600;
         var maxSec     = settings?.PresignedUrlMaxExpirySeconds ?? 604800;
 
@@ -243,22 +244,24 @@
         ValidatePresignSettings();
         if (_presignError is not null) return;
 
-        var settings = await Db.SystemSettings.FindAsync(1);
+        await using var db = await DbFactory.CreateDbContextAsync();
+        var settings = await db.SystemSettings.FindAsync(1);
         if (settings is null)
         {
             settings = new ObjeX.Core.Models.SystemSettings { Id = 1 };
-            Db.SystemSettings.Add(settings);
+            db.SystemSettings.Add(settings);
         }
         settings.PresignedUrlDefaultExpirySeconds = DefaultSeconds;
         settings.PresignedUrlMaxExpirySeconds     = MaxSeconds;
-        await Db.SaveChangesAsync();
+        await db.SaveChangesAsync();
 
         NotificationService.Notify(NotificationSeverity.Success, "Saved", "Presigned URL settings updated.");
     }
 
     async Task LoadQuotaSettings()
     {
-        var settings = await Db.SystemSettings.FindAsync(1);
+        await using var db = await DbFactory.CreateDbContextAsync();
+        var settings = await db.SystemSettings.FindAsync(1);
         var bytes = settings?.DefaultStorageQuotaBytes;
         if (bytes is null || bytes == 0)
         {
@@ -286,18 +289,19 @@
 
     async Task SaveQuotaSettings()
     {
-        var settings = await Db.SystemSettings.FindAsync(1);
+        await using var db = await DbFactory.CreateDbContextAsync();
+        var settings = await db.SystemSettings.FindAsync(1);
         if (settings is null)
         {
             settings = new SystemSettings { Id = 1 };
-            Db.SystemSettings.Add(settings);
+            db.SystemSettings.Add(settings);
         }
 
         settings.DefaultStorageQuotaBytes = _quotaValue == 0
             ? null
             : _quotaValue * _sizeUnits.First(u => u.Id == _quotaUnit).Multiplier;
 
-        await Db.SaveChangesAsync();
+        await db.SaveChangesAsync();
         NotificationService.Notify(NotificationSeverity.Success, "Saved", "Storage quota updated.");
     }
 
@@ -311,7 +315,8 @@
 
     async Task LoadCredentials()
     {
-        _credentials = await Db.S3Credentials
+        await using var db = await DbFactory.CreateDbContextAsync();
+        _credentials = await db.S3Credentials
             .Where(c => c.UserId == _userId)
             .OrderByDescending(c => c.CreatedAt)
             .ToListAsync();
@@ -325,8 +330,11 @@
         if (result is not CreateS3CredentialDialog.Result r) return;
 
         var (credential, secret) = S3Credential.Create(r.Name, _userId);
-        Db.S3Credentials.Add(credential);
-        await Db.SaveChangesAsync();
+        await using (var db = await DbFactory.CreateDbContextAsync())
+        {
+            db.S3Credentials.Add(credential);
+            await db.SaveChangesAsync();
+        }
         await LoadCredentials();
 
         await DialogService.OpenAsync<ShowS3CredentialDialog>("Your New S3 Credential",
@@ -347,8 +355,12 @@
 
         if (confirmed != true) return;
 
-        Db.S3Credentials.Remove(cred);
-        await Db.SaveChangesAsync();
+        await using (var db = await DbFactory.CreateDbContextAsync())
+        {
+            // The row was loaded on an already-disposed context, so Remove attaches it as Deleted.
+            db.S3Credentials.Remove(cred);
+            await db.SaveChangesAsync();
+        }
         await LoadCredentials();
 
         NotificationService.Notify(NotificationSeverity.Success, "Deleted", $"Credential \"{cred.Name}\" deleted.");

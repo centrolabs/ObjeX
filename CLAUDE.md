@@ -13,7 +13,7 @@ src/
 │   │   └── S3Endpoints/ # S3BucketEndpoint, S3ObjectEndpoint, S3MultipartEndpoint, S3PostObjectEndpoint
 │   ├── Middleware/      # SigV4AuthMiddleware, SecurityHeadersMiddleware
 │   ├── Auth/            # HangfireAuthorizationFilter
-│   ├── Options/         # ServerOptions (ports), ReverseProxyOptions, AuthOptions (lockout), DatabaseOptions, StorageOptions, DefaultAdminOptions, SeedOptions
+│   ├── Options/         # ServerOptions (ports), ReverseProxyOptions, AuthOptions (lockout), DatabaseOptions, StorageOptions (blob root, upload cap, min free disk), SeedOptions
 │   ├── Startup/         # ServiceCollectionExtensions (AddObjeX* per concern), DatabaseInitializer (migrate, pragmas, roles, admin, seeding), BackgroundJobs (Hangfire wiring, recurring schedule, stale-job prune)
 │   ├── Components/      # App.razor (host document), _Imports.razor
 │   ├── wwwroot/         # app.css, favicons, fonts/, site.webmanifest
@@ -29,8 +29,9 @@ src/
 │   ├── Hashing/         # Sha256HashService
 │   ├── Health/          # BlobStorageHealthCheck
 │   ├── Jobs/            # CleanupOrphanedBlobsJob, VerifyBlobIntegrityJob, CleanupAbandonedMultipartJob (Hangfire job classes)
-│   ├── Metadata/        # SqliteMetadataService
+│   ├── Metadata/        # EfCoreMetadataService (SQLite and PostgreSQL alike)
 │   ├── Migrations/      # EF Core migrations
+│   ├── Options/         # S3Options (PublicUrl), DefaultAdminOptions — here, not in Api, because Web needs them and cannot reference Api
 │   └── Storage/         # FileSystemStorageService
 ├── ObjeX.Migrations.PostgreSql/  # PostgreSQL-specific EF Core migrations
 ├── ObjeX.Tests/         # xUnit — unit (Core validators, hashing) + integration (WebApplicationFactory, real SQLite)
@@ -142,7 +143,7 @@ No named policies are defined. S3 endpoints use `.RequireAuthorization()` on the
   - **Manager**: Users page, Settings incl. presigned URLs + storage quotas, all buckets — cannot promote/demote roles, no Hangfire, unlimited storage by default
   - **User**: S3 credentials, dark mode, own buckets only, subject to global storage quota (configurable in Settings)
 - Password requirements relaxed for MVP (min 4 chars, no complexity rules)
-- Account lockout: `Auth:Lockout:MaxFailedAttempts` (default 5) failed logins lock the account for `Auth:Lockout:DurationMinutes` (default 5). Per account, failures only, enforced by Identity via `lockoutOnFailure: true` in `AccountEndpoints`. No IP-based rate limiting by design — CGNAT and shared proxies put many users behind one IP.
+- Account lockout: `Auth:Lockout:MaxFailedAttempts` (default 5) failed logins lock the account for `Auth:Lockout:DurationMinutes` (default 5). Per account, failures only, enforced by Identity via `lockoutOnFailure: true` in `AccountEndpoints`. No IP-based rate limiting by design — CGNAT and shared proxies put many users behind one IP. A locked account shows as `Locked` on the Users page with an **Unlock** button (Admin and Manager, any row including the admin's own) that clears `LockoutEnd` and resets the failed-attempt count.
 - Email flows are no-ops — no `IEmailSender` registered, no email verification
 
 **Default admin** (created by `DatabaseInitializer` when no user with the configured `DefaultAdmin:Username` exists; an existing user is never modified):
@@ -359,14 +360,16 @@ Example:
 
 **Combined host:** `ObjeX.Api` is the single process — it serves both the REST API and the Blazor UI. `ObjeX.Web` is a Razor class library (`Microsoft.NET.Sdk.Razor`) holding components, pages, dialogs and layout; it has no entry point and no `wwwroot`. The host document `App.razor`, `wwwroot` (app.css, favicons, fonts) and `MapRazorComponents<App>().AddAdditionalAssemblies(typeof(Routes).Assembly)` live in `ObjeX.Api`. Assets that ship inside the class library — collocated `*.razor.js` modules and scoped CSS — are served under `_content/ObjeX.Web/...`; JS interop imports and `@Assets[...]` references in Web components must use that prefix. Scoped CSS of the library is folded into the host bundle `ObjeX.Api.styles.css`.
 
-**Data access from Blazor:** Components inject Core interfaces (`IMetadataService`) or `ObjeXDbContext` directly — no HttpClient, no API calls. Blazor runs server-side in the same process and DI container as the API, so direct injection is correct and efficient.
+**Data access from Blazor:** Components inject Core interfaces (`IMetadataService`) or `IDbContextFactory<ObjeXDbContext>` — no HttpClient, no API calls. Pages take the factory, never the scoped `ObjeXDbContext`, because a scoped context would live as long as the SignalR circuit. Each operation opens its own `await using var db = await DbFactory.CreateDbContextAsync()`; an entity read in one operation is detached by the next, so re-query it (or let `Remove`/`Update` attach it) before saving on a new context.
+
+`AddObjeXDatabase` registers `AddDbContextFactory<ObjeXDbContext>`, which also registers `ObjeXDbContext` as scoped — that scoped context still serves Identity, `EfCoreMetadataService`, `SigV4AuthMiddleware` and the endpoints. Mutations of `User` on the Users page therefore go through `UserManager` (Identity's scoped context), reads through the factory; mixing them would let a stale tracked `User` overwrite fresh columns, since `UserStore.UpdateAsync` marks every property modified.
 
 ```
 Browser → SignalR → Blazor Server (ObjeX.Api process)
                          ↓
-                   IMetadataService / ObjeXDbContext
+      IMetadataService / IDbContextFactory<ObjeXDbContext>
                          ↓
-                   SqliteMetadataService / EF Core
+                   EfCoreMetadataService / EF Core
 
 External S3 clients → HTTP → ObjeX.Api endpoints → same services
 ```
@@ -376,7 +379,7 @@ External S3 clients → HTTP → ObjeX.Api endpoints → same services
 **UI library:** Radzen Blazor. Registered via `AddRadzenComponents()` in `Startup/ServiceCollectionExtensions.AddObjeXBlazor`. Required host components in `MainLayout.razor`: `<RadzenDialog />` and `<RadzenNotification />`.
 
 **Validation pattern:**
-- **Enforcement** → service layer only (`SqliteMetadataService` calls `BucketNameValidator`, throws `ArgumentException` on invalid input)
+- **Enforcement** → service layer only (`EfCoreMetadataService` calls `BucketNameValidator`, throws `ArgumentException` on invalid input)
 - **UX feedback** → Blazor dialogs use the same `BucketNameValidator` from Core for inline errors as the user types
 - **API endpoints** → do NOT duplicate validation; catch `ArgumentException` from the service and return `400 BadRequest`
 
@@ -556,7 +559,7 @@ When adding a new model or changing an existing one, generate a migration for **
 5. ~~**Presigned URLs**~~ ✅ — GET presigned URLs, configurable expiry, copy-link UI with duration picker
 6. ~~**Enhanced Blazor UI**~~ ✅ — folder nav, dark mode (system preference + cookie persistence)
 7. **Object Tags** — key-value tags, tag-based search, lifecycle/retention policies
-8. ~~**User Management UI**~~ ✅ — Admin/Manager roles, user list, create/deactivate/delete/reset pw, forced password change on first login
+8. ~~**User Management UI**~~ ✅ — Admin/Manager roles, user list, create/deactivate/delete/reset pw/unlock, forced password change on first login
 9. ~~**Bucket Permissions**~~ ✅ (ownership) — buckets owned by creator; Admin/Manager see all; User sees own only; enforced at API, S3, and Blazor layers. Full ACL (per-bucket read/write/delete grants) still pending.
 10. **Teams/Orgs** — multi-tenant, org workspaces, team roles, storage quotas
 11. **Storage backends** — swap `FileSystemStorageService` for cloud or chunked storage

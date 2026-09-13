@@ -1,10 +1,12 @@
 using System.Security.Claims;
 
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 
 using ObjeX.Core.Interfaces;
 using ObjeX.Core.Utilities;
 using ObjeX.Infrastructure.Data;
+using ObjeX.Infrastructure.Options;
 
 namespace ObjeX.Api.Endpoints;
 
@@ -18,7 +20,7 @@ public static class PresignEndpoints
             HttpContext ctx,
             ObjeXDbContext db,
             IMetadataService metadata,
-            IConfiguration config) =>
+            IOptions<S3Options> s3Options) =>
         {
             var userId = ctx.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "";
             var isPrivileged = ctx.User.IsInRole("Admin") || ctx.User.IsInRole("Manager");
@@ -36,7 +38,7 @@ public static class PresignEndpoints
             var defaultExpiry  = settings?.PresignedUrlDefaultExpirySeconds ?? 3600;
             var maxExpiry      = settings?.PresignedUrlMaxExpirySeconds ?? 604800;
             var expiresSeconds = Math.Clamp(expires ?? defaultExpiry, 1, maxExpiry);
-            var s3BaseUrl = config["S3:PublicUrl"] ?? "http://localhost:9000";
+            var s3BaseUrl = s3Options.Value.PublicUrl;
 
             var httpMethod = method?.ToUpperInvariant() switch
             {

@@ -2,7 +2,9 @@ using System.Security.Claims;
 using System.Text.Json;
 
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 
+using ObjeX.Api.Options;
 using ObjeX.Api.S3;
 using ObjeX.Core.Interfaces;
 using ObjeX.Core.Models;
@@ -44,7 +46,7 @@ public static class S3ObjectEndpoint
             string key,
             HttpRequest request,
             HttpContext ctx,
-            IConfiguration config,
+            IOptions<StorageOptions> storageOptions,
             IMetadataService metadata,
             IObjectStorageService storage,
             FileSystemStorageService fs,
@@ -69,8 +71,7 @@ public static class S3ObjectEndpoint
                 if (!IsPrivileged(ctx) && upload.InitiatedByUserId != GetCallerId(ctx))
                     return S3Xml.Error(S3Errors.NoSuchUpload, "The specified upload does not exist.", 404);
 
-                var partMinFreeBytes = config.GetValue<long>("Storage:MinimumFreeDiskBytes", 500 * 1024 * 1024);
-                if (fs.GetAvailableFreeSpace() < partMinFreeBytes)
+                if (fs.GetAvailableFreeSpace() < storageOptions.Value.MinimumFreeDiskBytes)
                     return S3Xml.Error(S3Errors.EntityTooLarge, "Insufficient disk space.", 507);
 
                 var (partPath, partEtag) = await fs.StorePartAsync(uploadId, partNumber, request.Body, request.HttpContext.RequestAborted);
@@ -159,8 +160,7 @@ public static class S3ObjectEndpoint
             if (await metadata.GetBucketAsync(bucket, IsPrivileged(ctx) ? null : GetCallerId(ctx)) is null)
                 return S3Xml.Error(S3Errors.NoSuchBucket, "The specified bucket does not exist.", 404);
 
-            var minFreeBytes = config.GetValue<long>("Storage:MinimumFreeDiskBytes", 500 * 1024 * 1024);
-            if (fs.GetAvailableFreeSpace() < minFreeBytes)
+            if (fs.GetAvailableFreeSpace() < storageOptions.Value.MinimumFreeDiskBytes)
                 return S3Xml.Error(S3Errors.EntityTooLarge, "Insufficient disk space.", 507);
 
             // Pre-check with Content-Length if available; catches already-over-quota early

@@ -5,14 +5,16 @@
 @using ObjeX.Infrastructure.Data
 @using ObjeX.Core.Utilities
 @using Microsoft.EntityFrameworkCore
+@using Microsoft.Extensions.Options
+@using ObjeX.Infrastructure.Options
 @inject IMetadataService MetadataService
 @inject IObjectStorageService StorageService
 @inject DialogService DialogService
 @inject NotificationService NotificationService
 @inject NavigationManager Navigation
-@inject IConfiguration Configuration
+@inject IOptions<S3Options> S3
 @inject AuthenticationStateProvider AuthStateProvider
-@inject ObjeXDbContext Db
+@inject IDbContextFactory<ObjeXDbContext> DbFactory
 @inject IJSRuntime JS
 
 <PageTitle>@BucketName — ObjeX</PageTitle>
@@ -316,20 +318,23 @@
             string? storagePath = null;
             try
             {
-                var user = await Db.Users.FindAsync(_currentUserId);
-                var quota = user?.StorageQuotaBytes;
-                if (quota is null && !_isPrivileged)
+                await using (var db = await DbFactory.CreateDbContextAsync())
                 {
-                    var sysSettings = await Db.SystemSettings.FindAsync(1);
-                    quota = sysSettings?.DefaultStorageQuotaBytes;
-                }
-                if (quota is not null)
-                {
-                    var usage = await Db.Buckets.Where(b => b.OwnerId == _currentUserId).SumAsync(b => b.TotalSize);
-                    if (usage + file.Size > quota.Value)
+                    var user = await db.Users.FindAsync(_currentUserId);
+                    var quota = user?.StorageQuotaBytes;
+                    if (quota is null && !_isPrivileged)
                     {
-                        errors.Add($"{file.Name}: Storage quota exceeded");
-                        continue;
+                        var sysSettings = await db.SystemSettings.FindAsync(1);
+                        quota = sysSettings?.DefaultStorageQuotaBytes;
+                    }
+                    if (quota is not null)
+                    {
+                        var usage = await db.Buckets.Where(b => b.OwnerId == _currentUserId).SumAsync(b => b.TotalSize);
+                        if (usage + file.Size > quota.Value)
+                        {
+                            errors.Add($"{file.Name}: Storage quota exceeded");
+                            continue;
+                        }
                     }
                 }
 
@@ -539,18 +544,23 @@
         var auth = await AuthStateProvider.GetAuthenticationStateAsync();
         var userId = auth.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "";
 
-        var credential = await Db.S3Credentials.AsNoTracking()
-            .FirstOrDefaultAsync(c => c.UserId == userId);
+        S3Credential? credential;
+        int defaultExpiry, maxExpiry;
+        await using (var db = await DbFactory.CreateDbContextAsync())
+        {
+            credential = await db.S3Credentials.AsNoTracking()
+                .FirstOrDefaultAsync(c => c.UserId == userId);
+
+            var settings  = await db.SystemSettings.FindAsync(1);
+            defaultExpiry = settings?.PresignedUrlDefaultExpirySeconds ?? 3600;
+            maxExpiry     = settings?.PresignedUrlMaxExpirySeconds ?? 604800;
+        }
 
         if (credential is null)
         {
             NotificationService.Notify(NotificationSeverity.Warning, "No S3 credential", "Create one in Settings first.");
             return;
         }
-
-        var settings      = await Db.SystemSettings.FindAsync(1);
-        var defaultExpiry = settings?.PresignedUrlDefaultExpirySeconds ?? 3600;
-        var maxExpiry     = settings?.PresignedUrlMaxExpirySeconds ?? 604800;
 
         var result = await DialogService.OpenAsync<Dialogs.PresignedUrlDialog>(
             "Share Link",
@@ -563,9 +573,8 @@
 
         if (result is not int expiresSeconds) return;
 
-        var s3BaseUrl = Configuration["S3:PublicUrl"] ?? "http://localhost:9000";
         var url = PresignedUrlGenerator.Generate(
-            s3BaseUrl, BucketName, obj.Key,
+            S3.Value.PublicUrl, BucketName, obj.Key,
             credential.AccessKeyId, credential.SecretAccessKey,
             expiresSeconds);
 

@@ -9,4 +9,7 @@ public sealed class StorageOptions
 
     /// <summary>Kestrel request body limit. Null = unlimited; the free-disk guard is the real protection.</summary>
     public long? MaxUploadBytes { get; set; }
+
+    /// <summary>Uploads are rejected with 507 once free disk space would drop below this.</summary>
+    public long MinimumFreeDiskBytes { get; set; } = 500L * 1024 * 1024;
 }

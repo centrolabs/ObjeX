@@ -6,6 +6,7 @@ using ObjeX.Api.Middleware;
 using ObjeX.Api.Options;
 using ObjeX.Api.S3;
 using ObjeX.Api.Startup;
+using ObjeX.Infrastructure.Options;
 using Prometheus;
 using Serilog;
 
@@ -55,6 +56,7 @@ if (reverseProxy.Enabled)
 
 // ---- Services ------------------------------------------------------------------------------
 builder.Services
+    .AddObjeXOptions(builder.Configuration)
     .AddObjeXDatabase(database, builder.Environment)
     .AddObjeXStorage(ResolvePath(storage.BasePath))
     .AddObjeXIdentity(auth)

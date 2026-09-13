@@ -210,7 +210,7 @@ ObjeX can pre-create buckets and an S3 credential on startup so integrations wor
 
 See [SECURITY.md](SECURITY.md) for vulnerability reporting and encryption guidance.
 
-Login: 5 failed attempts lock the account for 5 minutes (per account, configurable via `Auth:Lockout`). There is no IP-based limiting by design — behind CGNAT or a shared proxy one IP is many users. Hangfire dashboard restricted to Admin role. Security headers set on all responses (`X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, `HSTS`).
+Login: 5 failed attempts lock the account for 5 minutes (per account, configurable via `Auth:Lockout`); Admin and Manager can lift a lock early with the **Unlock** button on the Users page. There is no IP-based limiting by design — behind CGNAT or a shared proxy one IP is many users. Hangfire dashboard restricted to Admin role. Security headers set on all responses (`X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, `HSTS`).
 
 ### Blob Layout on Disk
 

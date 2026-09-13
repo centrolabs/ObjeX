@@ -7,6 +7,7 @@ using ObjeX.Infrastructure.Data;
 using ObjeX.Infrastructure.Hashing;
 using ObjeX.Infrastructure.Health;
 using ObjeX.Infrastructure.Metadata;
+using ObjeX.Infrastructure.Options;
 using ObjeX.Infrastructure.Storage;
 using Radzen;
 
@@ -15,9 +16,20 @@ namespace ObjeX.Api.Startup;
 /// <summary>Service registration, one method per concern. Program.cs composes these.</summary>
 public static class ServiceCollectionExtensions
 {
+    /// <summary>Options resolved per request via IOptions; Program.cs binds the rest eagerly for host setup.</summary>
+    public static IServiceCollection AddObjeXOptions(this IServiceCollection services, IConfiguration configuration)
+    {
+        services.Configure<StorageOptions>(configuration.GetSection(StorageOptions.SectionName));
+        services.Configure<S3Options>(configuration.GetSection(S3Options.SectionName));
+        services.Configure<DefaultAdminOptions>(configuration.GetSection(DefaultAdminOptions.SectionName));
+
+        return services;
+    }
+
     public static IServiceCollection AddObjeXDatabase(this IServiceCollection services, DatabaseOptions database, IHostEnvironment environment)
     {
-        services.AddDbContext<ObjeXDbContext>(options =>
+        // A scoped context would live as long as a Blazor circuit; AddDbContextFactory also registers the scoped ObjeXDbContext that Identity and the endpoints use.
+        services.AddDbContextFactory<ObjeXDbContext>(options =>
         {
             if (database.IsPostgreSql)
                 options.UseNpgsql(database.ConnectionString, o =>
@@ -42,7 +54,7 @@ public static class ServiceCollectionExtensions
 
     public static IServiceCollection AddObjeXStorage(this IServiceCollection services, string blobBasePath)
     {
-        services.AddScoped<IMetadataService, SqliteMetadataService>();
+        services.AddScoped<IMetadataService, EfCoreMetadataService>();
         services.AddSingleton<IHashService, Sha256HashService>();
 
         // Registered under the concrete type first so Hangfire jobs can take it directly (BasePath is

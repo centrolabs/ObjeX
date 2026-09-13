@@ -7,7 +7,7 @@ using ObjeX.Infrastructure.Data;
 
 namespace ObjeX.Infrastructure.Metadata;
 
-public class SqliteMetadataService(ObjeXDbContext ctx) : IMetadataService
+public class EfCoreMetadataService(ObjeXDbContext ctx) : IMetadataService
 {
 
     public async Task<Bucket> CreateBucketAsync(Bucket bucket, string? auditUserId = null, CancellationToken ctk = default)
@@ -28,7 +28,8 @@ public class SqliteMetadataService(ObjeXDbContext ctx) : IMetadataService
 
     public async Task<Bucket?> GetBucketAsync(string bucketName, string? ownerFilter = null, CancellationToken ctk = default)
     {
-        var query = ctx.Buckets.Include(b => b.Owner).Where(b => b.Name == bucketName);
+        // Reads are untracked: the context is circuit-scoped in Blazor and would otherwise return stale instances.
+        var query = ctx.Buckets.AsNoTracking().Include(b => b.Owner).Where(b => b.Name == bucketName);
         if (ownerFilter is not null)
             query = query.Where(b => b.OwnerId == ownerFilter);
         return await query.FirstOrDefaultAsync(ctk);
@@ -36,7 +37,7 @@ public class SqliteMetadataService(ObjeXDbContext ctx) : IMetadataService
 
     public async Task<IEnumerable<Bucket>> ListBucketsAsync(string? ownerFilter = null, CancellationToken ctk = default)
     {
-        var query = ctx.Buckets.Include(b => b.Owner).AsQueryable();
+        var query = ctx.Buckets.AsNoTracking().Include(b => b.Owner).AsQueryable();
         if (ownerFilter is not null)
             query = query.Where(b => b.OwnerId == ownerFilter);
         return await query.ToListAsync(ctk);
@@ -90,13 +91,13 @@ public class SqliteMetadataService(ObjeXDbContext ctx) : IMetadataService
 
     public async Task<BlobObject?> GetObjectAsync(string bucketName, string key, CancellationToken ctk = default)
     {
-        return await ctx.BlobObjects
+        return await ctx.BlobObjects.AsNoTracking()
             .FirstOrDefaultAsync(o => o.BucketName == bucketName && o.Key == key, ctk);
     }
 
     public async Task<ListObjectsResult> ListObjectsAsync(string bucketName, string? prefix = null, string? delimiter = null, CancellationToken ctk = default)
     {
-        var query = ctx.BlobObjects.Where(o => o.BucketName == bucketName);
+        var query = ctx.BlobObjects.AsNoTracking().Where(o => o.BucketName == bucketName);
         if (!string.IsNullOrEmpty(prefix))
             query = query.Where(o => o.Key.StartsWith(prefix));
 
@@ -123,7 +124,7 @@ public class SqliteMetadataService(ObjeXDbContext ctx) : IMetadataService
 
     public async Task<IEnumerable<BlobObject>> ListAllObjectsAsync(CancellationToken ctk = default)
     {
-        return await ctx.BlobObjects.ToListAsync(ctk);
+        return await ctx.BlobObjects.AsNoTracking().ToListAsync(ctk);
     }
 
     public async Task DeleteObjectAsync(string bucketName, string key, string? auditUserId = null, CancellationToken ctk = default)

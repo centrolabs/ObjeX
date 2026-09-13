@@ -3,12 +3,15 @@ using System.Security.Cryptography;
 using System.Xml.Linq;
 
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 
+using ObjeX.Api.Options;
 using ObjeX.Api.S3;
 using ObjeX.Core.Interfaces;
 using ObjeX.Core.Models;
 using ObjeX.Core.Validation;
 using ObjeX.Infrastructure.Data;
+using ObjeX.Infrastructure.Options;
 using ObjeX.Infrastructure.Storage;
 
 namespace ObjeX.Api.Endpoints.S3Endpoints;
@@ -33,7 +36,8 @@ public static class S3MultipartEndpoint
             IMetadataService metadata,
             ObjeXDbContext db,
             FileSystemStorageService fs,
-            IConfiguration config,
+            IOptions<StorageOptions> storageOptions,
+            IOptions<S3Options> s3Options,
             HttpContext ctx) =>
         {
             if (ObjectKeyValidator.GetValidationError(key) is { } keyError)
@@ -46,7 +50,7 @@ public static class S3MultipartEndpoint
                 return await Initiate(bucket, key, request, db, ctx);
 
             if (request.Query.TryGetValue("uploadId", out var uploadIdStr))
-                return await Complete(bucket, key, uploadIdStr!, request, metadata, db, fs, config, ctx);
+                return await Complete(bucket, key, uploadIdStr!, request, metadata, db, fs, storageOptions.Value, s3Options.Value, ctx);
 
             return S3Xml.Error(S3Errors.InvalidArgument, "Missing uploads or uploadId query parameter.");
         });
@@ -97,7 +101,7 @@ public static class S3MultipartEndpoint
         string bucket, string key, string uploadIdStr,
         HttpRequest request, IMetadataService metadata,
         ObjeXDbContext db, FileSystemStorageService fs,
-        IConfiguration config, HttpContext ctx)
+        StorageOptions storage, S3Options s3, HttpContext ctx)
     {
         if (!Guid.TryParse(uploadIdStr, out var uploadId))
             return S3Xml.Error(S3Errors.NoSuchUpload, "The specified upload does not exist.", 404);
@@ -152,8 +156,7 @@ public static class S3MultipartEndpoint
         }
 
         // Check disk space
-        var minFreeBytes = config.GetValue<long>("Storage:MinimumFreeDiskBytes", 500 * 1024 * 1024);
-        if (fs.GetAvailableFreeSpace() < minFreeBytes)
+        if (fs.GetAvailableFreeSpace() < storage.MinimumFreeDiskBytes)
             return S3Xml.Error(S3Errors.EntityTooLarge, "Insufficient disk space.", 507);
 
         var totalSize = upload.Parts
@@ -185,8 +188,7 @@ public static class S3MultipartEndpoint
         db.MultipartUploads.Remove(upload);
         await db.SaveChangesAsync();
 
-        var s3PublicUrl = config["S3:PublicUrl"] ?? "http://localhost:9000";
-        return S3Xml.CompleteMultipartUpload(bucket, key, $"{s3PublicUrl}/{bucket}/{key}", finalEtag);
+        return S3Xml.CompleteMultipartUpload(bucket, key, $"{s3.PublicUrl}/{bucket}/{key}", finalEtag);
     }
 
     private static string ComputeMultipartETag(IList<string> partEtags)

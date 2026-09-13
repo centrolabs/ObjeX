@@ -6,6 +6,7 @@ using ObjeX.Core.Interfaces;
 using ObjeX.Core.Models;
 using ObjeX.Core.Validation;
 using ObjeX.Infrastructure.Data;
+using ObjeX.Infrastructure.Options;
 
 namespace ObjeX.Api.Startup;
 

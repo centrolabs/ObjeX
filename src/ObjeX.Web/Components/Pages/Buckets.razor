@@ -5,12 +5,14 @@
 @using ObjeX.Web.Components.Dialogs
 @using Microsoft.AspNetCore.Components.Authorization
 @using Microsoft.EntityFrameworkCore
+@using Microsoft.Extensions.Options
+@using ObjeX.Infrastructure.Options
 @inject IMetadataService MetadataService
 @inject DialogService DialogService
 @inject NotificationService NotificationService
 @inject AuthenticationStateProvider AuthStateProvider
-@inject IConfiguration Configuration
-@inject ObjeXDbContext Db
+@inject IOptions<DefaultAdminOptions> DefaultAdmin
+@inject IDbContextFactory<ObjeXDbContext> DbFactory
 
 <PageTitle>Buckets — ObjeX</PageTitle>
 
@@ -79,7 +81,7 @@
         _currentUserId = auth.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? string.Empty;
         _isPrivileged = auth.User.IsInRole("Admin") || auth.User.IsInRole("Manager");
         _isAdmin = auth.User.IsInRole("Admin");
-        _adminUsername = Configuration["DefaultAdmin:Username"] ?? "admin";
+        _adminUsername = DefaultAdmin.Value.Username;
         await LoadBuckets();
     }
 
@@ -139,12 +141,15 @@
 
         if (result is not ChangeOwnerDialog.Result r) return;
 
-        await Db.Buckets
-            .Where(b => b.Id == bucket.Id)
-            .ExecuteUpdateAsync(s => s.SetProperty(b => b.OwnerId, r.UserId));
+        await using (var db = await DbFactory.CreateDbContextAsync())
+        {
+            await db.Buckets
+                .Where(b => b.Id == bucket.Id)
+                .ExecuteUpdateAsync(s => s.SetProperty(b => b.OwnerId, r.UserId));
 
-        Db.AuditEntries.Add(new AuditEntry { UserId = _currentUserId, Action = "ChangeOwner", BucketName = bucket.Name, Details = $"New owner: {r.UserName}" });
-        await Db.SaveChangesAsync();
+            db.AuditEntries.Add(new AuditEntry { UserId = _currentUserId, Action = "ChangeOwner", BucketName = bucket.Name, Details = $"New owner: {r.UserName}" });
+            await db.SaveChangesAsync();
+        }
 
         await LoadBuckets();
         NotificationService.Notify(NotificationSeverity.Success, "Owner changed",

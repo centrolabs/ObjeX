@@ -3,7 +3,7 @@
 @using Microsoft.EntityFrameworkCore
 @using ObjeX.Core.Models
 @using ObjeX.Infrastructure.Data
-@inject ObjeXDbContext Db
+@inject IDbContextFactory<ObjeXDbContext> DbFactory
 
 <PageTitle>Audit Log — ObjeX</PageTitle>
 
@@ -54,7 +54,8 @@
 
         try
         {
-            var query = Db.AuditEntries.AsQueryable();
+            await using var db = await DbFactory.CreateDbContextAsync();
+            var query = db.AuditEntries.AsQueryable();
 
             var sort = args.Sorts?.FirstOrDefault();
             query = sort?.Property switch
@@ -75,7 +76,7 @@
                 .ToListAsync();
 
             var userIds = _entries.Select(e => e.UserId).Distinct().ToList();
-            _userNames = await Db.Users
+            _userNames = await db.Users
                 .Where(u => userIds.Contains(u.Id))
                 .ToDictionaryAsync(u => u.Id, u => u.UserName ?? Truncate(u.Id, 8));
         }
