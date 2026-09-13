@@ -11,6 +11,14 @@ namespace ObjeX.Api.S3;
 /// </summary>
 public static class S3Pipeline
 {
+    /// <summary>S3 clients live on other origins (browser SDKs, presigned POST forms), so the S3 port is fully open to CORS.</summary>
+    public static IServiceCollection AddS3Api(this IServiceCollection services)
+    {
+        services.AddCors(options => options.AddPolicy("S3", policy =>
+            policy.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader()));
+        return services;
+    }
+
     public static WebApplication UseS3Api(this WebApplication app, int s3Port)
     {
         // A fresh ApplicationBuilder has its own endpoint route builder. Branching off `app`

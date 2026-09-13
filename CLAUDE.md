@@ -8,12 +8,13 @@ Self-hosted blob storage built with Clean Architecture in .NET 10.
 
 ```
 src/
-├── ObjeX.Api/           # ASP.NET Core host — Program.cs, Endpoints/, Middleware/, Auth/
+├── ObjeX.Api/           # ASP.NET Core host — Program.cs (composition only), Startup/, Endpoints/, Middleware/, Auth/
 │   ├── Endpoints/       # AccountEndpoints, DownloadEndpoints, PresignEndpoints
 │   │   └── S3Endpoints/ # S3BucketEndpoint, S3ObjectEndpoint, S3MultipartEndpoint, S3PostObjectEndpoint
-│   ├── Middleware/      # SigV4AuthMiddleware
+│   ├── Middleware/      # SigV4AuthMiddleware, SecurityHeadersMiddleware
 │   ├── Auth/            # HangfireAuthorizationFilter
-│   ├── Options/         # ServerOptions (ports), ReverseProxyOptions (forwarded headers), AuthOptions (login lockout)
+│   ├── Options/         # ServerOptions (ports), ReverseProxyOptions, AuthOptions (lockout), DatabaseOptions, StorageOptions, DefaultAdminOptions, SeedOptions
+│   ├── Startup/         # ServiceCollectionExtensions (AddObjeX* per concern), DatabaseInitializer (migrate, pragmas, roles, admin, seeding), BackgroundJobs (Hangfire wiring, recurring schedule, stale-job prune)
 │   ├── S3/              # S3Pipeline (the S3 port's request pipeline), SigV4Parser, SigV4Signer, S3Xml, S3Errors, StorageQuota
 │   └── Metrics/         # ObjeXMetrics, BucketMetricsSyncJob
 ├── ObjeX.Core/          # Domain — zero framework dependencies
@@ -47,7 +48,7 @@ src/
 
 - **ObjeX.Core** has zero framework/NuGet dependencies — only BCL. Keep it that way.
 - **ObjeX.Infrastructure** implements Core interfaces. Never reference Api or Web.
-- **ObjeX.Api** wires everything together via DI in `Program.cs`. No business logic here.
+- **ObjeX.Api** wires everything together. `Program.cs` only composes: typed options → `Startup/ServiceCollectionExtensions` (`AddObjeXDatabase/Storage/Identity/Blazor`, `AddObjeXBackgroundJobs`, `AddS3Api`) → `DatabaseInitializer` → pipeline. No business logic here.
 - **ObjeX.Web** references both `ObjeX.Core` and `ObjeX.Infrastructure` (for `ObjeXDbContext` injection in Blazor components).
 - New storage backends → implement `IObjectStorageService`. New metadata stores → implement `IMetadataService`. No other changes needed.
 
@@ -101,7 +102,7 @@ The S3 pipeline is a fresh `ApplicationBuilder`, not an `app.MapWhen` branch: a 
 
 ### HTTP Security Headers
 
-Set in a raw `app.Use` middleware in `Program.cs` (after `UseCors`, before auth):
+Set by `UseSecurityHeaders()` (`Middleware/SecurityHeadersMiddleware.cs`), in the part of the pipeline shared by both ports:
 
 | Header | Value | Condition |
 |--------|-------|-----------|
@@ -121,7 +122,7 @@ CSP is intentionally omitted — Blazor Server requires inline scripts and a Sig
 
 By default, cookie auth challenges redirect to the login page (302). For API endpoints this is wrong — external clients expect 401. Two fixes are applied:
 
-1. **`ConfigureApplicationCookie`** in `Program.cs` overrides `OnRedirectToLogin` and `OnRedirectToAccessDenied`: if `Request.Path.StartsWithSegments("/api")`, sets `StatusCode = 401` and returns without redirecting.
+1. **`ConfigureApplicationCookie`** in `Startup/ServiceCollectionExtensions.AddObjeXIdentity` overrides `OnRedirectToLogin` and `OnRedirectToAccessDenied`: if `Request.Path.StartsWithSegments("/api")`, sets `StatusCode = 401` and returns without redirecting.
 
 2. **`UseStatusCodePagesWithRedirects`** is wrapped in `app.UseWhen(ctx => !ctx.Request.Path.StartsWithSegments("/api"), ...)` so it only intercepts non-API responses. Without this, the 401 would be caught by the status code middleware and redirected to `/not-found`, which then redirects to login.
 
@@ -142,7 +143,7 @@ No named policies are defined. S3 endpoints use `.RequireAuthorization()` on the
 - Account lockout: `Auth:Lockout:MaxFailedAttempts` (default 5) failed logins lock the account for `Auth:Lockout:DurationMinutes` (default 5). Per account, failures only, enforced by Identity via `lockoutOnFailure: true` in `AccountEndpoints`. No IP-based rate limiting by design — CGNAT and shared proxies put many users behind one IP.
 - Email flows are no-ops — no `IEmailSender` registered, no email verification
 
-**Default admin** (seeded on first run if no `admin` user exists):
+**Default admin** (created by `DatabaseInitializer` when no user with the configured `DefaultAdmin:Username` exists; an existing user is never modified):
 ```
 Username: admin  (or DefaultAdmin:Username in config)
 Email:    admin@objex.local  (or DefaultAdmin:Email)
@@ -169,7 +170,7 @@ All pages using `MainLayout` are protected via `<AuthorizeView>` in `MainLayout.
 
 `RedirectToLogin.razor` calls `Navigation.NavigateTo("/login?returnUrl=...", forceLoad: true)` — `forceLoad: true` is required to escape the SignalR context and do a real page load.
 
-`AddCascadingAuthenticationState()` is registered in DI (`Program.cs`). Do not use the `<CascadingAuthenticationState>` wrapper component — it cannot cascade to interactive children from a static SSR parent.
+`AddCascadingAuthenticationState()` is registered in DI (`Startup/ServiceCollectionExtensions.AddObjeXBlazor`). Do not use the `<CascadingAuthenticationState>` wrapper component — it cannot cascade to interactive children from a static SSR parent.
 
 ### S3Credential Model (`ObjeX.Core/Models/S3Credential.cs`)
 
@@ -205,12 +206,14 @@ Hangfire is wired in `ObjeX.Api` only. Job classes live in `ObjeX.Infrastructure
 
 **Packages (ObjeX.Api only):** `Hangfire.Core`, `Hangfire.AspNetCore`, `Hangfire.Storage.SQLite`
 
-**Storage:** Hangfire reuses the same `objex.db` SQLite file. Note: `Hangfire.Storage.SQLite` takes a **file path** (`/path/objex.db`), not an EF Core connection string (`Data Source=...`). The path is extracted from `connectionString` before passing to `UseSQLiteStorage(dbFilePath)`.
+**Storage:** Hangfire reuses the same `objex.db` SQLite file. Note: `Hangfire.Storage.SQLite` takes a **file path** (`/path/objex.db`), not an EF Core connection string (`Data Source=...`). `DatabaseOptions.SqliteFilePath` carries that absolute path; `BackgroundJobs.AddObjeXBackgroundJobs` (`Startup/`) passes it to `UseSQLiteStorage`, or uses `UsePostgreSqlStorage` for PostgreSQL.
 
-**DI registration:** `FileSystemStorageService` is registered as a singleton under its **concrete type first**, then aliased as `IObjectStorageService`. This lets the job inject the concrete type directly (no cast) while the rest of the app uses the interface:
+**Recurring schedule and pruning:** `BackgroundJobs.RegisterRecurringJobs(app.Services)` declares the three jobs below and then removes every recurring job Hangfire still holds in storage that this version does not declare. Without that, a removed or renamed job class stays in storage and fails to load on every scheduler tick. Covered by `BackgroundJobsTests`.
+
+**DI registration:** `FileSystemStorageService` is registered as a singleton under its **concrete type first**, then aliased as `IObjectStorageService` (`ServiceCollectionExtensions.AddObjeXStorage`). This lets the job inject the concrete type directly (no cast) while the rest of the app uses the interface:
 ```csharp
-builder.Services.AddSingleton<FileSystemStorageService>(...);
-builder.Services.AddSingleton<IObjectStorageService>(sp => sp.GetRequiredService<FileSystemStorageService>());
+services.AddSingleton(sp => new FileSystemStorageService(blobBasePath, ...));
+services.AddSingleton<IObjectStorageService>(sp => sp.GetRequiredService<FileSystemStorageService>());
 ```
 
 **Jobs:**
@@ -293,7 +296,7 @@ public interface IHashService
 
 - **DB columns**: snake_case via `EFCore.NamingConventions` (`UseSnakeCaseNamingConvention()`)
 - **JSON responses**: camelCase, nulls omitted (`JsonNamingPolicy.CamelCase`, `WhenWritingNull`)
-- **EF migrations**: run automatically on startup via `db.Database.Migrate()` in `Program.cs`
+- **EF migrations**: run automatically on startup via `db.Database.Migrate()` in `Startup/DatabaseInitializer.cs` (disable with `Database:AutoMigrate=false`)
 - **Bucket name rules**: 3–63 chars, lowercase alphanumeric + hyphens, no consecutive hyphens, no leading/trailing hyphens — enforced by `BucketNameValidator`
 - **Object keys**: support slashes (virtual paths). Validated by `ObjectKeyValidator.GetValidationError` (in `ObjeX.Core/Validation/`) — rejects empty, >1024 chars, leading `/`, control characters (including null bytes), and keys that normalize to empty after stripping `..` and `\`. `SanitizeKey` in `FileSystemStorageService` then strips `..` and normalises `\` → `/` before hashing — the logical key is stored as-is in DB, the physical path is always a SHA256 hash
 - **ETag**: MD5 of the uploaded stream, hex-encoded lowercase
@@ -302,7 +305,7 @@ public interface IHashService
 
 ## Startup Seeding
 
-`Program.cs` seeds buckets and S3 credentials from config on startup (idempotent, skipped if already exists). All seeded resources are owned by the admin user.
+`Startup/DatabaseInitializer.cs` seeds buckets and S3 credentials from config on startup (typed `SeedOptions`; idempotent, skipped if already exists). All seeded resources are owned by the default admin.
 
 | Config key | Env var | Effect |
 |---|---|---|
@@ -368,7 +371,7 @@ External S3 clients → HTTP → ObjeX.Api endpoints → same services
 
 **Render mode:** Set globally on `<Routes @rendermode="InteractiveServer" />` in `App.razor`. Do NOT add `@rendermode` per-page — the global setting covers all pages.
 
-**UI library:** Radzen Blazor. Registered via `builder.Services.AddRadzenComponents()` in `Program.cs`. Required host components in `MainLayout.razor`: `<RadzenDialog />` and `<RadzenNotification />`.
+**UI library:** Radzen Blazor. Registered via `AddRadzenComponents()` in `Startup/ServiceCollectionExtensions.AddObjeXBlazor`. Required host components in `MainLayout.razor`: `<RadzenDialog />` and `<RadzenNotification />`.
 
 **Validation pattern:**
 - **Enforcement** → service layer only (`SqliteMetadataService` calls `BucketNameValidator`, throws `ArgumentException` on invalid input)
