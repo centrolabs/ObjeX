@@ -501,8 +501,6 @@
       "objex.web": {
         "type": "Project",
         "dependencies": {
-          "Microsoft.AspNetCore.Identity.EntityFrameworkCore": "[10.0.8, )",
-          "Microsoft.EntityFrameworkCore.Sqlite": "[10.0.8, )",
           "ObjeX.Core": "[1.0.0, )",
           "ObjeX.Infrastructure": "[1.0.0, )",
           "Radzen.Blazor": "[10.4.3, )"

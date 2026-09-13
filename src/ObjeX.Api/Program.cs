@@ -1,11 +1,11 @@
 using Hangfire;
 using ObjeX.Api.Auth;
+using ObjeX.Api.Components;
 using ObjeX.Api.Endpoints;
 using ObjeX.Api.Middleware;
 using ObjeX.Api.Options;
 using ObjeX.Api.S3;
 using ObjeX.Api.Startup;
-using ObjeX.Web.Components;
 using Prometheus;
 using Serilog;
 
@@ -125,7 +125,8 @@ app.MapHealthChecks("/health/ready", new Microsoft.AspNetCore.Diagnostics.Health
 
 app.MapStaticAssets();
 app.MapRazorComponents<App>()
-    .AddInteractiveServerRenderMode();
+    .AddInteractiveServerRenderMode()
+    .AddAdditionalAssemblies(typeof(ObjeX.Web.Components.Routes).Assembly);
 
 app.MapDownloadEndpoints();
 app.MapPresignEndpoints();

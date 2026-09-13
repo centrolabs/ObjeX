@@ -59,7 +59,7 @@
     {
         if (firstRender)
         {
-            _module = await JS.InvokeAsync<IJSObjectReference>("import", "./Components/Dialogs/UploadObjectDialog.razor.js");
+            _module = await JS.InvokeAsync<IJSObjectReference>("import", "./_content/ObjeX.Web/Components/Dialogs/UploadObjectDialog.razor.js");
             await _module.InvokeVoidAsync("initDropZone", _dropZoneRef, _inputFileRef!.Element);
         }
     }

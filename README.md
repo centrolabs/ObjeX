@@ -1,4 +1,4 @@
-<img src="src/ObjeX.Web/wwwroot/favicon.svg" width="48" alt="ObjeX" />
+<img src="src/ObjeX.Api/wwwroot/favicon.svg" width="48" alt="ObjeX" />
 
 # ObjeX - Self-Hosted Blob Storage
 

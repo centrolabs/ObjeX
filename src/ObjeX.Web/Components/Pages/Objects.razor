@@ -182,7 +182,7 @@
     {
         if (firstRender && _inputFileRef?.Element is not null)
         {
-            _dropZoneModule = await JS.InvokeAsync<IJSObjectReference>("import", "./Components/Pages/Objects.razor.js");
+            _dropZoneModule = await JS.InvokeAsync<IJSObjectReference>("import", "./_content/ObjeX.Web/Components/Pages/Objects.razor.js");
             await _dropZoneModule.InvokeVoidAsync("initDropZone", _dropZoneRef, _inputFileRef.Element);
         }
     }

@@ -15,6 +15,8 @@ src/
 │   ├── Auth/            # HangfireAuthorizationFilter
 │   ├── Options/         # ServerOptions (ports), ReverseProxyOptions, AuthOptions (lockout), DatabaseOptions, StorageOptions, DefaultAdminOptions, SeedOptions
 │   ├── Startup/         # ServiceCollectionExtensions (AddObjeX* per concern), DatabaseInitializer (migrate, pragmas, roles, admin, seeding), BackgroundJobs (Hangfire wiring, recurring schedule, stale-job prune)
+│   ├── Components/      # App.razor (host document), _Imports.razor
+│   ├── wwwroot/         # app.css, favicons, fonts/, site.webmanifest
 │   ├── S3/              # S3Pipeline (the S3 port's request pipeline), SigV4Parser, SigV4Signer, S3Xml, S3Errors, StorageQuota
 │   └── Metrics/         # ObjeXMetrics, BucketMetricsSyncJob
 ├── ObjeX.Core/          # Domain — zero framework dependencies
@@ -34,7 +36,7 @@ src/
 ├── ObjeX.Tests/         # xUnit — unit (Core validators, hashing) + integration (WebApplicationFactory, real SQLite)
 │   ├── Unit/            # BucketNameValidator, ObjectKeyValidator, HashingStream, Sha256HashService
 │   └── Integration/     # S3 API round-trips, auth, multipart, quotas, resilience, cookie auth, health
-└── ObjeX.Web/           # Blazor Server UI — components, pages, dialogs
+└── ObjeX.Web/           # Razor class library: components, pages, dialogs, layout — no host, no wwwroot
     ├── Helpers/         # FileHelper
     └── Components/
         ├── Pages/       # Dashboard, Buckets, Objects, Settings, Login, NotFound, Users, ChangePassword, AuditLog, Error, Profile
@@ -355,7 +357,7 @@ Example:
 
 **Hosting model:** Blazor Server (InteractiveServer), not WASM.
 
-**Combined host:** `ObjeX.Api` is the single process — it serves both the REST API and the Blazor UI. `ObjeX.Web` is a class library of components, referenced by `ObjeX.Api` as a project dependency. `ObjeX.Web/Program.cs` is dead scaffolding — ignore it.
+**Combined host:** `ObjeX.Api` is the single process — it serves both the REST API and the Blazor UI. `ObjeX.Web` is a Razor class library (`Microsoft.NET.Sdk.Razor`) holding components, pages, dialogs and layout; it has no entry point and no `wwwroot`. The host document `App.razor`, `wwwroot` (app.css, favicons, fonts) and `MapRazorComponents<App>().AddAdditionalAssemblies(typeof(Routes).Assembly)` live in `ObjeX.Api`. Assets that ship inside the class library — collocated `*.razor.js` modules and scoped CSS — are served under `_content/ObjeX.Web/...`; JS interop imports and `@Assets[...]` references in Web components must use that prefix. Scoped CSS of the library is folded into the host bundle `ObjeX.Api.styles.css`.
 
 **Data access from Blazor:** Components inject Core interfaces (`IMetadataService`) or `ObjeXDbContext` directly — no HttpClient, no API calls. Blazor runs server-side in the same process and DI container as the API, so direct injection is correct and efficient.
 
@@ -369,7 +371,7 @@ Browser → SignalR → Blazor Server (ObjeX.Api process)
 External S3 clients → HTTP → ObjeX.Api endpoints → same services
 ```
 
-**Render mode:** Set globally on `<Routes @rendermode="InteractiveServer" />` in `App.razor`. Do NOT add `@rendermode` per-page — the global setting covers all pages.
+**Render mode:** Set globally on `<Routes @rendermode="InteractiveServer" />` in `ObjeX.Api/Components/App.razor`. Do NOT add `@rendermode` per-page — the global setting covers all pages.
 
 **UI library:** Radzen Blazor. Registered via `AddRadzenComponents()` in `Startup/ServiceCollectionExtensions.AddObjeXBlazor`. Required host components in `MainLayout.razor`: `<RadzenDialog />` and `<RadzenNotification />`.
 
@@ -396,7 +398,7 @@ Keyboard handling: text-input dialogs (`CreateBucketDialog`, `CreateS3Credential
 
 **Dark mode:** Theme stored in `objex-theme` cookie. `App.razor` reads cookie via `IHttpContextAccessor` server-side and passes to `<RadzenTheme>` — no flash on load. An inline `<script>` in `<head>` sets the cookie from `prefers-color-scheme` on first visit. Toggle in Settings page uses `ThemeService.SetTheme()` + JS cookie write. `ThemeService` is registered as `AddScoped<ThemeService>()` — do NOT use `AddRadzenCookieThemeService` (it fights the server-side rendering). Read initial switch state from cookie via JS in `OnAfterRenderAsync`, not from `ThemeService.Theme` (which is null on Blazor init).
 
-**Font:** Inter, self-hosted in `wwwroot/fonts/` (weights 300–700). Applied globally via `:root { --rz-body-font-family: 'Inter' }` + `*:not(.material-icons):not(.material-icons-outlined):not([class*="rz-icon"]):not(i)` — the `:not()` exclusions are critical to prevent Material Icons from rendering as text.
+**Font:** Inter, self-hosted in `ObjeX.Api/wwwroot/fonts/` (weights 300–700). Applied globally via `:root { --rz-body-font-family: 'Inter' }` + `*:not(.material-icons):not(.material-icons-outlined):not([class*="rz-icon"]):not(i)` — the `:not()` exclusions are critical to prevent Material Icons from rendering as text.
 
 **Theme colors:** Teal primary via CSS variable overrides in `app.css` loaded after `<RadzenTheme>` in `App.razor` — load order matters, loading before causes Radzen to overwrite the overrides. Overrides only `--rz-primary*` variables; do NOT override base background/text colors as they break light mode.
 

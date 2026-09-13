@@ -31,6 +31,9 @@ public class ObjeXFactory : WebApplicationFactory<ApiAssemblyMarker>
         Directory.CreateDirectory(_tempDir);
 
         builder.UseEnvironment("Production"); // avoid dev exception page noise
+        // Production skips the static web assets manifest; without it, framework and class-library
+        // assets (_framework/*, _content/*) are invisible to TestServer.
+        builder.UseStaticWebAssets();
 
         builder.UseSetting("ConnectionStrings:DefaultConnection", $"Data Source={dbPath}");
         builder.UseSetting("Storage:BasePath", BlobBasePath);
