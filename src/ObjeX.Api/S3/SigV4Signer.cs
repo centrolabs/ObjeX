@@ -25,11 +25,17 @@ public static class SigV4Signer
         var signingKey       = DeriveSigningKey(secretAccessKey, parsed.Date, parsed.Region, parsed.Service);
         var expected         = ToHex(HmacSha256(signingKey, Encoding.UTF8.GetBytes(stringToSign)));
 
-        if (string.Equals(expected, parsed.Signature, StringComparison.OrdinalIgnoreCase))
+        if (SignaturesEqual(expected, parsed.Signature))
             return (true, null);
 
         return (false, new Diagnostics(canonicalRequest, stringToSign, expected, parsed.Signature));
     }
+
+    /// <summary>Constant-time comparison of two hex signatures, so a mismatch position cannot be measured.</summary>
+    public static bool SignaturesEqual(string expectedHex, string providedHex) =>
+        System.Security.Cryptography.CryptographicOperations.FixedTimeEquals(
+            Encoding.UTF8.GetBytes(expectedHex.ToLowerInvariant()),
+            Encoding.UTF8.GetBytes(providedHex.ToLowerInvariant()));
 
     // ── Step 1: Canonical Request ────────────────────────────────────────────
 

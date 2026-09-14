@@ -157,7 +157,7 @@ public class SigV4AuthMiddleware(RequestDelegate next, ILogger<SigV4AuthMiddlewa
         var expected = Convert.ToHexString(SigV4Signer.HmacSha256(signingKey,
             System.Text.Encoding.UTF8.GetBytes(policyB64))).ToLowerInvariant();
 
-        if (!string.Equals(expected, signature, StringComparison.OrdinalIgnoreCase))
+        if (!SigV4Signer.SignaturesEqual(expected, signature))
         {
             logger.LogWarning("SigV4 POST: signature mismatch for {KeyId}", safeKeyId);
             await WriteError(context, S3Errors.SignatureDoesNotMatch,
