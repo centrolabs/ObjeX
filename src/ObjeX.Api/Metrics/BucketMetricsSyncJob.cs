@@ -3,8 +3,10 @@ using ObjeX.Infrastructure.Data;
 
 namespace ObjeX.Api.Metrics;
 
-public class BucketMetricsSyncJob(IServiceScopeFactory scopeFactory) : BackgroundService
+public class BucketMetricsSyncJob(IServiceScopeFactory scopeFactory, ILogger<BucketMetricsSyncJob> logger) : BackgroundService
 {
+    private static readonly TimeSpan Interval = TimeSpan.FromSeconds(30);
+
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         while (!stoppingToken.IsCancellationRequested)
@@ -13,13 +15,17 @@ public class BucketMetricsSyncJob(IServiceScopeFactory scopeFactory) : Backgroun
             {
                 using var scope = scopeFactory.CreateScope();
                 var db = scope.ServiceProvider.GetRequiredService<ObjeXDbContext>();
-                var buckets = await db.Buckets.AsNoTracking().ToListAsync(stoppingToken);
-                foreach (var bucket in buckets)
-                    ObjeXMetrics.SetBucketStats(bucket.Name, bucket.TotalSize, bucket.ObjectCount);
+                var buckets = await db.Buckets.AsNoTracking()
+                    .Select(b => new { b.Name, b.TotalSize, b.ObjectCount })
+                    .ToListAsync(stoppingToken);
+                ObjeXMetrics.SyncBuckets(buckets.Select(b => (b.Name, b.TotalSize, (long)b.ObjectCount)));
             }
-            catch { /* non-critical */ }
+            catch (Exception ex) when (!stoppingToken.IsCancellationRequested)
+            {
+                logger.LogWarning(ex, "Bucket metrics sync failed, next attempt in {Interval}", Interval);
+            }
 
-            await Task.Delay(TimeSpan.FromSeconds(30), stoppingToken);
+            await Task.Delay(Interval, stoppingToken);
         }
     }
 }

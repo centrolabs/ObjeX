@@ -2,6 +2,7 @@ using Hangfire;
 using ObjeX.Api.Auth;
 using ObjeX.Api.Components;
 using ObjeX.Api.Endpoints;
+using ObjeX.Api.Metrics;
 using ObjeX.Api.Middleware;
 using ObjeX.Api.Options;
 using ObjeX.Api.S3;
@@ -36,7 +37,7 @@ var storage = Options<StorageOptions>(StorageOptions.SectionName);
 var defaultAdmin = Options<DefaultAdminOptions>(DefaultAdminOptions.SectionName);
 var seed = Options<SeedOptions>(SeedOptions.SectionName);
 var database = DatabaseOptions.Load(builder.Configuration, ResolvePath);
-var metricsEnabled = builder.Configuration.GetValue<bool>("Metrics:Enabled");
+var metrics = Options<MetricsOptions>(MetricsOptions.SectionName);
 
 // ---- Host ----------------------------------------------------------------------------------
 builder.Host.UseSerilog((context, config) => config.ReadFrom.Configuration(context.Configuration));
@@ -64,18 +65,18 @@ builder.Services
     .AddObjeXBackgroundJobs(database)
     .AddS3Api();
 
-if (metricsEnabled)
-    builder.Services.AddHostedService<ObjeX.Api.Metrics.BucketMetricsSyncJob>();
+if (metrics.Enabled)
+    builder.Services.AddHostedService<BucketMetricsSyncJob>();
 
 var app = builder.Build();
 
-await DatabaseInitializer.InitializeAsync(app, database, defaultAdmin, seed, metricsEnabled);
+await DatabaseInitializer.InitializeAsync(app, database, defaultAdmin, seed, metrics.Enabled);
 
 // ---- Pipeline shared by both ports ---------------------------------------------------------
 if (reverseProxy.Enabled)
     app.UseForwardedHeaders();
 app.UseSerilogRequestLogging();
-if (metricsEnabled)
+if (metrics.Enabled)
     app.UseHttpMetrics();
 app.UseSecurityHeaders(includeHsts: !app.Environment.IsDevelopment());
 
@@ -98,6 +99,7 @@ else
 }
 app.UseWhen(
     ctx => !ctx.Request.Path.StartsWithSegments("/api")
+        && !ctx.Request.Path.StartsWithSegments("/metrics")
         && !ctx.Request.Path.StartsWithSegments("/_framework")
         && !ctx.Request.Path.StartsWithSegments("/_content"),
     branch => branch.UseStatusCodePagesWithRedirects("/not-found"));
@@ -116,8 +118,8 @@ app.UseHangfireDashboard("/hangfire", new DashboardOptions
 });
 BackgroundJobs.RegisterRecurringJobs(app.Services);
 
-if (metricsEnabled)
-    app.MapMetrics("/metrics");
+if (metrics.Enabled)
+    app.MapObjeXMetrics(metrics);
 app.MapHealthChecks("/health");
 app.MapHealthChecks("/health/live");
 app.MapHealthChecks("/health/ready", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions

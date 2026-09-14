@@ -61,8 +61,8 @@ public static class DatabaseInitializer
 
         if (metricsEnabled)
         {
-            foreach (var bucket in await db.Buckets.ToListAsync())
-                ObjeXMetrics.SetBucketStats(bucket.Name, bucket.TotalSize, bucket.ObjectCount);
+            var buckets = await db.Buckets.AsNoTracking().ToListAsync();
+            ObjeXMetrics.SyncBuckets(buckets.Select(b => (b.Name, b.TotalSize, (long)b.ObjectCount)));
         }
     }
 

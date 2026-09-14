@@ -91,7 +91,7 @@ S3 pipeline (ObjeX.Api/S3/S3Pipeline.cs — own ApplicationBuilder, own routing,
 
 UI pipeline (everything else)
   UseExceptionHandler      ← JSON 500 (Development: developer exception page)
-  UseWhen(!api)            ← UseStatusCodePagesWithRedirects("/not-found") — only non-API paths
+  UseWhen(!api, !metrics)  ← UseStatusCodePagesWithRedirects("/not-found") — only browser paths, never /api or /metrics
   UseResponseCompression
   UseStaticFiles
   UseRouting               ← explicit, so routing runs after the port split (WebApplication would otherwise insert it first)
@@ -428,7 +428,7 @@ GET    /account/logout    → clears cookie, redirects to /login
 # System
 GET    /health            → liveness (200 if process is up, no checks); also at /health/live
 GET    /health/ready      → readiness (checks DB connectivity + blob storage writability)
-GET    /metrics           → Prometheus metrics (HTTP request stats + per-bucket storage gauges, synced every 30s)
+GET    /metrics           → Prometheus metrics (HTTP request stats + per-bucket storage gauges, synced every 30s, deleted buckets dropped); open unless Metrics:Token is set (Bearer)
 GET    /audit             → Audit log (Admin only); server-side paginated table of bucket/object operations
 GET    /hangfire          → Hangfire dashboard (Admin role only)
 
