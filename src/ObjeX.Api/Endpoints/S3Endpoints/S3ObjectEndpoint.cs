@@ -128,7 +128,7 @@ public static class S3ObjectEndpoint
                 if (srcObj is null)
                     return S3Xml.Error(S3Errors.NoSuchKey, "The specified source key does not exist.", 404);
 
-                var copyQuotaError = await StorageQuota.CheckAsync(db, GetCallerId(ctx), srcObj.Size);
+                var copyQuotaError = await StorageQuota.CheckAsync(ctx, srcObj.Size);
                 if (copyQuotaError is not null) return copyQuotaError;
 
                 if (await metadata.GetBucketAsync(bucket, IsPrivileged(ctx) ? null : GetCallerId(ctx)) is null)
@@ -164,7 +164,7 @@ public static class S3ObjectEndpoint
                 return S3Xml.Error(S3Errors.EntityTooLarge, "Insufficient disk space.", 507);
 
             // Pre-check with Content-Length if available; catches already-over-quota early
-            var quotaError = await StorageQuota.CheckAsync(db, GetCallerId(ctx), request.ContentLength ?? 0);
+            var quotaError = await StorageQuota.CheckAsync(ctx, request.ContentLength ?? 0);
             if (quotaError is not null) return quotaError;
 
             var contentType = request.ContentType ?? "application/octet-stream";
@@ -185,7 +185,7 @@ public static class S3ObjectEndpoint
             // Post-check with actual size for chunked transfers (no Content-Length)
             if (request.ContentLength is null)
             {
-                var postQuotaError = await StorageQuota.CheckAsync(db, GetCallerId(ctx), size);
+                var postQuotaError = await StorageQuota.CheckAsync(ctx, size);
                 if (postQuotaError is not null)
                 {
                     await storage.DeleteAsync(bucket, key, ctx.RequestAborted);

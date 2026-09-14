@@ -4,6 +4,7 @@
 @using Microsoft.AspNetCore.Components.Authorization
 @implements IDisposable
 @inject IMetadataService MetadataService
+@inject IStorageQuotaService QuotaService
 @inject AuthenticationStateProvider AuthStateProvider
 
 <PageTitle>Dashboard — ObjeX</PageTitle>
@@ -52,6 +53,25 @@
                     <RadzenIcon Icon="compress" Style="color:var(--rz-primary);opacity:0.8;font-size:1.4rem" />
                 </RadzenStack>
                 <RadzenText TextStyle="TextStyle.H3">@(_totalObjects > 0 ? FileHelper.FormatBytes(_totalSize / _totalObjects) : "—")</RadzenText>
+            </RadzenStack>
+        </RadzenCard>
+        <RadzenCard class="stat-card">
+            <RadzenStack Gap="0.4rem">
+                <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" JustifyContent="JustifyContent.SpaceBetween">
+                    <RadzenText TextStyle="TextStyle.Overline">My Storage</RadzenText>
+                    <RadzenIcon Icon="person" Style="color:var(--rz-primary);opacity:0.8;font-size:1.4rem" />
+                </RadzenStack>
+                <RadzenText TextStyle="TextStyle.H3">@FileHelper.FormatBytes(_myStorage?.UsedBytes ?? 0)</RadzenText>
+                @if (_myStorage is { HasQuota: true })
+                {
+                    <RadzenText TextStyle="TextStyle.Caption">of @FileHelper.FormatBytes(_myStorage.QuotaBytes!.Value)</RadzenText>
+                    <RadzenProgressBar Value="@_myStorage.UsedPercent" Max="100" ShowValue="false" Style="height:4px"
+                                       ProgressBarStyle="@(_myStorage.UsedPercent > 90 ? ProgressBarStyle.Danger : ProgressBarStyle.Primary)" />
+                }
+                else
+                {
+                    <RadzenText TextStyle="TextStyle.Caption">no quota</RadzenText>
+                }
             </RadzenStack>
         </RadzenCard>
     </RadzenStack>
@@ -209,6 +229,7 @@
     Timer? _timer;
     string _currentUserId = string.Empty;
     bool _isPrivileged;
+    StorageQuotaStatus? _myStorage;
 
     protected override async Task OnInitializedAsync()
     {
@@ -226,6 +247,7 @@
     async Task LoadStats()
     {
         _buckets = (await MetadataService.ListBucketsAsync(_isPrivileged ? null : _currentUserId)).OrderByDescending(b => b.TotalSize).ToList();
+        _myStorage = await QuotaService.GetAsync(_currentUserId);
         _totalObjects = _buckets.Sum(b => b.ObjectCount);
         _totalSize    = _buckets.Sum(b => b.TotalSize);
         _topBySize  = _buckets.Take(5).ToList();

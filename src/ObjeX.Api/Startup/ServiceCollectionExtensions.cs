@@ -55,6 +55,7 @@ public static class ServiceCollectionExtensions
     public static IServiceCollection AddObjeXStorage(this IServiceCollection services, string blobBasePath)
     {
         services.AddScoped<IMetadataService, EfCoreMetadataService>();
+        services.AddScoped<IStorageQuotaService, StorageQuotaService>();
         services.AddSingleton<IHashService, Sha256HashService>();
 
         // Registered under the concrete type first so Hangfire jobs can take it directly (BasePath is

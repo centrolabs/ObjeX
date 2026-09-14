@@ -276,6 +276,15 @@ public record ListObjectsResult(IEnumerable<BlobObject> Objects, IEnumerable<str
 // Objects = files at current level; CommonPrefixes = virtual folder paths (e.g. "photos/2024/")
 // Placeholder objects (key ends with "/", ContentType "application/x-directory") are filtered from UI
 
+// ObjeX.Core/Interfaces/IStorageQuotaService.cs
+public record StorageQuotaStatus(long UsedBytes, long? QuotaBytes); // HasQuota, UsedPercent
+public interface IStorageQuotaService
+{
+    // Used = size of the user's buckets. Quota = per-user value, else the global default for the User role, else null (unlimited).
+    // The rule behind the S3 507 check (Api/S3/StorageQuota) and the Dashboard's "My Storage" card; the Users page applies the same rule in one query for all users.
+    Task<StorageQuotaStatus> GetAsync(string userId, CancellationToken ctk = default);
+}
+
 // ObjeX.Core/Interfaces/IHashService.cs
 public interface IHashService
 {

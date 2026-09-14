@@ -94,7 +94,7 @@ public static class S3PostObjectEndpoint
         if (file is null || file.Length == 0)
             return S3Xml.Error(S3Errors.InvalidArgument, "No file provided.");
 
-        var quotaError = await StorageQuota.CheckAsync(db, GetCallerId(ctx), file.Length);
+        var quotaError = await StorageQuota.CheckAsync(ctx, file.Length);
         if (quotaError is not null) return quotaError;
 
         var contentType = form["Content-Type"].ToString();

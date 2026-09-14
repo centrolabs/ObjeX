@@ -163,7 +163,7 @@ public static class S3MultipartEndpoint
             .Where(p => requestedParts.Any(r => r.PartNumber == p.PartNumber))
             .Sum(p => p.Size);
 
-        var quotaError = await StorageQuota.CheckAsync(db, GetCallerId(ctx), totalSize);
+        var quotaError = await StorageQuota.CheckAsync(ctx, totalSize);
         if (quotaError is not null) return quotaError;
 
         // Assemble parts into final blob
