@@ -35,6 +35,12 @@
                 var upTo = prefixUpTo;
                 <span style="color:var(--rz-primary);cursor:pointer" @onclick="@(() => NavigateToPrefix(upTo))">@segment</span>
             }
+            @if (_bucket is not null)
+            {
+                <RadzenText TextStyle="TextStyle.Caption" Style="margin:0 0 0 0.75rem;color:var(--rz-text-secondary-color)">
+                    @_bucket.ObjectCount.ToString("N0") objects · @FileHelper.FormatBytes(_bucket.TotalSize)
+                </RadzenText>
+            }
         </RadzenStack>
         <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem">
             <RadzenButton Text="New Folder" Icon="create_new_folder"
@@ -175,6 +181,7 @@
     double _uploadProgress;
     CancellationTokenSource? _uploadCts;
     bool _bucketExists = true;
+    Bucket? _bucket;
     ElementReference _dropZoneRef;
     InputFile? _inputFileRef;
     IJSObjectReference? _dropZoneModule;
@@ -197,7 +204,8 @@
         _isPrivileged = auth.User.IsInRole("Admin") || auth.User.IsInRole("Manager");
 
         _currentPrefix = PrefixParam ?? string.Empty;
-        _bucketExists = await MetadataService.GetBucketAsync(BucketName, _isPrivileged ? null : _currentUserId) is not null;
+        _bucket = await MetadataService.GetBucketAsync(BucketName, _isPrivileged ? null : _currentUserId);
+        _bucketExists = _bucket is not null;
         if (_bucketExists)
             await LoadObjects();
         else
@@ -206,6 +214,8 @@
 
     async Task LoadObjects()
     {
+        // Bucket stats change with every upload and delete, so refresh them together with the listing.
+        _bucket = await MetadataService.GetBucketAsync(BucketName, _isPrivileged ? null : _currentUserId);
         var result = await MetadataService.ListObjectsAsync(
             BucketName,
             prefix: string.IsNullOrEmpty(_currentPrefix) ? null : _currentPrefix,
