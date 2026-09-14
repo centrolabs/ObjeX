@@ -119,6 +119,8 @@ Set by `UseSecurityHeaders()` (`Middleware/SecurityHeadersMiddleware.cs`), in th
 
 CSP is intentionally omitted — Blazor Server requires inline scripts and a SignalR WebSocket (`ws://`/`wss://`), making a safe policy non-trivial. Deferred.
 
+`GET /api/objects/{bucket}/{*key}` applies its own media-type allowlist, because the stored `Content-Type` is chosen by whoever uploaded the object. Only an allowlist of media types (`image/png|jpeg|gif|webp|avif`, `video/*`, `audio/*`, `application/pdf`, `text/plain`, compared on the media type with parameters stripped) is served inline; everything else — `text/html`, `image/svg+xml`, `application/octet-stream` — becomes `application/octet-stream` with `Content-Disposition: attachment`. Inline responses also carry `Content-Security-Policy: sandbox`, except PDFs, which Chrome's viewer refuses to render in a sandboxed document and which cannot script the parent DOM anyway.
+
 `SigV4AuthMiddleware` (`ObjeX.Api/Middleware/`) runs inside the S3 pipeline (`S3Pipeline.UseS3Api`), i.e. for every request arriving on `Server:S3Port`. It: parses the `Authorization: AWS4-HMAC-SHA256 ...` header (or presigned query params), looks up the `AccessKeyId` in `db.S3Credentials`, validates the HMAC-SHA256 signature, checks timestamp freshness (±15 min, presigned URLs use `X-Amz-Expires`), verifies the payload hash against `x-amz-content-sha256`, then sets `context.User` to a `ClaimsIdentity` with scheme `"SigV4"`. Returns S3 XML error responses on failure.
 
 ### 401 vs 302 for API Paths

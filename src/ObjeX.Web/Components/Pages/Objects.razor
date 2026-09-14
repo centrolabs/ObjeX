@@ -518,8 +518,9 @@
             new DialogOptions { Width = "480px", CloseDialogOnOverlayClick = true, ShowClose = true });
     }
 
+    // SVG can carry script, so the download endpoint never serves it inline and the preview would show a broken image.
     static bool IsPreviewable(string contentType) =>
-        contentType.StartsWith("image/") ||
+        (contentType.StartsWith("image/") && contentType != "image/svg+xml") ||
         contentType.StartsWith("video/") ||
         contentType.StartsWith("audio/") ||
         contentType.StartsWith("text/")  ||
@@ -535,6 +536,8 @@
                 { "FileName",    Path.GetFileName(obj.Key) },
                 { "ContentType", obj.ContentType },
                 { "Url",         url },
+                { "BucketName",  BucketName },
+                { "Key",         obj.Key },
             },
             new DialogOptions { Width = "860px", CloseDialogOnOverlayClick = true, ShowClose = true });
     }

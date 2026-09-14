@@ -86,7 +86,7 @@ Used by the Blazor UI. Bucket/object CRUD is handled entirely through the S3 API
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `GET` | `/api/objects/{bucket}/{*key}` | Download an object (browser file download) |
+| `GET` | `/api/objects/{bucket}/{*key}` | Download an object (browser file download) — only images, audio, video, PDF and plain text are shown inline, everything else downloads |
 | `GET` | `/api/objects/{bucket}/download` | Download objects as ZIP — accepts `?prefix=` to scope to a folder |
 | `GET` | `/api/presign/{bucket}/{*key}` | Generate a presigned URL — accepts `?expires=N` (seconds) |
 | `POST` | `/account/login` | Form login (sets cookie), redirects to `returnUrl` |

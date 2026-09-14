@@ -14,6 +14,13 @@ public static class DownloadEndpoints
     static bool IsPrivileged(HttpContext ctx) =>
         ctx.User.IsInRole("Admin") || ctx.User.IsInRole("Manager");
 
+    // The stored Content-Type is chosen by the uploader; only these types may render in the UI origin, everything else downloads.
+    static bool IsInlineSafe(string mediaType) =>
+        mediaType is "image/png" or "image/jpeg" or "image/gif" or "image/webp" or "image/avif"
+            or "application/pdf" or "text/plain"
+        || mediaType.StartsWith("video/", StringComparison.Ordinal)
+        || mediaType.StartsWith("audio/", StringComparison.Ordinal);
+
     public static void MapDownloadEndpoints(this WebApplication app)
     {
         // Single-file download — used by the Blazor UI (cookie auth, port 9001)
@@ -44,8 +51,16 @@ public static class DownloadEndpoints
                 stream = buffer;
             }
 
-            var contentType = download == true ? "application/octet-stream" : obj.ContentType;
-            var fileName = download == true ? Path.GetFileName(key) : null;
+            var mediaType = obj.ContentType.Split(';')[0].Trim().ToLowerInvariant();
+            var inline = download != true && IsInlineSafe(mediaType);
+
+            var contentType = inline ? obj.ContentType : "application/octet-stream";
+            var fileName = inline ? null : Path.GetFileName(key);
+
+            // Chrome's PDF viewer does not render inside a sandboxed document, and a PDF cannot script the parent DOM.
+            if (inline && mediaType != "application/pdf")
+                ctx.Response.Headers["Content-Security-Policy"] = "sandbox";
+
             var entityTag = new Microsoft.Net.Http.Headers.EntityTagHeaderValue($"\"{obj.ETag}\"");
             return Results.File(stream, contentType,
                 fileDownloadName: fileName,

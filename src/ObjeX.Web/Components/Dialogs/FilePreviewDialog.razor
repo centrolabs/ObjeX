@@ -1,3 +1,5 @@
+@using ObjeX.Core.Interfaces
+
 <div class="preview-container">
     @if (IsImage)
     {
@@ -23,7 +25,11 @@
     }
     else if (IsText)
     {
-        <iframe src="@Url" style="width:100%;height:70vh;border:none;border-radius:4px" />
+        <pre style="width:100%;max-height:70vh;overflow:auto;margin:0;padding:1rem;border-radius:4px;background:var(--rz-base-200);white-space:pre-wrap;word-break:break-word">@_text</pre>
+        @if (_truncated)
+        {
+            <RadzenText TextStyle="TextStyle.Caption" Style="color:var(--rz-text-secondary-color);margin-top:0.5rem">Preview truncated to the first 1 MiB.</RadzenText>
+        }
     }
 </div>
 
@@ -40,15 +46,43 @@
 </RadzenStack>
 
 @code {
+    const int MaxTextBytes = 1024 * 1024;
+
     [Parameter] public string FileName { get; set; } = string.Empty;
     [Parameter] public string ContentType { get; set; } = string.Empty;
     [Parameter] public string Url { get; set; } = string.Empty;
+    [Parameter] public string BucketName { get; set; } = string.Empty;
+    [Parameter] public string Key { get; set; } = string.Empty;
 
     [Inject] DialogService DialogService { get; set; } = null!;
+    [Inject] IObjectStorageService Storage { get; set; } = null!;
 
-    bool IsImage => ContentType.StartsWith("image/");
+    string _text = string.Empty;
+    bool _truncated;
+
+    bool IsImage => ContentType.StartsWith("image/") && ContentType != "image/svg+xml";
     bool IsVideo => ContentType.StartsWith("video/");
     bool IsAudio => ContentType.StartsWith("audio/");
     bool IsPdf   => ContentType == "application/pdf";
     bool IsText  => ContentType.StartsWith("text/");
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!IsText) return;
+
+        try
+        {
+            // Read one byte past the cap so a file of exactly MaxTextBytes isn't reported as truncated.
+            await using var stream = await Storage.RetrieveAsync(BucketName, Key);
+            var buffer = new byte[MaxTextBytes + 1];
+            var read = await stream.ReadAtLeastAsync(buffer, buffer.Length, throwOnEndOfStream: false);
+
+            _truncated = read > MaxTextBytes;
+            _text = System.Text.Encoding.UTF8.GetString(buffer, 0, Math.Min(read, MaxTextBytes));
+        }
+        catch
+        {
+            _text = "Preview unavailable.";
+        }
+    }
 }
