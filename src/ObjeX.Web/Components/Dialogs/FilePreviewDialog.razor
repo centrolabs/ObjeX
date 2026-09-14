@@ -64,7 +64,7 @@
     bool IsVideo => ContentType.StartsWith("video/");
     bool IsAudio => ContentType.StartsWith("audio/");
     bool IsPdf   => ContentType == "application/pdf";
-    bool IsText  => ContentType.StartsWith("text/");
+    bool IsText  => TextPreview.IsTextLike(ContentType);
 
     protected override async Task OnInitializedAsync()
     {
@@ -79,6 +79,8 @@
 
             _truncated = read > MaxTextBytes;
             _text = System.Text.Encoding.UTF8.GetString(buffer, 0, Math.Min(read, MaxTextBytes));
+            if (!_truncated && TextPreview.IsJson(ContentType))
+                _text = TextPreview.PrettyPrintJson(_text);
         }
         catch
         {

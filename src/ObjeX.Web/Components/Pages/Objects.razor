@@ -540,7 +540,7 @@
         (contentType.StartsWith("image/") && contentType != "image/svg+xml") ||
         contentType.StartsWith("video/") ||
         contentType.StartsWith("audio/") ||
-        contentType.StartsWith("text/")  ||
+        TextPreview.IsTextLike(contentType) ||
         contentType == "application/pdf";
 
     async Task PreviewObject(BlobObject obj)
