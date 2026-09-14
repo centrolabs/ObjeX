@@ -5,6 +5,7 @@
 @implements IDisposable
 @inject IMetadataService MetadataService
 @inject IStorageQuotaService QuotaService
+@inject ILogger<Dashboard> Logger
 @inject AuthenticationStateProvider AuthStateProvider
 
 <PageTitle>Dashboard — ObjeX</PageTitle>
@@ -230,6 +231,9 @@
     string _currentUserId = string.Empty;
     bool _isPrivileged;
     StorageQuotaStatus? _myStorage;
+    static readonly TimeSpan PollInterval = TimeSpan.FromSeconds(30);
+    string? _fingerprint;
+    int _polling;
 
     protected override async Task OnInitializedAsync()
     {
@@ -239,14 +243,33 @@
         await LoadStats();
         _timer = new Timer(async _ =>
         {
-            await LoadStats();
-            await InvokeAsync(StateHasChanged);
-        }, null, TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(10));
+            if (Interlocked.Exchange(ref _polling, 1) == 1) return;
+            try
+            {
+                if (await LoadStats())
+                    await InvokeAsync(StateHasChanged);
+            }
+            catch (Exception ex)
+            {
+                // An unhandled exception in a Timer callback takes the whole process down.
+                Logger.LogWarning(ex, "Dashboard refresh failed");
+            }
+            finally
+            {
+                Interlocked.Exchange(ref _polling, 0);
+            }
+        }, null, PollInterval, PollInterval);
     }
 
-    async Task LoadStats()
+    // The bucket rows are few and change with every upload or delete, so they decide whether the GROUP BY over all objects runs at all.
+    async Task<bool> LoadStats()
     {
-        _buckets = (await MetadataService.ListBucketsAsync(_isPrivileged ? null : _currentUserId)).OrderByDescending(b => b.TotalSize).ToList();
+        var buckets = (await MetadataService.ListBucketsAsync(_isPrivileged ? null : _currentUserId)).OrderByDescending(b => b.TotalSize).ToList();
+        var fingerprint = string.Join("|", buckets.Select(b => $"{b.Name}:{b.ObjectCount}:{b.TotalSize}:{b.UpdatedAt.Ticks}"));
+        if (fingerprint == _fingerprint) return false;
+
+        _fingerprint = fingerprint;
+        _buckets = buckets;
         _myStorage = await QuotaService.GetAsync(_currentUserId);
         _totalObjects = _buckets.Sum(b => b.ObjectCount);
         _totalSize    = _buckets.Sum(b => b.TotalSize);
@@ -265,6 +288,7 @@
 
         _totalFileTypeCount = _fileTypeStats.Sum(x => x.Count);
         _lastUpdated = DateTime.Now;
+        return true;
     }
 
     static string MimeToExtension(string contentType) => contentType switch
