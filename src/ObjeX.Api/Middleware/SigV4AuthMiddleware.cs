@@ -54,11 +54,13 @@ public class SigV4AuthMiddleware(RequestDelegate next, ILogger<SigV4AuthMiddlewa
 
         context.Request.EnableBuffering();
 
-        // ±15 min window (AWS uses 5 min; slightly more lenient for self-hosted clock drift)
-        if (!IsTimestampFresh(context.Request))
+        var maxPresignedExpiry = context.Request.Query.ContainsKey("X-Amz-Expires")
+            ? Math.Min((await db.SystemSettings.FindAsync([1], context.RequestAborted))?.PresignedUrlMaxExpirySeconds ?? AwsMaxPresignedExpirySeconds, AwsMaxPresignedExpirySeconds)
+            : AwsMaxPresignedExpirySeconds;
+
+        if (CheckTimestamp(context.Request, maxPresignedExpiry) is { } timestampError)
         {
-            await WriteError(context, S3Errors.RequestExpired,
-                "Request has expired. Check your system clock.", 403);
+            await WriteError(context, timestampError.Code, timestampError.Message, timestampError.Status);
             return;
         }
 
@@ -198,7 +200,11 @@ public class SigV4AuthMiddleware(RequestDelegate next, ILogger<SigV4AuthMiddlewa
         return true;
     }
 
-    private static bool IsTimestampFresh(HttpRequest request)
+    // AWS rejects presigned URLs that live longer than a week; the Settings maximum can only lower this.
+    private const int AwsMaxPresignedExpirySeconds = 604800;
+
+    /// <summary>Header-signed requests must be within ±15 minutes of now; presigned URLs live from X-Amz-Date for X-Amz-Expires seconds, capped by <paramref name="maxPresignedExpirySeconds"/>.</summary>
+    private static (string Code, string Message, int Status)? CheckTimestamp(HttpRequest request, int maxPresignedExpirySeconds)
     {
         var raw = request.Headers["x-amz-date"].ToString().Trim();
         if (string.IsNullOrEmpty(raw))
@@ -208,20 +214,25 @@ public class SigV4AuthMiddleware(RequestDelegate next, ILogger<SigV4AuthMiddlewa
                 System.Globalization.CultureInfo.InvariantCulture,
                 System.Globalization.DateTimeStyles.AssumeUniversal |
                 System.Globalization.DateTimeStyles.AdjustToUniversal, out var signingTime))
-            return false;
+            return (S3Errors.RequestExpired, "Request has expired. Check your system clock.", 403);
 
         var now = DateTime.UtcNow;
 
-        // Presigned URLs: valid from signing time until signing time + X-Amz-Expires seconds
         if (request.Query.ContainsKey("X-Amz-Expires"))
         {
-            if (!int.TryParse(request.Query["X-Amz-Expires"].ToString(), out var expiresSec))
-                return false;
-            return now >= signingTime && now <= signingTime.AddSeconds(expiresSec);
+            if (!int.TryParse(request.Query["X-Amz-Expires"].ToString(), out var expiresSec)
+                || expiresSec < 1 || expiresSec > maxPresignedExpirySeconds)
+                return (S3Errors.AuthorizationQueryParametersError,
+                    $"X-Amz-Expires must be between 1 and {maxPresignedExpirySeconds} seconds.", 400);
+
+            return now >= signingTime && now <= signingTime.AddSeconds(expiresSec)
+                ? null
+                : (S3Errors.RequestExpired, "Request has expired.", 403);
         }
 
-        // Regular requests: must be within ±15 minutes to account for clock drift
-        return Math.Abs((now - signingTime).TotalMinutes) <= 15;
+        return Math.Abs((now - signingTime).TotalMinutes) <= 15
+            ? null
+            : (S3Errors.RequestExpired, "Request has expired. Check your system clock.", 403);
     }
 
     private static async Task<bool> VerifyPayloadHashAsync(HttpRequest request)

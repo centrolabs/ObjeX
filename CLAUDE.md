@@ -472,6 +472,7 @@ POST   /                        → S3 POST Object (bucketEndpoint mode); bucket
 # - Presigned URL generation: GET /api/presign/{bucket}/{*key}?expires=N (port 9001, cookie auth)
 #   → PresignedUrlGenerator (ObjeX.Core/Utilities/) — pure BCL, no ASP.NET dependency
 #   → Expiry defaults/max: stored in SystemSettings DB row (Id=1); configurable via Settings UI — NOT via appsettings/env vars
+#   → The max is enforced in SigV4AuthMiddleware on every presigned request (client-signed URLs included), capped at 604800 s like AWS; violations get 400 AuthorizationQueryParametersError
 #   → UI: link icon button opens PresignedUrlDialog — chip presets + custom number/unit input, live expiry preview
 ```
 
