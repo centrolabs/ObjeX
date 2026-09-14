@@ -13,7 +13,8 @@ public static class MetricsEndpoint
         if (!string.IsNullOrEmpty(options.Token))
         {
             var expected = Encoding.UTF8.GetBytes("Bearer " + options.Token);
-            app.UseWhen(ctx => ctx.Request.Path == "/metrics", branch => branch.Use(async (ctx, next) =>
+            // StartsWithSegments, because routing also serves the endpoint for "/metrics/" and any casing.
+            app.UseWhen(ctx => ctx.Request.Path.StartsWithSegments("/metrics"), branch => branch.Use(async (ctx, next) =>
             {
                 var provided = Encoding.UTF8.GetBytes(ctx.Request.Headers.Authorization.ToString());
                 if (!CryptographicOperations.FixedTimeEquals(expected, provided))

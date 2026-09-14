@@ -36,15 +36,20 @@ public class MetricsEndpointTests(MetricsEndpointTests.OpenFactory open, Metrics
         Assert.Contains("objex_storage_bytes", await response.Content.ReadAsStringAsync());
     }
 
-    [Fact]
-    public async Task WithToken_MissingOrWrongBearer_IsUnauthorized()
+    [Theory]
+    [InlineData("/metrics")]
+    [InlineData("/metrics/")]
+    [InlineData("/METRICS")]
+    [InlineData("/Metrics/")]
+    public async Task WithToken_MissingOrWrongBearer_IsUnauthorized(string path)
     {
+        // Routing tolerates a trailing slash and ignores case, so the token check must too.
         var client = token.CreateClient(new() { AllowAutoRedirect = false });
 
-        Assert.Equal(HttpStatusCode.Unauthorized, (await client.GetAsync("/metrics")).StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await client.GetAsync(path)).StatusCode);
 
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", "wrong");
-        Assert.Equal(HttpStatusCode.Unauthorized, (await client.GetAsync("/metrics")).StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await client.GetAsync(path)).StatusCode);
     }
 
     [Fact]
