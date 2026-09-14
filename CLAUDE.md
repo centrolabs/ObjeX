@@ -246,6 +246,7 @@ public interface IObjectStorageService
     Task<string> StoreAsync(string bucketName, string key, Stream data, CancellationToken ctk = default);
     Task<Stream> RetrieveAsync(string bucketName, string key, CancellationToken ctk = default);
     Task DeleteAsync(string bucketName, string key, CancellationToken ctk = default);
+    Task DeleteBucketAsync(string bucketName, CancellationToken ctk = default); // removes the bucket's blob folder; called after the rows are gone
     Task<bool> ExistsAsync(string bucketName, string key, CancellationToken ctk = default);
     Task<long> GetSizeAsync(string bucketName, string key, CancellationToken ctk = default);
 }

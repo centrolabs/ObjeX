@@ -93,6 +93,16 @@ public class FileSystemStorageService : IObjectStorageService
         return Task.CompletedTask;
     }
 
+    public Task DeleteBucketAsync(string bucketName, CancellationToken ctk = default)
+    {
+        var dir = AssertWithinBasePath(Path.Combine(BasePath, bucketName));
+
+        if (Directory.Exists(dir))
+            Directory.Delete(dir, recursive: true);
+
+        return Task.CompletedTask;
+    }
+
     public Task<bool> ExistsAsync(string bucketName, string key, CancellationToken ctk = default) =>
         Task.FromResult(File.Exists(AssertWithinBasePath(GetSafePath(bucketName, key))));
 

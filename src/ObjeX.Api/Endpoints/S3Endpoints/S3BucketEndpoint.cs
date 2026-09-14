@@ -47,7 +47,8 @@ public static class S3BucketEndpoint
             }
         });
 
-        s3.MapDelete("/{bucket}", async (string bucket, HttpContext ctx, IMetadataService metadata) =>
+        s3.MapDelete("/{bucket}", async (string bucket, HttpContext ctx, IMetadataService metadata,
+            IObjectStorageService storage, ILogger<IObjectStorageService> logger) =>
         {
             var callerId = GetCallerId(ctx);
             var privileged = IsPrivileged(ctx);
@@ -60,6 +61,14 @@ public static class S3BucketEndpoint
                 return S3Xml.Error(S3Errors.BucketNotEmpty, "The bucket you tried to delete is not empty.", 409);
 
             await metadata.DeleteBucketAsync(bucket, callerId, privileged, callerId);
+            try
+            {
+                await storage.DeleteBucketAsync(bucket, ctx.RequestAborted);
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "Blob folder of bucket {Bucket} could not be deleted and is left for the orphan cleanup job", bucket);
+            }
             return Results.StatusCode(204);
         });
 

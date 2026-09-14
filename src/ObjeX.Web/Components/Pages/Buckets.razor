@@ -8,6 +8,8 @@
 @using Microsoft.Extensions.Options
 @using ObjeX.Infrastructure.Options
 @inject IMetadataService MetadataService
+@inject IObjectStorageService StorageService
+@inject ILogger<Buckets> Logger
 @inject DialogService DialogService
 @inject NotificationService NotificationService
 @inject AuthenticationStateProvider AuthStateProvider
@@ -120,6 +122,14 @@
         try
         {
             await MetadataService.DeleteBucketAsync(bucket.Name, _currentUserId, _isPrivileged, _currentUserId);
+            try
+            {
+                await StorageService.DeleteBucketAsync(bucket.Name);
+            }
+            catch (Exception ex)
+            {
+                Logger.LogWarning(ex, "Blob folder of bucket {Bucket} could not be deleted and is left for the orphan cleanup job", bucket.Name);
+            }
             await LoadBuckets();
             NotificationService.Notify(NotificationSeverity.Success, "Bucket deleted", bucket.Name);
         }
