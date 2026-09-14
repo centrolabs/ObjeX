@@ -74,7 +74,7 @@ public static class S3ObjectEndpoint
                 if (fs.GetAvailableFreeSpace() < storageOptions.Value.MinimumFreeDiskBytes)
                     return S3Xml.Error(S3Errors.EntityTooLarge, "Insufficient disk space.", 507);
 
-                var (partPath, partEtag) = await fs.StorePartAsync(uploadId, partNumber, request.Body, request.HttpContext.RequestAborted);
+                var (partPath, partEtag) = await fs.StorePartAsync(uploadId, partNumber, S3RequestBody.Decoded(request), request.HttpContext.RequestAborted);
                 var partSize = new FileInfo(partPath).Length;
 
                 // Upsert: replace existing part with same number if re-uploaded
@@ -164,18 +164,13 @@ public static class S3ObjectEndpoint
                 return S3Xml.Error(S3Errors.EntityTooLarge, "Insufficient disk space.", 507);
 
             // Pre-check with Content-Length if available; catches already-over-quota early
-            var quotaError = await StorageQuota.CheckAsync(ctx, request.ContentLength ?? 0);
+            var quotaError = await StorageQuota.CheckAsync(ctx, S3RequestBody.DecodedContentLength(request) ?? 0);
             if (quotaError is not null) return quotaError;
 
             var contentType = request.ContentType ?? "application/octet-stream";
             var customMetadata = ExtractCustomMetadata(request.Headers);
 
-            Stream bodyStream = request.Body;
-            var contentSha = request.Headers["x-amz-content-sha256"].ToString();
-            var contentEncoding = request.Headers.ContentEncoding.ToString();
-            if (contentEncoding.Contains("aws-chunked", StringComparison.OrdinalIgnoreCase)
-                || contentSha.StartsWith("STREAMING-", StringComparison.OrdinalIgnoreCase))
-                bodyStream = new S3.AwsChunkedStream(bodyStream);
+            var bodyStream = S3RequestBody.Decoded(request);
 
             await using var hashingStream = new HashingStream(bodyStream);
             var storagePath = await storage.StoreAsync(bucket, key, hashingStream, ctx.RequestAborted);

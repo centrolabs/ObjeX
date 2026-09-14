@@ -12,16 +12,17 @@ public static class S3RequestSigner
     private const string Region = "us-east-1";
     private const string Service = "s3";
 
-    public static void SignRequest(HttpRequestMessage request, string accessKeyId, string secretAccessKey, byte[]? body = null)
-        => SignRequestWithTimestamp(request, accessKeyId, secretAccessKey, DateTime.UtcNow, body);
+    public static void SignRequest(HttpRequestMessage request, string accessKeyId, string secretAccessKey, byte[]? body = null, string? contentSha256 = null)
+        => SignRequestWithTimestamp(request, accessKeyId, secretAccessKey, DateTime.UtcNow, body, contentSha256);
 
+    /// <param name="contentSha256">Overrides the x-amz-content-sha256 value, e.g. STREAMING-UNSIGNED-PAYLOAD-TRAILER for aws-chunked bodies.</param>
     public static void SignRequestWithTimestamp(
         HttpRequestMessage request, string accessKeyId, string secretAccessKey,
-        DateTime timestamp, byte[]? body = null)
+        DateTime timestamp, byte[]? body = null, string? contentSha256 = null)
     {
-        var payloadHash = body is { Length: > 0 }
+        var payloadHash = contentSha256 ?? (body is { Length: > 0 }
             ? ToHex(SHA256.HashData(body))
-            : "UNSIGNED-PAYLOAD";
+            : "UNSIGNED-PAYLOAD");
 
         var date = timestamp.ToString("yyyyMMdd");
         var amzDate = timestamp.ToString("yyyyMMdd'T'HHmmss'Z'");

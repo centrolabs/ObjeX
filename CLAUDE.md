@@ -473,6 +473,7 @@ POST   /                        → S3 POST Object (bucketEndpoint mode); bucket
 # - S3Errors constants (ObjeX.Api/S3/S3Errors.cs) — S3 error code strings
 # - S3PostObjectEndpoint (ObjeX.Api/Endpoints/S3Endpoints/) — browser-based uploads via presigned POST policy
 #   Auth is form-field-based (policy + X-Amz-Signature), not header SigV4. Middleware handles this as a third auth path.
+# - S3RequestBody (ObjeX.Api/S3/) — unwraps aws-chunked bodies (Content-Encoding: aws-chunked or x-amz-content-sha256: STREAMING-*) for PUT and UploadPart; SDKs send that framing whenever they stream with a trailing checksum, the CLI does so over HTTPS. Chunk signatures and trailer checksums are not verified.
 # - S3MultipartEndpoint (ObjeX.Api/Endpoints/S3Endpoints/) — Initiate + Complete (single MapPost dispatch on ?uploads vs ?uploadId)
 # - Parts stored at {BasePath}/_multipart/{uploadId}/{partNumber}.part; cleaned up after Complete or Abort
 # - Final ETag: MD5(binary concat of part MD5 bytes) + "-" + partCount (S3 multipart format)
