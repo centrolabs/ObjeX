@@ -255,7 +255,7 @@ docker compose up -d
 
 ### Dependabot — `.github/dependabot.yml`
 
-Weekly Monday PRs for NuGet packages (grouped: `radzen`, `ef-core`, `hangfire`, `serilog`) and GitHub Actions versions.
+Weekly Monday PRs: one grouped PR for all NuGet minor and patch updates, separate PRs for NuGet major updates, one grouped PR for GitHub Actions versions.
 
 ## Testing
 

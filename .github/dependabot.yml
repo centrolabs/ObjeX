@@ -7,24 +7,12 @@ updates:
       day: "monday"
     open-pull-requests-limit: 5
     groups:
-      radzen:
+      nuget:
         patterns:
-          - "Radzen.*"
-      ef-core:
-        patterns:
-          - "Microsoft.EntityFrameworkCore*"
-      hangfire:
-        patterns:
-          - "Hangfire.*"
-      serilog:
-        patterns:
-          - "Serilog.*"
-      microsoft:
-        patterns:
-          - "Microsoft.*"
-      xunit:
-        patterns:
-          - "xunit*"
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:

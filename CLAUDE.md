@@ -500,7 +500,7 @@ POST   /                        → S3 POST Object (bucketEndpoint mode); bucket
 
 **`cd.yml`** — triggers on push to `main`. Builds multi-arch image (amd64/arm64) via Buildx + QEMU and pushes to GitHub Container Registry (`ghcr.io/centrolabs/objex:latest` + `ghcr.io/centrolabs/objex:<tag>`). Uses `GITHUB_TOKEN` (automatic, no manual secrets needed).
 
-**`.github/dependabot.yml`** — weekly Monday PRs for NuGet packages (grouped: `radzen`, `ef-core`, `hangfire`, `serilog`, max 5 open) and GitHub Actions versions.
+**`.github/dependabot.yml`** — weekly Monday PRs: one `nuget` group for all minor and patch updates (major updates come as single PRs, max 5 open) and one `github-actions` group.
 
 **`.dockerignore`** is present at repo root. It excludes `src/**/bin/`, `src/**/obj/`, `data/`, `.git/`, IDE folders, and local config overrides (`appsettings.Development.json`). Without it, `docker build` would send ~230MB of build artifacts as context on every build.
 
