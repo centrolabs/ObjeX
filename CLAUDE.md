@@ -38,7 +38,7 @@ src/
 │   ├── Unit/            # BucketNameValidator, ObjectKeyValidator, HashingStream, Sha256HashService
 │   └── Integration/     # S3 API round-trips, auth, multipart, quotas, resilience, cookie auth, health
 └── ObjeX.Web/           # Razor class library: components, pages, dialogs, layout — no host, no wwwroot
-    ├── Helpers/         # FileHelper
+    ├── Helpers/         # FileHelper, AppVersion
     └── Components/
         ├── Pages/       # Dashboard, Buckets, Objects, Settings, Login, NotFound, Users, ChangePassword, AuditLog, Error, Profile
         ├── Dialogs/     # CreateBucketDialog, UploadObjectDialog, CreateS3CredentialDialog, ShowS3CredentialDialog, CreateFolderDialog, CreateUserDialog, ShowUserPasswordDialog, ChangeOwnerDialog, FilePreviewDialog, FileMetadataDialog, PresignedUrlDialog
@@ -225,7 +225,7 @@ services.AddSingleton<IObjectStorageService>(sp => sp.GetRequiredService<FileSys
 
 | Job class | Location | Schedule | Return type | What it does |
 |---|---|---|---|---|
-| `CleanupOrphanedBlobsJob` | `Infrastructure/Jobs/` | Weekly Sun 03:00 UTC | `Task<CleanupResult>` | Queries all known `StoragePath` values from metadata, scans `*.blob` files on disk, deletes any not in the known set |
+| `CleanupOrphanedBlobsJob` | `Infrastructure/Jobs/` | Weekly Sun 03:00 UTC | `Task<CleanupResult>` | Derives the expected path of every object from bucket + key (never from the stored `StoragePath`, which goes stale when the data directory moves), scans `*.blob` files on disk, deletes any not in that set unless modified within the last hour (an upload's blob exists before its row) |
 | `VerifyBlobIntegrityJob` | `Infrastructure/Jobs/` | Weekly Sun 04:00 UTC | `Task<IntegrityResult>` | Reads every blob file, recomputes MD5, compares against stored ETag — logs errors for corrupted or missing blobs |
 | `CleanupAbandonedMultipartJob` | `Infrastructure/Jobs/` | Weekly Sun 05:00 UTC | `Task<AbandonedMultipartResult>` | Deletes multipart uploads older than 7 days (DB rows + part files on disk), also removes orphaned `_multipart` directories |
 
@@ -499,6 +499,8 @@ POST   /                        → S3 POST Object (bucketEndpoint mode); bucket
 **`ci.yml`** — build + test gate, GitHub-hosted runner (`ubuntu-latest`). Triggers on push to `main` and all PRs. Steps: checkout → setup .NET (from `global.json`) → restore → build Release → run xUnit test suite.
 
 **`cd.yml`** — triggers on push to `main`. Builds multi-arch image (amd64/arm64) via Buildx + QEMU and pushes to GitHub Container Registry (`ghcr.io/centrolabs/objex:latest` + `ghcr.io/centrolabs/objex:<tag>`). Uses `GITHUB_TOKEN` (automatic, no manual secrets needed).
+
+**Release** — bump `<Version>` in `Directory.Build.props` and the `**Status**` line in `README.md`, commit, push, then tag `vX.Y.Z` and push the tag. CD builds and pushes the image and creates the GitHub release. The nav footer shows `ObjeX <version> (<sha>)`; the sha comes from the SDK locally and from the `SOURCE_REVISION` build arg in Docker.
 
 **`.github/dependabot.yml`** — weekly Monday PRs: one `nuget` group for all minor and patch updates (major updates come as single PRs, max 5 open) and one `github-actions` group.
 

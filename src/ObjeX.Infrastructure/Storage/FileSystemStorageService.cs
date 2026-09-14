@@ -196,7 +196,7 @@ public class FileSystemStorageService : IObjectStorageService
         return resolved;
     }
 
-    private string GetFilePath(string bucketName, string key)
+    internal string GetFilePath(string bucketName, string key)
     {
         // Hash the logical address (bucket + key) for a deterministic, flat physical path.
         // 2-level nesting (L1/L2) spreads files across 256×256 = 65,536 directories.

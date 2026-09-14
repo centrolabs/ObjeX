@@ -4,6 +4,7 @@ using System.Security.Cryptography;
 using Microsoft.Extensions.Logging;
 
 using ObjeX.Core.Interfaces;
+using ObjeX.Infrastructure.Storage;
 
 namespace ObjeX.Infrastructure.Jobs;
 
@@ -11,6 +12,7 @@ public record IntegrityResult(int Checked, int Corrupted, int Missing, double Du
 
 public class VerifyBlobIntegrityJob(
     IMetadataService metadataService,
+    FileSystemStorageService storageService,
     ILogger<VerifyBlobIntegrityJob> logger)
 {
     public async Task<IntegrityResult> ExecuteAsync()
@@ -25,18 +27,19 @@ public class VerifyBlobIntegrityJob(
 
         foreach (var obj in allObjects)
         {
-            if (string.IsNullOrEmpty(obj.StoragePath) || string.IsNullOrEmpty(obj.ETag))
+            if (string.IsNullOrEmpty(obj.ETag))
                 continue;
 
-            if (!File.Exists(obj.StoragePath))
+            var path = storageService.GetFilePath(obj.BucketName, obj.Key);
+            if (!File.Exists(path))
             {
                 missing++;
-                logger.LogError("Blob missing for {Bucket}/{Key} — expected at {Path}", obj.BucketName, obj.Key, obj.StoragePath);
+                logger.LogError("Blob missing for {Bucket}/{Key} — expected at {Path}", obj.BucketName, obj.Key, path);
                 continue;
             }
 
             checked_++;
-            var actualETag = await ComputeMd5Async(obj.StoragePath);
+            var actualETag = await ComputeMd5Async(path);
             if (!string.Equals(actualETag, obj.ETag, StringComparison.OrdinalIgnoreCase))
             {
                 corrupted++;
