@@ -163,10 +163,7 @@ public static class S3PostObjectEndpoint
             try
             {
                 if (await metadata.ExistsObjectAsync(bucket, key))
-                {
-                    await storage.DeleteAsync(bucket, key);
-                    await metadata.DeleteObjectAsync(bucket, key, GetCallerId(ctx));
-                }
+                    await ObjectDeletion.DeleteAsync(ctx, metadata, storage, bucket, key, GetCallerId(ctx));
                 deleted.Add(key);
             }
             catch (Exception ex)

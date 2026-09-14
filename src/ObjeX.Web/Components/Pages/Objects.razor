@@ -9,6 +9,7 @@
 @using ObjeX.Infrastructure.Options
 @inject IMetadataService MetadataService
 @inject IObjectStorageService StorageService
+@inject ILogger<Objects> Logger
 @inject DialogService DialogService
 @inject NotificationService NotificationService
 @inject NavigationManager Navigation
@@ -399,10 +400,7 @@
             var result = await MetadataService.ListObjectsAsync(BucketName, prefix: folderPath, delimiter: null);
             var all = result.Objects.ToList();
             foreach (var obj in all)
-            {
-                await StorageService.DeleteAsync(BucketName, obj.Key);
-                await MetadataService.DeleteObjectAsync(BucketName, obj.Key, _currentUserId);
-            }
+                await DeleteObjectAsync(obj.Key);
             await LoadObjects();
             NotificationService.Notify(NotificationSeverity.Success, "Folder deleted", folderPath.TrimEnd('/'));
         }
@@ -423,8 +421,7 @@
 
         try
         {
-            await StorageService.DeleteAsync(BucketName, obj.Key);
-            await MetadataService.DeleteObjectAsync(BucketName, obj.Key, _currentUserId);
+            await DeleteObjectAsync(obj.Key);
             await LoadObjects();
             NotificationService.Notify(NotificationSeverity.Success, "Object deleted", obj.Key);
         }
@@ -453,15 +450,11 @@
                 {
                     var result = await MetadataService.ListObjectsAsync(BucketName, prefix: row.FolderPath!, delimiter: null);
                     foreach (var obj in result.Objects)
-                    {
-                        await StorageService.DeleteAsync(BucketName, obj.Key);
-                        await MetadataService.DeleteObjectAsync(BucketName, obj.Key, _currentUserId);
-                    }
+                        await DeleteObjectAsync(obj.Key);
                 }
                 else
                 {
-                    await StorageService.DeleteAsync(BucketName, row.Object!.Key);
-                    await MetadataService.DeleteObjectAsync(BucketName, row.Object!.Key, _currentUserId);
+                    await DeleteObjectAsync(row.Object!.Key);
                 }
             }
             catch (Exception ex) { errors.Add(ex.Message); }
@@ -516,6 +509,20 @@
                 { "UpdatedAt",   obj.UpdatedAt },
             },
             new DialogOptions { Width = "480px", CloseDialogOnOverlayClick = true, ShowClose = true });
+    }
+
+    // Row first, blob second: a row must never point at a missing blob, while a leftover blob is collected by the orphan cleanup job.
+    async Task DeleteObjectAsync(string key)
+    {
+        await MetadataService.DeleteObjectAsync(BucketName, key, _currentUserId);
+        try
+        {
+            await StorageService.DeleteAsync(BucketName, key);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Blob {Bucket}/{Key} could not be deleted and is left for the orphan cleanup job", BucketName, key);
+        }
     }
 
     // SVG can carry script, so the download endpoint never serves it inline and the preview would show a broken image.

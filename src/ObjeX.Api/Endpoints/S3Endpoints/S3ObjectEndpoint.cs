@@ -324,10 +324,7 @@ public static class S3ObjectEndpoint
 
             // S3 spec: DELETE returns 204 even if object does not exist
             if (await metadata.ExistsObjectAsync(bucket, key, ctx.RequestAborted))
-            {
-                await storage.DeleteAsync(bucket, key, ctx.RequestAborted);
-                await metadata.DeleteObjectAsync(bucket, key, GetCallerId(ctx), ctx.RequestAborted);
-            }
+                await ObjectDeletion.DeleteAsync(ctx, metadata, storage, bucket, key, GetCallerId(ctx));
             return Results.StatusCode(204);
         });
     }
