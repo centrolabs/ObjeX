@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Hosting;
 namespace ObjeX.Tests.Integration;
 
 /// <summary>/metrics is open on the UI port unless Metrics:Token is set; then scrapers must send it as a Bearer token.</summary>
+[Collection("Metrics")]
 public class MetricsEndpointTests(MetricsEndpointTests.OpenFactory open, MetricsEndpointTests.TokenFactory token)
     : IClassFixture<MetricsEndpointTests.OpenFactory>, IClassFixture<MetricsEndpointTests.TokenFactory>
 {
