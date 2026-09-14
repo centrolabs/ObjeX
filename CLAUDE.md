@@ -201,7 +201,7 @@ EF Core `.ValueGeneratedNever()` on `Id`. Unique index on `AccessKeyId`.
 
 ### Hangfire Dashboard Auth
 
-`HangfireAuthorizationFilter` (`ObjeX.Api/Auth/`) allows localhost unconditionally; otherwise requires `IsInRole("Admin")`. Dashboard is at `/hangfire`.
+`HangfireAuthorizationFilter` (`ObjeX.Api/Auth/`) requires `IsInRole("Admin")` on the cookie-authenticated user; there is no localhost bypass. Dashboard is at `/hangfire`.
 
 ---
 
@@ -429,7 +429,7 @@ GET    /health            → liveness (200 if process is up, no checks); also a
 GET    /health/ready      → readiness (checks DB connectivity + blob storage writability)
 GET    /metrics           → Prometheus metrics (HTTP request stats + per-bucket storage gauges, synced every 30s)
 GET    /audit             → Audit log (Admin only); server-side paginated table of bucket/object operations
-GET    /hangfire          → Hangfire dashboard (Admin role or localhost)
+GET    /hangfire          → Hangfire dashboard (Admin role only)
 
 # S3-Compatible API — Server:S3Port, default 9000 (AWS Signature V4 required)
 # Own pipeline (ObjeX.Api/S3/S3Pipeline.cs): MapGroup("/").RequireAuthorization() inside its own routing.
