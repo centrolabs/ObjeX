@@ -14,7 +14,6 @@ public class FileSystemStorageService : IObjectStorageService
     private readonly ILogger<FileSystemStorageService> _logger;
 
     private static readonly TimeSpan StaleTmpThreshold = TimeSpan.FromHours(1);
-    private static readonly TimeSpan StaleMultipartThreshold = TimeSpan.FromHours(48);
 
     public FileSystemStorageService(string basePath, IHashService hashService, ILogger<FileSystemStorageService> logger)
     {
@@ -49,29 +48,7 @@ public class FileSystemStorageService : IObjectStorageService
         if (deleted > 0)
             _logger.LogInformation("Deleted {Count} stale .tmp blob file(s) on startup", deleted);
 
-        var multipartRoot = Path.Combine(BasePath, "_multipart");
-        if (!Directory.Exists(multipartRoot)) return;
-
-        var cutoff2 = DateTime.UtcNow - StaleMultipartThreshold;
-        var deletedDirs = 0;
-        foreach (var dir in Directory.EnumerateDirectories(multipartRoot))
-        {
-            try
-            {
-                if (Directory.GetLastWriteTimeUtc(dir) < cutoff2)
-                {
-                    Directory.Delete(dir, recursive: true);
-                    deletedDirs++;
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Failed to delete stale multipart directory {Path}", dir);
-            }
-        }
-
-        if (deletedDirs > 0)
-            _logger.LogInformation("Deleted {Count} stale multipart upload director(ies) on startup", deletedDirs);
+        // Multipart part directories are referenced by database rows; only CleanupAbandonedMultipartJob, which checks them, removes those.
     }
 
     public async Task<string> StoreAsync(string bucketName, string key, Stream data, CancellationToken ctk = default)
