@@ -15,7 +15,7 @@ public static class S3Pipeline
     public static IServiceCollection AddS3Api(this IServiceCollection services)
     {
         services.AddCors(options => options.AddPolicy("S3", policy =>
-            policy.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader()));
+            policy.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader().WithExposedHeaders("ETag")));
         return services;
     }
 

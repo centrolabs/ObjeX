@@ -105,7 +105,7 @@ public class SigV4AuthMiddleware(RequestDelegate next, ILogger<SigV4AuthMiddlewa
             await WriteError(context, S3Errors.AccessDenied, "Your account has been deactivated.", 403);
             return;
         }
-        await UpdateLastUsedAsync(db, credential.Id, context.RequestAborted);
+        await UpdateLastUsedAsync(db, credential, context.RequestAborted);
 
         await next(context);
     }
@@ -173,7 +173,7 @@ public class SigV4AuthMiddleware(RequestDelegate next, ILogger<SigV4AuthMiddlewa
             await WriteError(context, S3Errors.AccessDenied, "Your account has been deactivated.", 403);
             return;
         }
-        await UpdateLastUsedAsync(db, credential.Id, context.RequestAborted);
+        await UpdateLastUsedAsync(db, credential, context.RequestAborted);
 
         await next(context);
     }
@@ -250,13 +250,18 @@ public class SigV4AuthMiddleware(RequestDelegate next, ILogger<SigV4AuthMiddlewa
         return string.Equals(declared, actualHash, StringComparison.OrdinalIgnoreCase);
     }
 
-    private static async Task UpdateLastUsedAsync(ObjeXDbContext db, Guid credentialId, CancellationToken ct)
+    // At most one write per credential per minute; a write per request would take a SQLite lock on every GET.
+    private static async Task UpdateLastUsedAsync(ObjeXDbContext db, S3Credential credential, CancellationToken ct)
     {
+        var now = DateTime.UtcNow;
+        if (credential.LastUsedAt is { } last && now - last < TimeSpan.FromMinutes(1))
+            return;
+
         try
         {
             await db.S3Credentials
-                .Where(c => c.Id == credentialId)
-                .ExecuteUpdateAsync(s => s.SetProperty(c => c.LastUsedAt, DateTime.UtcNow), ct);
+                .Where(c => c.Id == credential.Id)
+                .ExecuteUpdateAsync(s => s.SetProperty(c => c.LastUsedAt, now), ct);
         }
         catch { /* non-critical */ }
     }
