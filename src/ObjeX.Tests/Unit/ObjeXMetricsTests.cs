@@ -3,6 +3,8 @@ using ObjeX.Api.Metrics;
 
 namespace ObjeX.Tests.Unit;
 
+/// <summary>Shares the process-wide Prometheus registry with MetricsEndpointTests, whose factories sync it at startup; one collection keeps them apart.</summary>
+[Collection("Metrics")]
 public class ObjeXMetricsTests
 {
     private static async Task<string> ExportAsync()
