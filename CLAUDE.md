@@ -35,10 +35,11 @@ src/
 │   └── Storage/         # FileSystemStorageService, StorageSpaceService (free disk of the blob volume)
 ├── ObjeX.Migrations.PostgreSql/  # PostgreSQL-specific EF Core migrations
 ├── ObjeX.Tests/         # xUnit — unit (Core validators, hashing) + integration (WebApplicationFactory, real SQLite)
-│   ├── Unit/            # BucketNameValidator, ObjectKeyValidator, HashingStream, Sha256HashService, StorageSpaceStatus, ETags, CustomMetadata, InlineMediaTypes, S3ClientSnippets, TextPreview
+│   ├── Unit/            # BucketNameValidator, ObjectKeyValidator, HashingStream, Sha256HashService, StorageSpaceStatus, ETags, CustomMetadata, InlineMediaTypes, S3ClientSnippets, TextPreview, BrowserTimeZone, SearchPattern
 │   └── Integration/     # S3 API round-trips, auth, multipart, quotas, storage space, resilience, cookie auth, health
 └── ObjeX.Web/           # Razor class library: components, pages, dialogs, layout — no host, no wwwroot
     ├── Helpers/         # FileHelper, AppVersion, S3ClientSnippets, TextPreview, CustomMetadata
+    ├── Services/        # BrowserTimeZone (the circuit's browser zone, set by Routes from the objex-tz cookie)
     └── Components/      # Routes, RedirectToLogin, S3ConnectSnippets
         ├── Pages/       # Dashboard, Buckets, Objects, Settings, Login, NotFound, Users, ChangePassword, AuditLog, Error, Profile
         ├── Dialogs/     # CreateBucketDialog, UploadObjectDialog, CreateS3CredentialDialog, ShowS3CredentialDialog, CreateFolderDialog, CreateUserDialog, ShowUserPasswordDialog, ChangeOwnerDialog, FilePreviewDialog, FileMetadataDialog, PresignedUrlDialog, S3ConnectDialog
@@ -450,6 +451,8 @@ Keyboard handling: text-input dialogs (`CreateBucketDialog`, `CreateS3Credential
 **Global search on `/buckets`:** `Buckets.razor` has a 300 ms debounced search box (hidden when the user has no buckets) that calls `SearchAllObjectsAsync(_isPrivileged ? null : userId, term, 501)` and swaps the bucket grid for a result grid — Bucket link, Key linking to its folder (`?prefix=`, per-segment encoded), Size, Modified, download; Escape or the clear button restores the bucket grid.
 
 **Dark mode:** Theme stored in `objex-theme` cookie. `App.razor` reads cookie via `IHttpContextAccessor` server-side and passes to `<RadzenTheme>` — no flash on load. An inline `<script>` in `<head>` sets the cookie from `prefers-color-scheme` on first visit. Toggle in Settings page uses `ThemeService.SetTheme()` + JS cookie write. `ThemeService` is registered as `AddScoped<ThemeService>()` — do NOT use `AddRadzenCookieThemeService` (it fights the server-side rendering). Read initial switch state from cookie via JS in `OnAfterRenderAsync`, not from `ThemeService.Theme` (which is null on Blazor init).
+
+**Time zone:** All stored timestamps are UTC; the browser's zone comes from the `objex-tz` cookie. An inline `<script>` in `App.razor` writes it on every load (`Intl.DateTimeFormat().resolvedOptions().timeZone`), unconditionally, because a laptop may change zones. `App.razor` reads the cookie via `IHttpContextAccessor` and passes it as `<Routes TimeZoneId="..." />`; `Routes.OnParametersSet` calls `BrowserTimeZone.Set()`. `BrowserTimeZone` is scoped, registered in `AddObjeXBlazor` next to `ThemeService`, so it lives as long as the circuit. Pages and dialogs inject `BrowserTimeZone Tz` and render `Tz.Format(...)` (`yyyy-MM-dd HH:mm`, invariant culture) or `Tz.FormatSeconds(...)` only where seconds were already shown. Never use `ToLocalTime()` or `DateTime.Now` in the UI: both give the server's zone. `ToLocal` stamps `DateTimeKind.Utc` first, because SQLite returns `Kind == Unspecified`. An unknown, empty or over-long id falls back to UTC. The first server render before the cookie exists is UTC; the login redirect is a full page load, so every page after login carries the cookie. The Debian `mcr.microsoft.com/dotnet/aspnet` base image ships tzdata; an Alpine base would need `apk add tzdata`.
 
 **Font:** Inter, self-hosted in `ObjeX.Api/wwwroot/fonts/` (weights 300–700). Applied globally via `:root { --rz-body-font-family: 'Inter' }` + `*:not(.material-icons):not(.material-icons-outlined):not([class*="rz-icon"]):not(i)` — the `:not()` exclusions are critical to prevent Material Icons from rendering as text.
 
