@@ -101,13 +101,20 @@ public class EfCoreMetadataService(ObjeXDbContext ctx) : IMetadataService
         if (!string.IsNullOrEmpty(prefix))
             query = query.Where(o => o.Key.StartsWith(prefix));
 
+        // S3 orders keys by UTF-8 bytes; SQLite's default BINARY collation already does that,
+        // PostgreSQL needs COLLATE "C" because a locale collation sorts "a" before "B".
+        query = ctx.Database.ProviderName == "Npgsql.EntityFrameworkCore.PostgreSQL"
+            ? query.OrderBy(o => EF.Functions.Collate(o.Key, "C"))
+            : query.OrderBy(o => o.Key);
+
         var allMatching = await query.ToListAsync(ctk);
 
         if (string.IsNullOrEmpty(delimiter))
             return new ListObjectsResult(allMatching, []);
 
         var objects = new List<BlobObject>();
-        var commonPrefixes = new HashSet<string>();
+        // Ordinal sorts UTF-16 code units, which differs from UTF-8 byte order only for supplementary characters.
+        var commonPrefixes = new SortedSet<string>(StringComparer.Ordinal);
 
         foreach (var obj in allMatching)
         {
@@ -119,7 +126,7 @@ public class EfCoreMetadataService(ObjeXDbContext ctx) : IMetadataService
                 commonPrefixes.Add((prefix ?? string.Empty) + suffix[..(delimIdx + delimiter.Length)]);
         }
 
-        return new ListObjectsResult(objects, commonPrefixes.Order());
+        return new ListObjectsResult(objects, commonPrefixes);
     }
 
     public async Task<IEnumerable<BlobObject>> ListAllObjectsAsync(CancellationToken ctk = default)
