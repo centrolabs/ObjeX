@@ -59,7 +59,7 @@ if (reverseProxy.Enabled)
 builder.Services
     .AddObjeXOptions(builder.Configuration)
     .AddObjeXDatabase(database, builder.Environment)
-    .AddObjeXStorage(ResolvePath(storage.BasePath))
+    .AddObjeXStorage(ResolvePath(storage.BasePath), storage.MinimumFreeDiskBytes)
     .AddObjeXIdentity(auth)
     .AddObjeXBlazor()
     .AddObjeXBackgroundJobs(database)

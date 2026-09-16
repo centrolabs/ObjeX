@@ -5,6 +5,7 @@
 @implements IDisposable
 @inject IMetadataService MetadataService
 @inject IStorageQuotaService QuotaService
+@inject IStorageSpaceService SpaceService
 @inject ILogger<Dashboard> Logger
 @inject AuthenticationStateProvider AuthStateProvider
 
@@ -72,6 +73,29 @@
                 else
                 {
                     <RadzenText TextStyle="TextStyle.Caption">no quota</RadzenText>
+                }
+            </RadzenStack>
+        </RadzenCard>
+        <RadzenCard class="stat-card">
+            <RadzenStack Gap="0.4rem">
+                <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" JustifyContent="JustifyContent.SpaceBetween">
+                    <RadzenText TextStyle="TextStyle.Overline">Disk</RadzenText>
+                    <RadzenIcon Icon="storage" Style="color:var(--rz-primary);opacity:0.8;font-size:1.4rem" />
+                </RadzenStack>
+                <RadzenText TextStyle="TextStyle.H3">@FileHelper.FormatBytes(_disk?.FreeBytes ?? 0)</RadzenText>
+                @if (_disk is not null)
+                {
+                    <RadzenText TextStyle="TextStyle.Caption">free of @FileHelper.FormatBytes(_disk.TotalBytes)</RadzenText>
+                    <RadzenProgressBar Value="@_disk.UsedPercent" Max="100" ShowValue="false" Style="height:4px"
+                                       ProgressBarStyle="@(_disk.IsBelowMinimum ? ProgressBarStyle.Danger : _disk.IsNearMinimum ? ProgressBarStyle.Warning : ProgressBarStyle.Primary)" />
+                    @if (_disk.IsBelowMinimum)
+                    {
+                        <RadzenText TextStyle="TextStyle.Caption" Style="color:var(--rz-danger)">Uploads are rejected until space is freed</RadzenText>
+                    }
+                    else if (_disk.IsNearMinimum)
+                    {
+                        <RadzenText TextStyle="TextStyle.Caption" Style="color:var(--rz-warning)">Uploads stop below @FileHelper.FormatBytes(_disk.MinimumFreeBytes)</RadzenText>
+                    }
                 }
             </RadzenStack>
         </RadzenCard>
@@ -231,6 +255,7 @@
     string _currentUserId = string.Empty;
     bool _isPrivileged;
     StorageQuotaStatus? _myStorage;
+    StorageSpaceStatus? _disk;
     static readonly TimeSpan PollInterval = TimeSpan.FromSeconds(30);
     string? _fingerprint;
     int _polling;
@@ -264,9 +289,18 @@
     // The bucket rows are few and change with every upload or delete, so they decide whether the GROUP BY over all objects runs at all.
     async Task<bool> LoadStats()
     {
+        // Free space moves without any bucket changing, so the disk card carries its own change check.
+        var disk = SpaceService.Get();
+        var diskChanged = DiskLabel(disk) != DiskLabel(_disk);
+        _disk = disk;
+
         var buckets = (await MetadataService.ListBucketsAsync(_isPrivileged ? null : _currentUserId)).OrderByDescending(b => b.TotalSize).ToList();
         var fingerprint = string.Join("|", buckets.Select(b => $"{b.Name}:{b.ObjectCount}:{b.TotalSize}:{b.UpdatedAt.Ticks}"));
-        if (fingerprint == _fingerprint) return false;
+        if (fingerprint == _fingerprint)
+        {
+            if (diskChanged) _lastUpdated = DateTime.Now;
+            return diskChanged;
+        }
 
         _fingerprint = fingerprint;
         _buckets = buckets;
@@ -290,6 +324,10 @@
         _lastUpdated = DateTime.Now;
         return true;
     }
+
+    // Only what the disk card renders, so the card refreshes when it would look different.
+    static string DiskLabel(StorageSpaceStatus? disk) =>
+        disk is null ? "" : $"{FileHelper.FormatBytes(disk.FreeBytes)}|{disk.IsBelowMinimum}|{disk.IsNearMinimum}";
 
     static string MimeToExtension(string contentType) => contentType switch
     {

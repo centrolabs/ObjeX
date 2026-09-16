@@ -52,11 +52,12 @@ public static class ServiceCollectionExtensions
         return services;
     }
 
-    public static IServiceCollection AddObjeXStorage(this IServiceCollection services, string blobBasePath)
+    public static IServiceCollection AddObjeXStorage(this IServiceCollection services, string blobBasePath, long minimumFreeDiskBytes)
     {
         services.AddScoped<IMetadataService, EfCoreMetadataService>();
         services.AddScoped<IStorageQuotaService, StorageQuotaService>();
         services.AddSingleton<IHashService, Sha256HashService>();
+        services.AddSingleton<IStorageSpaceService>(_ => new StorageSpaceService(blobBasePath, minimumFreeDiskBytes));
 
         // Registered under the concrete type first so Hangfire jobs can take it directly (BasePath is
         // internal to Infrastructure), then aliased to the interface for everyone else.

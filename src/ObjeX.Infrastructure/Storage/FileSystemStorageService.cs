@@ -117,7 +117,7 @@ public class FileSystemStorageService : IObjectStorageService
     }
 
     public long GetAvailableFreeSpace() =>
-        new DriveInfo(BasePath).AvailableFreeSpace;
+        StorageSpaceService.AvailableFreeSpace(BasePath);
 
     public async Task<(string partPath, string etag)> StorePartAsync(
         Guid uploadId, int partNumber, Stream data, CancellationToken ctk = default)
