@@ -8,7 +8,7 @@ public static class PresignedUrlGenerator
     public static string Generate(
         string s3BaseUrl, string bucket, string key,
         string accessKeyId, string secretAccessKey,
-        int expiresSeconds, string region = "us-east-1",
+        int expiresSeconds, string region = S3Conventions.Region,
         string method = "GET")
     {
         var now       = DateTime.UtcNow;

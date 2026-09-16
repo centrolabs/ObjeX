@@ -1,6 +1,7 @@
 using System.Security;
 using System.Text;
 using ObjeX.Core.Models;
+using ObjeX.Core.Utilities;
 
 namespace ObjeX.Api.S3;
 
@@ -195,7 +196,7 @@ public static class S3Xml
     public static IResult BucketLocation()
     {
         return Results.Content(
-            "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<LocationConstraint xmlns=\"http://s3.amazonaws.com/doc/2006-03-01/\">us-east-1</LocationConstraint>",
+            $"<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<LocationConstraint xmlns=\"http://s3.amazonaws.com/doc/2006-03-01/\">{S3Conventions.Region}</LocationConstraint>",
             "application/xml", Encoding.UTF8);
     }
 

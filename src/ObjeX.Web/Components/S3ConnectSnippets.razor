@@ -1,0 +1,45 @@
+@inject IJSRuntime JS
+
+<RadzenTabs RenderMode="TabRenderMode.Client">
+    <Tabs>
+        @foreach (var s in Snippets())
+        {
+            <RadzenTabsItem Text="@s.Caption">
+                <div style="position:relative">
+                    <pre style="margin:0; padding:0.75rem; padding-right:2.5rem; background:var(--rz-base-100); border-radius:var(--rz-border-radius); font-size:0.8rem; overflow-x:auto">@s.Text</pre>
+                    <RadzenButton Icon="@(_copied == s.Id ? "check" : "content_copy")" Variant="Variant.Text"
+                                  ButtonStyle="ButtonStyle.Light" Size="ButtonSize.Small"
+                                  Style="position:absolute; top:0.25rem; right:0.25rem"
+                                  Click="@(() => Copy(s.Id, s.Text))" />
+                </div>
+            </RadzenTabsItem>
+        }
+    </Tabs>
+</RadzenTabs>
+
+@code {
+    [Parameter] public string Endpoint { get; set; } = string.Empty;
+    [Parameter] public string AccessKeyId { get; set; } = string.Empty;
+    [Parameter] public string? SecretAccessKey { get; set; }
+
+    string? _copied;
+
+    record Snippet(string Id, string Caption, string Text);
+
+    IEnumerable<Snippet> Snippets() =>
+    [
+        new("cli",    "AWS CLI",     S3ClientSnippets.AwsCli(Endpoint, AccessKeyId, SecretAccessKey)),
+        new("rclone", "rclone",      S3ClientSnippets.Rclone(Endpoint, AccessKeyId, SecretAccessKey)),
+        new("env",    "Environment", S3ClientSnippets.Env(Endpoint, AccessKeyId, SecretAccessKey)),
+    ];
+
+    async Task Copy(string id, string text)
+    {
+        await JS.InvokeVoidAsync("navigator.clipboard.writeText", text);
+        _copied = id;
+        StateHasChanged();
+        await Task.Delay(2000);
+        if (_copied == id) _copied = null;
+        StateHasChanged();
+    }
+}

@@ -22,7 +22,7 @@ src/
 ├── ObjeX.Core/          # Domain — zero framework dependencies
 │   ├── Interfaces/      # IMetadataService, IObjectStorageService, IHashService, IHasTimestamps
 │   ├── Models/          # Bucket, BlobObject, S3Credential, User, AuditEntry, ListObjectsResult, MultipartUpload, MultipartUploadPart, SystemSettings
-│   ├── Utilities/       # HashingStream (MD5 passthrough for ETag computation during upload), PresignedUrlGenerator
+│   ├── Utilities/       # HashingStream (MD5 passthrough for ETag computation during upload), PresignedUrlGenerator, S3Conventions (region, addressing style)
 │   └── Validation/      # BucketNameValidator (GetValidationError)
 ├── ObjeX.Infrastructure/
 │   ├── Data/            # ObjeXDbContext (EF Core + SQLite, extends IdentityDbContext<User>)
@@ -38,10 +38,10 @@ src/
 │   ├── Unit/            # BucketNameValidator, ObjectKeyValidator, HashingStream, Sha256HashService
 │   └── Integration/     # S3 API round-trips, auth, multipart, quotas, resilience, cookie auth, health
 └── ObjeX.Web/           # Razor class library: components, pages, dialogs, layout — no host, no wwwroot
-    ├── Helpers/         # FileHelper, AppVersion
-    └── Components/
+    ├── Helpers/         # FileHelper, AppVersion, S3ClientSnippets
+    └── Components/      # Routes, RedirectToLogin, S3ConnectSnippets
         ├── Pages/       # Dashboard, Buckets, Objects, Settings, Login, NotFound, Users, ChangePassword, AuditLog, Error, Profile
-        ├── Dialogs/     # CreateBucketDialog, UploadObjectDialog, CreateS3CredentialDialog, ShowS3CredentialDialog, CreateFolderDialog, CreateUserDialog, ShowUserPasswordDialog, ChangeOwnerDialog, FilePreviewDialog, FileMetadataDialog, PresignedUrlDialog
+        ├── Dialogs/     # CreateBucketDialog, UploadObjectDialog, CreateS3CredentialDialog, ShowS3CredentialDialog, CreateFolderDialog, CreateUserDialog, ShowUserPasswordDialog, ChangeOwnerDialog, FilePreviewDialog, FileMetadataDialog, PresignedUrlDialog, S3ConnectDialog
         └── Layout/      # MainLayout, NavMenu, EmptyLayout
 ```
 
@@ -447,7 +447,7 @@ GET    /hangfire          → Hangfire dashboard (Admin role only)
 # Auth: SigV4AuthMiddleware runs before UseAuthorization, sets context.User on valid signature
 GET    /                        → list all buckets (S3 ListAllMyBuckets XML)
 HEAD   /{bucket}                → bucket exists check (200/404)
-GET    /{bucket}?location       → GetBucketLocation (hardcoded us-east-1)
+GET    /{bucket}?location       → GetBucketLocation (S3Conventions.Region, us-east-1)
 GET    /{bucket}?uploads        → ListMultipartUploads XML
 GET    /{bucket}?versioning|lifecycle|policy|cors|encryption|tagging|acl → 501 NotImplemented
 PUT    /{bucket}                → create bucket (S3 XML response)

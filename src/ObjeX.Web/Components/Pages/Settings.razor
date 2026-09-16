@@ -1,9 +1,13 @@
 @page "/settings"
 @using Microsoft.EntityFrameworkCore
 @using ObjeX.Core.Models
+@using ObjeX.Core.Utilities
 @using ObjeX.Infrastructure.Data
 @using ObjeX.Web.Components.Dialogs
+@using Microsoft.Extensions.Options
+@using ObjeX.Infrastructure.Options
 @inject ThemeService ThemeService
+@inject IOptions<S3Options> S3
 @inject IJSRuntime JS
 @inject IDbContextFactory<ObjeXDbContext> DbFactory
 @inject DialogService DialogService
@@ -105,6 +109,35 @@
                               Size="ButtonSize.Small" Click="CreateCredential" />
             </RadzenStack>
 
+            <RadzenStack Orientation="Orientation.Horizontal" Wrap="FlexWrap.Wrap"
+                         AlignItems="AlignItems.Center" Gap="1.5rem">
+                <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
+                    <RadzenText TextStyle="TextStyle.Caption" Style="color:var(--rz-text-secondary-color); margin:0">Endpoint</RadzenText>
+                    <code style="background:var(--rz-base-100); border-radius:var(--rz-border-radius); padding:0.2rem 0.5rem; font-size:0.8rem">@Endpoint</code>
+                    <RadzenButton Icon="@(_copied == "Endpoint" ? "check" : "content_copy")" Variant="Variant.Text"
+                                  ButtonStyle="ButtonStyle.Light" Size="ButtonSize.ExtraSmall"
+                                  Click="@(() => Copy("Endpoint", Endpoint))" />
+                </RadzenStack>
+                <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
+                    <RadzenText TextStyle="TextStyle.Caption" Style="color:var(--rz-text-secondary-color); margin:0">Region</RadzenText>
+                    <code style="background:var(--rz-base-100); border-radius:var(--rz-border-radius); padding:0.2rem 0.5rem; font-size:0.8rem">@S3Conventions.Region</code>
+                    <RadzenButton Icon="@(_copied == "Region" ? "check" : "content_copy")" Variant="Variant.Text"
+                                  ButtonStyle="ButtonStyle.Light" Size="ButtonSize.ExtraSmall"
+                                  Click="@(() => Copy("Region", S3Conventions.Region))" />
+                </RadzenStack>
+                <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
+                    <RadzenText TextStyle="TextStyle.Caption" Style="color:var(--rz-text-secondary-color); margin:0">Addressing</RadzenText>
+                    <code style="background:var(--rz-base-100); border-radius:var(--rz-border-radius); padding:0.2rem 0.5rem; font-size:0.8rem">@S3Conventions.AddressingStyle</code>
+                </RadzenStack>
+            </RadzenStack>
+
+            @if (IsDefaultEndpoint)
+            {
+                <RadzenText TextStyle="TextStyle.Caption" Style="color:var(--rz-text-secondary-color); margin:0">
+                    Local endpoint. Clients on other machines need the public URL, set via <code>S3:PublicUrl</code>.
+                </RadzenText>
+            }
+
             @if (_credentials.Count == 0)
             {
                 <RadzenText Style="color:var(--rz-text-secondary-color)">No S3 credentials yet. Create one to access your buckets via the S3 API.</RadzenText>
@@ -130,8 +163,10 @@
                                 @(cred.LastUsedAt.HasValue ? cred.LastUsedAt.Value.ToLocalTime().ToString("yyyy-MM-dd HH:mm") : "Never")
                             </Template>
                         </RadzenDataGridColumn>
-                        <RadzenDataGridColumn TItem="S3Credential" Title="" Width="60px" TextAlign="TextAlign.Right">
+                        <RadzenDataGridColumn TItem="S3Credential" Title="" Width="100px" TextAlign="TextAlign.Right">
                             <Template Context="cred">
+                                <RadzenButton Icon="terminal" Variant="Variant.Text" ButtonStyle="ButtonStyle.Light"
+                                              Size="ButtonSize.Small" Click="@(() => ShowConnect(cred))" />
                                 <RadzenButton Icon="delete" Variant="Variant.Text" ButtonStyle="ButtonStyle.Danger"
                                               Size="ButtonSize.Small" Click="@(() => DeleteCredential(cred))" />
                             </Template>
@@ -155,6 +190,20 @@
     bool _isManager;
     string _userId = string.Empty;
     List<S3Credential> _credentials = [];
+    string? _copied;
+
+    string Endpoint => S3.Value.PublicUrl.TrimEnd('/');
+    bool IsDefaultEndpoint => Endpoint == new S3Options().PublicUrl.TrimEnd('/');
+
+    async Task Copy(string label, string value)
+    {
+        await JS.InvokeVoidAsync("navigator.clipboard.writeText", value);
+        _copied = label;
+        StateHasChanged();
+        await Task.Delay(2000);
+        if (_copied == label) _copied = null;
+        StateHasChanged();
+    }
 
     // Quota config (admin)
     int _quotaValue;
@@ -322,6 +371,17 @@
             .ToListAsync();
     }
 
+    async Task ShowConnect(S3Credential cred)
+    {
+        await DialogService.OpenAsync<S3ConnectDialog>($"Connect · {cred.Name}",
+            new Dictionary<string, object?>
+            {
+                { "AccessKeyId", cred.AccessKeyId },
+                { "Endpoint", Endpoint }
+            },
+            new DialogOptions { CloseDialogOnOverlayClick = true, ShowClose = true, Width = "640px" });
+    }
+
     async Task CreateCredential()
     {
         var result = await DialogService.OpenAsync<CreateS3CredentialDialog>("New S3 Credential",
@@ -341,9 +401,10 @@
             new Dictionary<string, object?>
             {
                 { "AccessKeyId", credential.AccessKeyId },
-                { "SecretAccessKey", secret }
+                { "SecretAccessKey", secret },
+                { "Endpoint", Endpoint }
             },
-            options: new DialogOptions { CloseDialogOnOverlayClick = false, ShowClose = false });
+            options: new DialogOptions { CloseDialogOnOverlayClick = false, ShowClose = false, Width = "640px" });
     }
 
     async Task DeleteCredential(S3Credential cred)

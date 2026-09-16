@@ -1,0 +1,19 @@
+@inject DialogService DialogService
+
+<RadzenStack Gap="1rem" Style="padding:1rem" @onkeydown="OnKeyDown" tabindex="-1">
+    <S3ConnectSnippets Endpoint="@Endpoint" AccessKeyId="@AccessKeyId" />
+
+    <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.End">
+        <RadzenButton Text="Done" ButtonStyle="ButtonStyle.Primary" Click="@(() => DialogService.Close(null))" />
+    </RadzenStack>
+</RadzenStack>
+
+@code {
+    [Parameter] public string AccessKeyId { get; set; } = string.Empty;
+    [Parameter] public string Endpoint { get; set; } = string.Empty;
+
+    void OnKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Escape") DialogService.Close(null);
+    }
+}
