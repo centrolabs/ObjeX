@@ -423,9 +423,7 @@
         try
         {
             var result = await MetadataService.ListObjectsAsync(BucketName, prefix: folderPath, delimiter: null);
-            var all = result.Objects.ToList();
-            foreach (var obj in all)
-                await DeleteObjectAsync(obj.Key);
+            await DeleteObjectsAsync(result.Objects.Select(o => o.Key).ToList());
             await LoadObjects();
             NotificationService.Notify(NotificationSeverity.Success, "Folder deleted", folderPath.TrimEnd('/'));
         }
@@ -467,23 +465,24 @@
         if (confirmed != true) return;
 
         var errors = new List<string>();
-        foreach (var row in _selected.ToList())
+        try
         {
-            try
+            var keys = new List<string>();
+            foreach (var row in _selected.ToList())
             {
                 if (row.IsFolder)
                 {
                     var result = await MetadataService.ListObjectsAsync(BucketName, prefix: row.FolderPath!, delimiter: null);
-                    foreach (var obj in result.Objects)
-                        await DeleteObjectAsync(obj.Key);
+                    keys.AddRange(result.Objects.Select(o => o.Key));
                 }
                 else
                 {
-                    await DeleteObjectAsync(row.Object!.Key);
+                    keys.Add(row.Object!.Key);
                 }
             }
-            catch (Exception ex) { errors.Add(ex.Message); }
+            await DeleteObjectsAsync(keys);
         }
+        catch (Exception ex) { errors.Add(ex.Message); }
 
         _selected.Clear();
         await LoadObjects();
@@ -541,6 +540,20 @@
     async Task DeleteObjectAsync(string key)
     {
         await MetadataService.DeleteObjectAsync(BucketName, key, _currentUserId);
+        await DeleteBlobAsync(key);
+    }
+
+    // The rows go in one transaction and one stats update; the blobs stay per file.
+    async Task DeleteObjectsAsync(IReadOnlyCollection<string> keys)
+    {
+        if (keys.Count == 0) return;
+        await MetadataService.DeleteObjectsAsync(BucketName, keys, _currentUserId);
+        foreach (var key in keys)
+            await DeleteBlobAsync(key);
+    }
+
+    async Task DeleteBlobAsync(string key)
+    {
         try
         {
             await StorageService.DeleteAsync(BucketName, key);

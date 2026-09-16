@@ -1,5 +1,7 @@
 using System.Net;
 using System.Text;
+using Microsoft.Extensions.DependencyInjection;
+using ObjeX.Core.Interfaces;
 
 namespace ObjeX.Tests.Integration;
 
@@ -7,12 +9,20 @@ public class S3BatchDeleteTests(ObjeXFactory factory) : IClassFixture<ObjeXFacto
 {
     private readonly HttpClient _client = factory.CreateS3Client();
 
+    private async Task<(long Count, long Size)> StatsAsync(string bucket)
+    {
+        using var scope = factory.CreateScope();
+        var entity = await scope.ServiceProvider.GetRequiredService<IMetadataService>().GetBucketAsync(bucket);
+        return (entity!.ObjectCount, entity.TotalSize);
+    }
+
     [Fact]
     public async Task BatchDelete_MultipleKeys_AllDeleted()
     {
         var bucket = "test-bucket";
         var id = Guid.NewGuid().ToString("N")[..6];
         var keys = new[] { $"batch-{id}-a.txt", $"batch-{id}-b.txt", $"batch-{id}-c.txt" };
+        var statsBefore = await StatsAsync(bucket);
 
         // Upload 3 objects
         foreach (var key in keys)
@@ -51,6 +61,8 @@ public class S3BatchDeleteTests(ObjeXFactory factory) : IClassFixture<ObjeXFacto
             var headResponse = await _client.SendAsync(headRequest);
             Assert.Equal(HttpStatusCode.NotFound, headResponse.StatusCode);
         }
+
+        Assert.Equal(statsBefore, await StatsAsync(bucket));
     }
 
     [Fact]

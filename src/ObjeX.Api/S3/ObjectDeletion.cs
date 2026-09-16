@@ -8,6 +8,20 @@ public static class ObjectDeletion
     public static async Task DeleteAsync(HttpContext ctx, IMetadataService metadata, IObjectStorageService storage, string bucket, string key, string? auditUserId)
     {
         await metadata.DeleteObjectAsync(bucket, key, auditUserId, ctx.RequestAborted);
+        await DeleteBlobAsync(ctx, storage, bucket, key);
+    }
+
+    /// <summary>Same order as <see cref="DeleteAsync"/>, but the rows go in one transaction and one stats update; the blobs stay per file.</summary>
+    public static async Task<int> DeleteManyAsync(HttpContext ctx, IMetadataService metadata, IObjectStorageService storage, string bucket, IReadOnlyCollection<string> keys, string? auditUserId)
+    {
+        var deleted = await metadata.DeleteObjectsAsync(bucket, keys, auditUserId, ctx.RequestAborted);
+        foreach (var key in keys)
+            await DeleteBlobAsync(ctx, storage, bucket, key);
+        return deleted;
+    }
+
+    private static async Task DeleteBlobAsync(HttpContext ctx, IObjectStorageService storage, string bucket, string key)
+    {
         try
         {
             await storage.DeleteAsync(bucket, key, ctx.RequestAborted);

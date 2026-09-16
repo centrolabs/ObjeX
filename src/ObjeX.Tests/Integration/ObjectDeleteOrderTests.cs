@@ -131,6 +131,9 @@ public class ObjectDeleteOrderTests(ObjectDeleteOrderTests.Factory factory) : IC
         public Task DeleteObjectAsync(string bucketName, string key, string? auditUserId = null, CancellationToken ctk = default)
             => failDelete() ? throw new InvalidOperationException("simulated metadata failure") : inner.DeleteObjectAsync(bucketName, key, auditUserId, ctk);
 
+        public Task<int> DeleteObjectsAsync(string bucketName, IEnumerable<string> keys, string? auditUserId = null, CancellationToken ctk = default)
+            => failDelete() ? throw new InvalidOperationException("simulated metadata failure") : inner.DeleteObjectsAsync(bucketName, keys, auditUserId, ctk);
+
         public Task<Bucket> CreateBucketAsync(Bucket bucket, string? auditUserId = null, CancellationToken ctk = default) => inner.CreateBucketAsync(bucket, auditUserId, ctk);
         public Task<Bucket?> GetBucketAsync(string bucketName, string? ownerFilter = null, CancellationToken ctk = default) => inner.GetBucketAsync(bucketName, ownerFilter, ctk);
         public Task<IEnumerable<Bucket>> ListBucketsAsync(string? ownerFilter = null, CancellationToken ctk = default) => inner.ListBucketsAsync(ownerFilter, ctk);

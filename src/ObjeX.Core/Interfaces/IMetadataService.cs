@@ -19,8 +19,11 @@ public interface IMetadataService
     Task<ListObjectsResult> ListObjectsAsync(string bucketName, string? prefix = null, string? delimiter = null, CancellationToken ctk = default);
     Task<IEnumerable<BlobObject>> ListAllObjectsAsync(CancellationToken ctk = default);
     Task DeleteObjectAsync(string bucketName, string key, string? auditUserId = null, CancellationToken ctk = default);
+    /// <summary>Deletes the given keys in one transaction and returns how many rows existed; unknown keys are ignored, as in S3.</summary>
+    Task<int> DeleteObjectsAsync(string bucketName, IEnumerable<string> keys, string? auditUserId = null, CancellationToken ctk = default);
     Task<bool> ExistsObjectAsync(string bucketName, string key, CancellationToken ctk = default);
 
+    /// <summary>Full recount for repair; writes adjust ObjectCount and TotalSize by the delta of the changed object.</summary>
     Task UpdateBucketStatsAsync(string bucketName, CancellationToken ctk = default);
 
     Task<IEnumerable<ContentTypeStats>> GetContentTypeStatsAsync(IEnumerable<string>? bucketNames = null, CancellationToken ctk = default);

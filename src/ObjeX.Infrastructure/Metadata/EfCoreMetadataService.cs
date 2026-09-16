@@ -67,6 +67,8 @@ public class EfCoreMetadataService(ObjeXDbContext ctx) : IMetadataService
     public async Task<BlobObject> SaveObjectAsync(BlobObject blobObject, string? auditUserId = null, CancellationToken ctk = default)
     {
         var existing = await GetObjectAsync(blobObject.BucketName, blobObject.Key, ctk);
+        var sizeDelta = blobObject.Size - (existing?.Size ?? 0);
+        var countDelta = existing is null ? 1 : 0;
         if (existing is not null)
         {
             existing.Size = blobObject.Size;
@@ -83,8 +85,11 @@ public class EfCoreMetadataService(ObjeXDbContext ctx) : IMetadataService
         }
         if (auditUserId is not null)
             ctx.AuditEntries.Add(new AuditEntry { UserId = auditUserId, Action = "PutObject", BucketName = blobObject.BucketName, Key = blobObject.Key, Details = $"Size: {FormatBytes(blobObject.Size)}, Type: {blobObject.ContentType}" });
+
+        await using var tx = await ctx.Database.BeginTransactionAsync(ctk);
         await ctx.SaveChangesAsync(ctk);
-        await UpdateBucketStatsAsync(blobObject.BucketName, ctk);
+        await AdjustBucketStatsAsync(blobObject.BucketName, countDelta, sizeDelta, ctk);
+        await tx.CommitAsync(ctk);
 
         return blobObject;
     }
@@ -142,9 +147,35 @@ public class EfCoreMetadataService(ObjeXDbContext ctx) : IMetadataService
             ctx.BlobObjects.Remove(obj);
             if (auditUserId is not null)
                 ctx.AuditEntries.Add(new AuditEntry { UserId = auditUserId, Action = "DeleteObject", BucketName = bucketName, Key = key });
+
+            await using var tx = await ctx.Database.BeginTransactionAsync(ctk);
             await ctx.SaveChangesAsync(ctk);
-            await UpdateBucketStatsAsync(bucketName, ctk);
+            await AdjustBucketStatsAsync(bucketName, -1, -obj.Size, ctk);
+            await tx.CommitAsync(ctk);
         }
+    }
+
+    public async Task<int> DeleteObjectsAsync(string bucketName, IEnumerable<string> keys, string? auditUserId = null, CancellationToken ctk = default)
+    {
+        var keyList = keys.Distinct().ToList();
+        if (keyList.Count == 0) return 0;
+
+        var objects = await ctx.BlobObjects
+            .Where(o => o.BucketName == bucketName && keyList.Contains(o.Key))
+            .ToListAsync(ctk);
+        if (objects.Count == 0) return 0;
+
+        ctx.BlobObjects.RemoveRange(objects);
+        if (auditUserId is not null)
+            foreach (var obj in objects)
+                ctx.AuditEntries.Add(new AuditEntry { UserId = auditUserId, Action = "DeleteObject", BucketName = bucketName, Key = obj.Key });
+
+        await using var tx = await ctx.Database.BeginTransactionAsync(ctk);
+        await ctx.SaveChangesAsync(ctk);
+        await AdjustBucketStatsAsync(bucketName, -objects.Count, -objects.Sum(o => o.Size), ctk);
+        await tx.CommitAsync(ctk);
+
+        return objects.Count;
     }
 
     public async Task<bool> ExistsObjectAsync(string bucketName, string key, CancellationToken ctk = default)
@@ -152,6 +183,15 @@ public class EfCoreMetadataService(ObjeXDbContext ctx) : IMetadataService
         return await ctx.BlobObjects
             .AnyAsync(o => o.BucketName == bucketName && o.Key == key, ctk);
     }
+
+    /// <summary>Set-based so two writers on the same bucket cannot lose each other's delta.</summary>
+    private Task AdjustBucketStatsAsync(string bucketName, long countDelta, long sizeDelta, CancellationToken ctk) =>
+        ctx.Buckets
+            .Where(b => b.Name == bucketName)
+            .ExecuteUpdateAsync(s => s
+                .SetProperty(b => b.ObjectCount, b => b.ObjectCount + countDelta)
+                .SetProperty(b => b.TotalSize, b => b.TotalSize + sizeDelta)
+                .SetProperty(b => b.UpdatedAt, DateTime.UtcNow), ctk);
 
     public async Task UpdateBucketStatsAsync(string bucketName, CancellationToken ctk = default)
     {

@@ -174,18 +174,15 @@ public static class S3PostObjectEndpoint
         var deleted = new List<string>();
         var errors = new List<(string Key, string Code, string Message)>();
 
-        foreach (var key in keys)
+        // The rows go in one transaction, so a failure is reported for every key of the batch.
+        try
         {
-            try
-            {
-                if (await metadata.ExistsObjectAsync(bucket, key))
-                    await ObjectDeletion.DeleteAsync(ctx, metadata, storage, bucket, key, GetCallerId(ctx));
-                deleted.Add(key);
-            }
-            catch (Exception ex)
-            {
-                errors.Add((key, S3Errors.InternalError, ex.Message));
-            }
+            await ObjectDeletion.DeleteManyAsync(ctx, metadata, storage, bucket, keys, GetCallerId(ctx));
+            deleted.AddRange(keys);
+        }
+        catch (Exception ex)
+        {
+            errors.AddRange(keys.Select(key => (key, S3Errors.InternalError, ex.Message)));
         }
 
         return S3Xml.DeleteResult(deleted, errors);
