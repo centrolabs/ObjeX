@@ -53,13 +53,15 @@ public class MetricsEndpointTests(MetricsEndpointTests.OpenFactory open, Metrics
         Assert.Equal(HttpStatusCode.Unauthorized, (await client.GetAsync(path)).StatusCode);
     }
 
-    [Fact]
-    public async Task WithToken_CorrectBearer_IsServed()
+    [Theory]
+    [InlineData("/metrics")]
+    [InlineData("/metrics/")]
+    public async Task WithToken_CorrectBearer_IsServed(string path)
     {
         var client = token.CreateClient();
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", "scrape-secret");
 
-        var response = await client.GetAsync("/metrics");
+        var response = await client.GetAsync(path);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Contains("objex_storage_bytes", await response.Content.ReadAsStringAsync());
