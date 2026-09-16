@@ -136,6 +136,7 @@ No config required for local dev. Defaults (from `appsettings.json`):
 | S3 API port | `9000` — set `Server:S3Port`; S3-compatible endpoints, AWS Signature V4 required |
 | Reverse proxy | off — set `ReverseProxy:Enabled=true` plus `ReverseProxy:KnownProxies` / `ReverseProxy:KnownNetworks` to trust `X-Forwarded-For` / `X-Forwarded-Proto` |
 | Login lockout | `5` failed attempts lock the account for `5` minutes — set `Auth:Lockout:MaxFailedAttempts` / `Auth:Lockout:DurationMinutes` |
+| Stay signed in | `30` days for logins that tick the box — set `Auth:RememberMeDays`; without the box the cookie dies with the browser |
 | S3 public URL | `http://localhost:9000` — set `S3:PublicUrl` for production |
 | Database provider | `sqlite` — set `Database:Provider=postgresql` for Postgres |
 | Database | `./data/db/objex.db` (SQLite default); set `ConnectionStrings:DefaultConnection` for Postgres |

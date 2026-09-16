@@ -31,6 +31,11 @@
                                name="password" autocomplete="current-password" />
                     </RadzenStack>
 
+                    <label style="display:flex; align-items:center; gap:0.5rem; font-size:0.875rem; cursor:pointer">
+                        <input type="checkbox" name="rememberMe" value="true" checked="@(Remember == "1")" />
+                        Stay signed in
+                    </label>
+
                     <button type="submit" class="rz-button rz-button-md rz-primary" style="width:100%">
                         Sign in
                     </button>
@@ -46,6 +51,7 @@
     [SupplyParameterFromQuery] public string? Error { get; set; }
     [SupplyParameterFromQuery] public string? Msg { get; set; }
     [SupplyParameterFromQuery(Name = "login")] public string? LoginValue { get; set; }
+    [SupplyParameterFromQuery(Name = "remember")] public string? Remember { get; set; }
 
     protected override async Task OnInitializedAsync()
     {

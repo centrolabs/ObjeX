@@ -19,6 +19,7 @@ public static class ServiceCollectionExtensions
     /// <summary>Options resolved per request via IOptions; Program.cs binds the rest eagerly for host setup.</summary>
     public static IServiceCollection AddObjeXOptions(this IServiceCollection services, IConfiguration configuration)
     {
+        services.Configure<AuthOptions>(configuration.GetSection(AuthOptions.SectionName));
         services.Configure<StorageOptions>(configuration.GetSection(StorageOptions.SectionName));
         services.Configure<S3Options>(configuration.GetSection(S3Options.SectionName));
         services.Configure<DefaultAdminOptions>(configuration.GetSection(DefaultAdminOptions.SectionName));

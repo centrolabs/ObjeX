@@ -11,6 +11,9 @@ public sealed class AuthOptions
 
     public LockoutSettings Lockout { get; set; } = new();
 
+    /// <summary>Cookie lifetime for logins that ticked "Stay signed in".</summary>
+    public int RememberMeDays { get; set; } = 30;
+
     public sealed class LockoutSettings
     {
         /// <summary>Failed attempts that lock the account.</summary>
@@ -26,5 +29,7 @@ public sealed class AuthOptions
             throw new InvalidOperationException($"Auth:Lockout:MaxFailedAttempts must be at least 1 (got {Lockout.MaxFailedAttempts}).");
         if (Lockout.DurationMinutes < 1)
             throw new InvalidOperationException($"Auth:Lockout:DurationMinutes must be at least 1 (got {Lockout.DurationMinutes}).");
+        if (RememberMeDays < 1)
+            throw new InvalidOperationException($"Auth:RememberMeDays must be at least 1 (got {RememberMeDays}).");
     }
 }

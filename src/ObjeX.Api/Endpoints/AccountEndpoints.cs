@@ -1,4 +1,7 @@
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.Extensions.Options;
+using ObjeX.Api.Options;
 using ObjeX.Core.Models;
 
 namespace ObjeX.Api.Endpoints;
@@ -7,18 +10,20 @@ public static class AccountEndpoints
 {
     public static void MapAccountEndpoints(this WebApplication app)
     {
-        app.MapPost("/account/login", async (HttpContext ctx, SignInManager<User> signInManager, ILogger<User> logger) =>
+        app.MapPost("/account/login", async (HttpContext ctx, SignInManager<User> signInManager, IOptions<AuthOptions> auth, ILogger<User> logger) =>
         {
             var form = await ctx.Request.ReadFormAsync();
             var login = form["login"].ToString();
             var password = form["password"].ToString();
             var returnUrl = form["returnUrl"].ToString();
+            var rememberMe = form["rememberMe"].Count > 0;
             var ip = ctx.Connection.RemoteIpAddress?.ToString() ?? "unknown";
             var sanitizedLogin = login.Replace("\r", "").Replace("\n", "");
 
             string LoginRedirect(string? message)
             {
                 var qs = $"error=1&login={Uri.EscapeDataString(login)}";
+                if (rememberMe) qs += "&remember=1";
                 if (message is not null) qs += $"&msg={Uri.EscapeDataString(message)}";
                 if (!string.IsNullOrEmpty(returnUrl)) qs += $"&returnUrl={Uri.EscapeDataString(returnUrl)}";
                 return $"/login?{qs}";
@@ -31,7 +36,9 @@ public static class AccountEndpoints
             if (user is not null)
             {
                 // lockoutOnFailure: failed attempts count against the account (Auth:Lockout in config).
-                var result = await signInManager.PasswordSignInAsync(user, password, isPersistent: true, lockoutOnFailure: true);
+                // Password is checked without signing in, so the cookie is only issued once the
+                // account checks below pass and the "Stay signed in" lifetime is known.
+                var result = await signInManager.CheckPasswordSignInAsync(user, password, lockoutOnFailure: true);
 
                 if (result.IsLockedOut)
                 {
@@ -47,20 +54,24 @@ public static class AccountEndpoints
                 if (result.Succeeded)
                 {
                     if (user.IsDeactivated)
-                    {
-                        await signInManager.SignOutAsync();
                         return Results.Redirect(LoginRedirect("Your account has been deactivated."));
-                    }
+
+                    if (user.MustChangePassword
+                        && user.TemporaryPasswordExpiresAt.HasValue
+                        && user.TemporaryPasswordExpiresAt.Value < DateTime.UtcNow)
+                        return Results.Redirect(LoginRedirect("Temporary password expired, contact your administrator."));
+
+                    // Sliding expiration renews a ticket with its own lifetime (ExpiresUtc - IssuedUtc),
+                    // so this date keeps renewing at Auth:RememberMeDays; without it the cookie stays
+                    // a session cookie on the handler's 60 minutes.
+                    await signInManager.SignInAsync(user, new AuthenticationProperties
+                    {
+                        IsPersistent = rememberMe,
+                        ExpiresUtc = rememberMe ? DateTimeOffset.UtcNow.AddDays(auth.Value.RememberMeDays) : null
+                    });
 
                     if (user.MustChangePassword)
-                    {
-                        if (user.TemporaryPasswordExpiresAt.HasValue && user.TemporaryPasswordExpiresAt.Value < DateTime.UtcNow)
-                        {
-                            await signInManager.SignOutAsync();
-                            return Results.Redirect(LoginRedirect("Temporary password expired, contact your administrator."));
-                        }
                         return Results.Redirect("/change-password");
-                    }
 
                     var safeUrl = !string.IsNullOrEmpty(returnUrl) && returnUrl.StartsWith('/') && !returnUrl.StartsWith("//") && !returnUrl.StartsWith("/\\")
                         ? returnUrl : "/";
