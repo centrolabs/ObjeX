@@ -1,6 +1,10 @@
 using System.Net;
 using System.Text;
 
+using Microsoft.Extensions.DependencyInjection;
+
+using ObjeX.Infrastructure.Jobs;
+
 namespace ObjeX.Tests.Integration;
 
 public class S3MultipartTests(ObjeXFactory factory) : IClassFixture<ObjeXFactory>
@@ -123,6 +127,74 @@ public class S3MultipartTests(ObjeXFactory factory) : IClassFixture<ObjeXFactory
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var xml = await response.Content.ReadAsStringAsync();
         Assert.Contains("ListMultipartUploadsResult", xml);
+    }
+
+    [Fact]
+    public async Task IntegrityCheck_MultipartObject_IsServedAndSkippedByTheJob()
+    {
+        var bucket = "test-bucket";
+        var key = "multipart-integrity.bin";
+        var (finalETag, content) = await UploadTwoPartObjectAsync(bucket, key);
+        Assert.EndsWith("-2", finalETag);
+
+        // The stored ETag hashes the part MD5s, so re-hashing the blob must not turn into a 500.
+        var getRequest = new HttpRequestMessage(HttpMethod.Get, $"/{bucket}/{key}");
+        getRequest.Headers.TryAddWithoutValidation("x-objex-verify-integrity", "true");
+        S3RequestSigner.SignRequest(getRequest, factory.AccessKeyId, factory.SecretAccessKey);
+        var getResponse = await _client.SendAsync(getRequest);
+
+        Assert.Equal(HttpStatusCode.OK, getResponse.StatusCode);
+        Assert.Equal(finalETag, getResponse.Headers.ETag?.Tag.Trim('"'));
+        Assert.Equal(content, await getResponse.Content.ReadAsByteArrayAsync());
+
+        using var scope = factory.CreateScope();
+        var result = await scope.ServiceProvider.GetRequiredService<VerifyBlobIntegrityJob>().ExecuteAsync();
+        Assert.True(result.Skipped >= 1, "the multipart object must be counted as skipped, not hashed");
+        Assert.Equal(0, result.Corrupted);
+    }
+
+    /// <summary>Two parts, the first at the 5MB minimum for non-last parts; returns the multipart ETag and the assembled bytes.</summary>
+    private async Task<(string ETag, byte[] Content)> UploadTwoPartObjectAsync(string bucket, string key)
+    {
+        var part1 = new byte[5 * 1024 * 1024];
+        Random.Shared.NextBytes(part1);
+        var part2 = "second-part"u8.ToArray();
+
+        var initRequest = new HttpRequestMessage(HttpMethod.Post, $"/{bucket}/{key}?uploads");
+        S3RequestSigner.SignRequest(initRequest, factory.AccessKeyId, factory.SecretAccessKey);
+        var uploadId = ExtractXmlValue(await (await _client.SendAsync(initRequest)).Content.ReadAsStringAsync(), "UploadId");
+
+        var etags = new List<string>();
+        foreach (var (partNumber, part) in new[] { (1, part1), (2, part2) })
+        {
+            var put = new HttpRequestMessage(HttpMethod.Put, $"/{bucket}/{key}?partNumber={partNumber}&uploadId={uploadId}")
+            {
+                Content = new ByteArrayContent(part)
+            };
+            S3RequestSigner.SignRequest(put, factory.AccessKeyId, factory.SecretAccessKey, part);
+            var response = await _client.SendAsync(put);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            etags.Add(response.Headers.ETag!.Tag.Trim('"'));
+        }
+
+        var completeXml = $"""
+            <CompleteMultipartUpload>
+              <Part><PartNumber>1</PartNumber><ETag>"{etags[0]}"</ETag></Part>
+              <Part><PartNumber>2</PartNumber><ETag>"{etags[1]}"</ETag></Part>
+            </CompleteMultipartUpload>
+            """;
+        var completeBody = Encoding.UTF8.GetBytes(completeXml);
+        var completeRequest = new HttpRequestMessage(HttpMethod.Post, $"/{bucket}/{key}?uploadId={uploadId}")
+        {
+            Content = new ByteArrayContent(completeBody)
+        };
+        completeRequest.Content.Headers.ContentType = new("application/xml");
+        S3RequestSigner.SignRequest(completeRequest, factory.AccessKeyId, factory.SecretAccessKey, completeBody);
+        var completeResponse = await _client.SendAsync(completeRequest);
+        Assert.Equal(HttpStatusCode.OK, completeResponse.StatusCode);
+
+        var finalETag = ExtractXmlValue(await completeResponse.Content.ReadAsStringAsync(), "ETag");
+        return (finalETag, [.. part1, .. part2]);
     }
 
     private static string ExtractXmlValue(string xml, string tag)

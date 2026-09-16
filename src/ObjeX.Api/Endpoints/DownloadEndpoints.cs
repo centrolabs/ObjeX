@@ -30,7 +30,8 @@ public static class DownloadEndpoints
 
             Stream stream = await storage.RetrieveAsync(bucketName, key);
 
-            if (ctx.Request.Headers.ContainsKey("x-objex-verify-integrity"))
+            // Multipart objects are served unverified: their ETag hashes the part MD5s, not the blob.
+            if (ctx.Request.Headers.ContainsKey("x-objex-verify-integrity") && !ETags.IsMultipart(obj.ETag))
             {
                 await using var hashingStream = new HashingStream(stream);
                 var buffer = new MemoryStream();

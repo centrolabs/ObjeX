@@ -252,7 +252,8 @@ public static class S3ObjectEndpoint
 
             // Opt-in integrity verification: re-hash the blob and compare against stored ETag.
             // Buffers the entire file in memory — only use when integrity matters more than speed.
-            if (request.Headers.ContainsKey("x-objex-verify-integrity"))
+            // Multipart objects are served unverified: their ETag hashes the part MD5s, not the blob.
+            if (request.Headers.ContainsKey("x-objex-verify-integrity") && !ETags.IsMultipart(obj.ETag))
             {
                 await using var hashingStream = new HashingStream(stream);
                 var buffer = new MemoryStream();

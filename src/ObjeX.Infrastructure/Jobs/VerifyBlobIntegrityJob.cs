@@ -4,11 +4,12 @@ using System.Security.Cryptography;
 using Microsoft.Extensions.Logging;
 
 using ObjeX.Core.Interfaces;
+using ObjeX.Core.Utilities;
 using ObjeX.Infrastructure.Storage;
 
 namespace ObjeX.Infrastructure.Jobs;
 
-public record IntegrityResult(int Checked, int Corrupted, int Missing, double DurationSeconds, DateTime Timestamp);
+public record IntegrityResult(int Checked, int Corrupted, int Missing, int Skipped, double DurationSeconds, DateTime Timestamp);
 
 public class VerifyBlobIntegrityJob(
     IMetadataService metadataService,
@@ -24,6 +25,7 @@ public class VerifyBlobIntegrityJob(
         var checked_ = 0;
         var corrupted = 0;
         var missing = 0;
+        var skipped = 0;
 
         foreach (var obj in allObjects)
         {
@@ -38,6 +40,13 @@ public class VerifyBlobIntegrityJob(
                 continue;
             }
 
+            // A multipart ETag hashes the part MD5s, so a plain MD5 of the assembled blob can never match it.
+            if (ETags.IsMultipart(obj.ETag))
+            {
+                skipped++;
+                continue;
+            }
+
             checked_++;
             var actualETag = await ComputeMd5Async(path);
             if (!string.Equals(actualETag, obj.ETag, StringComparison.OrdinalIgnoreCase))
@@ -48,14 +57,14 @@ public class VerifyBlobIntegrityJob(
         }
 
         sw.Stop();
-        var result = new IntegrityResult(checked_, corrupted, missing, sw.Elapsed.TotalSeconds, DateTime.UtcNow);
+        var result = new IntegrityResult(checked_, corrupted, missing, skipped, sw.Elapsed.TotalSeconds, DateTime.UtcNow);
 
         if (corrupted > 0 || missing > 0)
-            logger.LogWarning("Blob integrity check finished — checked {Checked}, corrupted {Corrupted}, missing {Missing}, duration {Duration:F2}s",
-                result.Checked, result.Corrupted, result.Missing, result.DurationSeconds);
+            logger.LogWarning("Blob integrity check finished — checked {Checked}, corrupted {Corrupted}, missing {Missing}, skipped {Skipped} multipart, duration {Duration:F2}s",
+                result.Checked, result.Corrupted, result.Missing, result.Skipped, result.DurationSeconds);
         else
-            logger.LogInformation("Blob integrity check finished — all {Checked} blobs verified OK, duration {Duration:F2}s",
-                result.Checked, result.DurationSeconds);
+            logger.LogInformation("Blob integrity check finished — all {Checked} blobs verified OK, skipped {Skipped} multipart, duration {Duration:F2}s",
+                result.Checked, result.Skipped, result.DurationSeconds);
 
         return result;
     }
