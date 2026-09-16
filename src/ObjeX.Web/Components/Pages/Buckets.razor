@@ -20,11 +20,63 @@
 
 <RadzenStack Gap="1rem">
     <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" JustifyContent="JustifyContent.SpaceBetween">
-        <RadzenText TextStyle="TextStyle.H4">Buckets</RadzenText>
-        <RadzenButton Text="Create Bucket" Icon="add" ButtonStyle="ButtonStyle.Primary" Click="@OnCreateBucket" />
+        <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0">
+            <RadzenText TextStyle="TextStyle.H4" Style="margin:0">Buckets</RadzenText>
+            @if (_searchApplied)
+            {
+                <RadzenText TextStyle="TextStyle.Caption" Style="margin:0 0 0 0.75rem;color:var(--rz-text-secondary-color)">
+                    @HeaderCaption
+                </RadzenText>
+            }
+        </RadzenStack>
+        <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
+            @if (_buckets.Count > 0)
+            {
+                <input class="rz-textbox" style="width:220px" type="text" placeholder="Search all buckets" autocomplete="off"
+                       value="@_searchTerm" @oninput="OnSearchInput" @onkeydown="OnSearchKeyDown" />
+                <RadzenButton Icon="close" ButtonStyle="ButtonStyle.Light" Variant="Variant.Text"
+                              Click="@ClearSearch" title="Clear search"
+                              style="@(_searchTerm.Length > 0 ? "" : "display:none")" />
+            }
+            <RadzenButton Text="Create Bucket" Icon="add" ButtonStyle="ButtonStyle.Primary" Click="@OnCreateBucket" />
+        </RadzenStack>
     </RadzenStack>
 
     <div style="overflow-x:auto">
+    @if (_searchApplied)
+    {
+        <RadzenDataGrid Data="@_results" TItem="BlobObject" AllowSorting="true" EmptyText="No matches.">
+            <Columns>
+                <RadzenDataGridColumn TItem="BlobObject" Property="BucketName" Title="Bucket" Width="180px">
+                    <Template Context="obj">
+                        <a href="/buckets/@Uri.EscapeDataString(obj.BucketName)" style="color:var(--rz-primary);text-decoration:none">@obj.BucketName</a>
+                    </Template>
+                </RadzenDataGridColumn>
+                <RadzenDataGridColumn TItem="BlobObject" Property="Key" Title="Key">
+                    <Template Context="obj">
+                        <a href="@FolderUrl(obj)" style="color:var(--rz-primary);text-decoration:none">@obj.Key</a>
+                    </Template>
+                </RadzenDataGridColumn>
+                <RadzenDataGridColumn TItem="BlobObject" Property="Size" Title="Size" Width="120px">
+                    <Template Context="obj">@FileHelper.FormatBytes(obj.Size)</Template>
+                </RadzenDataGridColumn>
+                <RadzenDataGridColumn TItem="BlobObject" Property="UpdatedAt" Title="Modified" Width="160px">
+                    <Template Context="obj">@obj.UpdatedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</Template>
+                </RadzenDataGridColumn>
+                <RadzenDataGridColumn TItem="BlobObject" Title="" Width="60px" Sortable="false">
+                    <Template Context="obj">
+                        <div style="display:flex;align-items:center;justify-content:flex-end">
+                            <a href="@FileHelper.ObjectUrl(obj.BucketName, obj.Key, download: true)" download="@Path.GetFileName(obj.Key)" target="_blank" style="display:flex">
+                                <RadzenButton Icon="download" ButtonStyle="ButtonStyle.Primary" Variant="Variant.Text" />
+                            </a>
+                        </div>
+                    </Template>
+                </RadzenDataGridColumn>
+            </Columns>
+        </RadzenDataGrid>
+    }
+    else
+    {
     <RadzenDataGrid Data="@_buckets" TItem="Bucket" AllowSorting="true" EmptyText="No buckets yet.">
         <Columns>
             <RadzenDataGridColumn TItem="Bucket" Property="Name" Title="Name">
@@ -67,15 +119,40 @@
             </RadzenDataGridColumn>
         </Columns>
     </RadzenDataGrid>
+    }
     </div>
 </RadzenStack>
 
 @code {
     List<Bucket> _buckets = [];
+    List<BlobObject> _results = [];
     string _currentUserId = string.Empty;
     bool _isPrivileged;
     bool _isAdmin;
     string _adminUsername = "admin";
+    string _searchTerm = string.Empty;
+    bool _searchApplied;
+    bool _searchLimitHit;
+    CancellationTokenSource _searchCts = new();
+
+    const int SearchLimit = 500;
+    const int SearchDebounceMs = 300;
+
+    string HeaderCaption =>
+        _searchLimitHit
+            ? $"{_results.Count:N0} results · first {SearchLimit} shown"
+            : $"{_results.Count:N0} results";
+
+    /// <summary>Keys may contain URL syntax, so each segment is encoded while the slashes stay readable.</summary>
+    static string FolderUrl(BlobObject obj)
+    {
+        var url = $"/buckets/{Uri.EscapeDataString(obj.BucketName)}";
+        var cut = obj.Key.LastIndexOf('/');
+        if (cut < 0) return url;
+
+        var folder = obj.Key[..(cut + 1)];
+        return $"{url}?prefix={string.Join("/", folder.Split('/').Select(Uri.EscapeDataString))}";
+    }
 
     protected override async Task OnInitializedAsync()
     {
@@ -91,6 +168,63 @@
     {
         var result = await MetadataService.ListBucketsAsync(_isPrivileged ? null : _currentUserId);
         _buckets = result.ToList();
+
+        // The search box is gone once the last bucket is deleted, so a term left over would be unclearable.
+        if (_buckets.Count == 0)
+            ClearSearch();
+    }
+
+    async Task RunSearch(CancellationToken ctk)
+    {
+        // One row over the limit tells the caption whether the result set was cut off.
+        var hits = await MetadataService.SearchAllObjectsAsync(_isPrivileged ? null : _currentUserId, _searchTerm, SearchLimit + 1, ctk);
+        _searchLimitHit = hits.Count > SearchLimit;
+        _results = hits.Take(SearchLimit).ToList();
+        _searchApplied = true;
+    }
+
+    async Task OnSearchInput(ChangeEventArgs e)
+    {
+        _searchTerm = e.Value?.ToString() ?? string.Empty;
+        // Blazor serialises handlers on its dispatcher, so replacing the source cannot race with the awaiting keystroke.
+        _searchCts.Cancel();
+        _searchCts = new CancellationTokenSource();
+        var ctk = _searchCts.Token;
+
+        if (string.IsNullOrWhiteSpace(_searchTerm))
+        {
+            ShowBucketGrid();
+            return;
+        }
+
+        try
+        {
+            await Task.Delay(SearchDebounceMs, ctk);
+            await RunSearch(ctk);
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (OperationCanceledException) { }
+    }
+
+    void OnSearchKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Escape") ClearSearch();
+    }
+
+    void ClearSearch()
+    {
+        _searchTerm = string.Empty;
+        ShowBucketGrid();
+    }
+
+    // Cancels the pending debounce too, so a stale keystroke cannot re-apply the search afterwards.
+    void ShowBucketGrid()
+    {
+        _searchCts.Cancel();
+        _searchCts = new CancellationTokenSource();
+        _searchApplied = false;
+        _searchLimitHit = false;
+        _results = [];
     }
 
     async Task OnCreateBucket()

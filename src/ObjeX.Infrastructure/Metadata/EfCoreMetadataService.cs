@@ -144,12 +144,34 @@ public class EfCoreMetadataService(ObjeXDbContext ctx) : IMetadataService
         return await OrderByKey(query).Take(limit).ToListAsync(ctk);
     }
 
+    public async Task<IReadOnlyList<BlobObject>> SearchAllObjectsAsync(string? ownerFilter, string term, int limit, CancellationToken ctk = default)
+    {
+        if (string.IsNullOrWhiteSpace(term)) return [];
+
+        var pattern = SearchPattern.FromTerm(term.ToLowerInvariant());
+        var query = ctx.BlobObjects.AsNoTracking().Where(o => !o.Key.EndsWith("/"));
+        // The navigation joins Bucket, which is where ownership lives.
+        if (ownerFilter is not null)
+            query = query.Where(o => o.Bucket!.OwnerId == ownerFilter);
+
+        query = query.Where(o => EF.Functions.Like(o.Key.ToLower(), pattern, "\\"));
+
+        return await OrderByBucketThenKey(query).Take(limit).ToListAsync(ctk);
+    }
+
     // S3 orders keys by UTF-8 bytes; SQLite's default BINARY collation already does that,
     // PostgreSQL needs COLLATE "C" because a locale collation sorts "a" before "B".
     private IOrderedQueryable<BlobObject> OrderByKey(IQueryable<BlobObject> query) =>
-        ctx.Database.ProviderName == "Npgsql.EntityFrameworkCore.PostgreSQL"
+        IsPostgreSql
             ? query.OrderBy(o => EF.Functions.Collate(o.Key, "C"))
             : query.OrderBy(o => o.Key);
+
+    private IOrderedQueryable<BlobObject> OrderByBucketThenKey(IQueryable<BlobObject> query) =>
+        IsPostgreSql
+            ? query.OrderBy(o => EF.Functions.Collate(o.BucketName, "C")).ThenBy(o => EF.Functions.Collate(o.Key, "C"))
+            : query.OrderBy(o => o.BucketName).ThenBy(o => o.Key);
+
+    private bool IsPostgreSql => ctx.Database.ProviderName == "Npgsql.EntityFrameworkCore.PostgreSQL";
 
     public async Task<IEnumerable<BlobObject>> ListAllObjectsAsync(CancellationToken ctk = default)
     {

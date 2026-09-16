@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using ObjeX.Core.Interfaces;
@@ -13,12 +14,14 @@ namespace ObjeX.Tests.Integration;
 /// </summary>
 public class ObjectSearchTests(ObjeXFactory factory) : IClassFixture<ObjeXFactory>
 {
-    private async Task SeedAsync(string bucket, params string[] keys)
+    private Task SeedAsync(string bucket, params string[] keys) => SeedAsync(bucket, null, keys);
+
+    private async Task SeedAsync(string bucket, string? ownerId, string[] keys)
     {
         using var scope = factory.CreateScope();
         var metadata = scope.ServiceProvider.GetRequiredService<IMetadataService>();
         var db = scope.ServiceProvider.GetRequiredService<ObjeXDbContext>();
-        var ownerId = await db.Users.Select(u => u.Id).FirstAsync();
+        ownerId ??= await db.Users.Select(u => u.Id).FirstAsync();
 
         await metadata.CreateBucketAsync(new Bucket { Name = bucket, OwnerId = ownerId });
         foreach (var key in keys)
@@ -127,5 +130,43 @@ public class ObjectSearchTests(ObjeXFactory factory) : IClassFixture<ObjeXFactor
 
         Assert.Empty(await SearchAsync("search-blank", null, "   "));
         Assert.Empty(await SearchAsync("search-blank", null, ""));
+    }
+
+    private async Task<string> CreateUserAsync(string username)
+    {
+        using var scope = factory.CreateScope();
+        var userManager = scope.ServiceProvider.GetRequiredService<UserManager<User>>();
+        var user = new User { UserName = username, Email = $"{username}@test.local", EmailConfirmed = true };
+        Assert.True((await userManager.CreateAsync(user, "test1234")).Succeeded);
+        return user.Id;
+    }
+
+    private async Task<IReadOnlyList<(string Bucket, string Key)>> SearchAllAsync(string? ownerFilter, string term, int limit = 100)
+    {
+        using var scope = factory.CreateScope();
+        var hits = await scope.ServiceProvider.GetRequiredService<IMetadataService>()
+            .SearchAllObjectsAsync(ownerFilter, term, limit);
+        return hits.Select(o => (o.BucketName, o.Key)).ToList();
+    }
+
+    [Fact]
+    public async Task SearchAll_OwnerFilterRestrictsToTheOwnersBuckets()
+    {
+        var ownerId = await CreateUserAsync("ledger-owner");
+        var otherId = await CreateUserAsync("ledger-other");
+        // Bucket order inverts key order, so the result proves the sort is bucket first.
+        await SeedAsync("zz-ledger", ownerId, ["a-ledger.txt"]);
+        await SeedAsync("aa-ledger", otherId, ["z-ledger.txt"]);
+
+        Assert.Equal([("zz-ledger", "a-ledger.txt")], await SearchAllAsync(ownerId, "ledger"));
+        Assert.Equal([("aa-ledger", "z-ledger.txt"), ("zz-ledger", "a-ledger.txt")], await SearchAllAsync(null, "ledger"));
+    }
+
+    [Fact]
+    public async Task SearchAll_UsesTheSameTermSemanticsAndSkipsPlaceholders()
+    {
+        await SeedAsync("all-semantics", "docs/", "docs/manual-x.pdf", "manual-x.pdfx");
+
+        Assert.Equal([("all-semantics", "docs/manual-x.pdf")], await SearchAllAsync(null, "*manual-x.pdf"));
     }
 }

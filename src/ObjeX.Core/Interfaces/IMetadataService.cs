@@ -23,6 +23,8 @@ public interface IMetadataService
     /// A term without a wildcard matches anywhere, a term with one is anchored at the end.
     /// </summary>
     Task<IReadOnlyList<BlobObject>> SearchObjectsAsync(string bucketName, string? prefix, string term, int limit, CancellationToken ctk = default);
+    /// <summary>Same term semantics across every bucket owned by <paramref name="ownerFilter"/>; null searches all buckets.</summary>
+    Task<IReadOnlyList<BlobObject>> SearchAllObjectsAsync(string? ownerFilter, string term, int limit, CancellationToken ctk = default);
     Task<IEnumerable<BlobObject>> ListAllObjectsAsync(CancellationToken ctk = default);
     Task DeleteObjectAsync(string bucketName, string key, string? auditUserId = null, CancellationToken ctk = default);
     /// <summary>Deletes the given keys in one transaction and returns how many rows existed; unknown keys are ignored, as in S3.</summary>
