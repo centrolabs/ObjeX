@@ -13,7 +13,7 @@ src/
 │   │   └── S3Endpoints/ # S3BucketEndpoint, S3ObjectEndpoint, S3MultipartEndpoint, S3PostObjectEndpoint
 │   ├── Middleware/      # SigV4AuthMiddleware, SecurityHeadersMiddleware
 │   ├── Auth/            # HangfireAuthorizationFilter
-│   ├── Options/         # ServerOptions (ports), ReverseProxyOptions, AuthOptions (lockout), DatabaseOptions, StorageOptions (blob root, upload cap, min free disk), SeedOptions
+│   ├── Options/         # ServerOptions (ports), ReverseProxyOptions, AuthOptions (lockout, RememberMeDays), DatabaseOptions, StorageOptions (blob root, upload cap, min free disk), SeedOptions
 │   ├── Startup/         # ServiceCollectionExtensions (AddObjeX* per concern), DatabaseInitializer (migrate, pragmas, roles, admin, seeding), BackgroundJobs (Hangfire wiring, recurring schedule, stale-job prune)
 │   ├── Components/      # App.razor (host document), _Imports.razor
 │   ├── wwwroot/         # app.css, favicons, fonts/, site.webmanifest
@@ -145,7 +145,7 @@ No named policies are defined. S3 endpoints use `.RequireAuthorization()` on the
   - **Manager**: Users page, Settings incl. presigned URLs + storage quotas, all buckets — cannot promote/demote roles, no Hangfire, unlimited storage by default
   - **User**: S3 credentials, dark mode, own buckets only, subject to global storage quota (configurable in Settings)
 - Password requirements relaxed for MVP (min 4 chars, no complexity rules)
-- Account lockout: `Auth:Lockout:MaxFailedAttempts` (default 5) failed logins lock the account for `Auth:Lockout:DurationMinutes` (default 5). Per account, failures only, enforced by Identity via `lockoutOnFailure: true` in `AccountEndpoints`. No IP-based rate limiting by design — CGNAT and shared proxies put many users behind one IP. A locked account shows as `Locked` on the Users page with an **Unlock** button (Admin and Manager, any row including the admin's own) that clears `LockoutEnd` and resets the failed-attempt count.
+- Account lockout: `Auth:Lockout:MaxFailedAttempts` (default 5) failed logins lock the account for `Auth:Lockout:DurationMinutes` (default 5). Per account, failures only, enforced by Identity via `lockoutOnFailure: true` in `AccountEndpoints`. No IP-based rate limiting by design — CGNAT and shared proxies put many users behind one IP. A locked account shows as `Locked` on the Users page with an **Unlock** button (Admin and Manager, any row including the admin's own) that clears `LockoutEnd` and resets the failed-attempt count. `Auth:RememberMeDays` (default 30) is the cookie lifetime for logins that tick "Stay signed in".
 - Email flows are no-ops — no `IEmailSender` registered, no email verification
 
 **Default admin** (created by `DatabaseInitializer` when no user with the configured `DefaultAdmin:Username` exists; an existing user is never modified):
@@ -167,7 +167,7 @@ POST /account/login   ← HTML form POST; sets Identity cookie; redirects to ret
 GET  /account/logout  ← clears Identity cookie; redirects to /login
 ```
 
-The login endpoint accepts `login` (username or email — detected by `@` presence), `password`, and `returnUrl` form fields. On failure it redirects back to `/login?error=1&login={value}` so the form can pre-fill the username; `&msg=` carries a specific reason for locked, deactivated, or temporary-password-expired accounts.
+The login endpoint accepts `login` (username or email — detected by `@` presence), `password`, and `returnUrl` form fields. On failure it redirects back to `/login?error=1&login={value}` so the form can pre-fill the username; `&msg=` carries a specific reason for locked, deactivated, or temporary-password-expired accounts. A ticked "Stay signed in" checkbox sends `rememberMe=true`. The endpoint checks the password with `CheckPasswordSignInAsync`, then calls `SignInAsync` with `IsPersistent = rememberMe` and `ExpiresUtc = now + Auth:RememberMeDays`. Unticked logins get a session cookie on the 60-minute sliding lifetime. Sliding renewal reuses the ticket's own lifetime (`ExpiresUtc - IssuedUtc`), so remembered sessions keep renewing at `RememberMeDays`. The failure redirect adds `&remember=1` so the checkbox stays ticked.
 
 `Login.razor` uses `@layout EmptyLayout` and `[AllowAnonymous]`. It renders a plain HTML `<form method="post" action="/account/login">` — not a Blazor event handler. It shows a Radzen toast notification on error (detected via `?error=1` query param in `OnAfterRenderAsync`).
 
@@ -277,6 +277,8 @@ public interface IMetadataService
     Task<BlobObject?> GetObjectAsync(string bucketName, string key, CancellationToken ctk = default);
     Task<ListObjectsResult> ListObjectsAsync(string bucketName, string? prefix = null, string? delimiter = null, CancellationToken ctk = default);
     // Keys in UTF-8 byte order: ORDER BY key, COLLATE "C" on PostgreSQL (decided by Database.ProviderName); CommonPrefixes ordinal-sorted and deduplicated
+    Task<IReadOnlyList<BlobObject>> SearchObjectsAsync(string bucketName, string? prefix, string term, int limit, CancellationToken ctk = default);
+    // keys under prefix containing term (case-insensitive, LIKE wildcards escaped), placeholders excluded, byte order, at most limit
     Task<IEnumerable<BlobObject>> ListAllObjectsAsync(CancellationToken ctk = default); // all objects across all buckets — NOT filtered, used by Hangfire cleanup
     Task DeleteObjectAsync(string bucketName, string key, string? auditUserId = null, CancellationToken ctk = default);
     Task<int> DeleteObjectsAsync(string bucketName, IEnumerable<string> keys, string? auditUserId = null, CancellationToken ctk = default);
@@ -438,7 +440,7 @@ Keyboard handling: text-input dialogs (`CreateBucketDialog`, `CreateS3Credential
 
 **Clickable links in grids:** Use `<a href="..." style="color:var(--rz-primary);text-decoration:none">` — do NOT use `<RadzenLink>` which renders red in the Material theme. This applies to bucket name links in `Buckets.razor` and `Dashboard.razor`.
 
-**Virtual folder navigation:** `Objects.razor` tracks `_currentPrefix` (e.g. `"photos/2024/"`) as component state. Calls `ListObjectsAsync` with `delimiter: "/"` — folders render as clickable rows, files as regular rows in a unified `RadzenDataGrid`. Breadcrumb segments are `<span @onclick>` (not `RadzenLink`) to avoid full-page navigation. Folder create writes a zero-byte placeholder object with key `prefix/` and `ContentType: application/x-directory`. Upload prepends `_currentPrefix` to the file name. Placeholder objects (key ends with `/`) are filtered from file rows. File rows carry a `content_copy` button that opens a `ContextMenuService` menu with "Copy key" and "Copy S3 URI" (`s3://{bucket}/{key}`); feedback is a Success notification, not the icon flip used outside grids. Folder rows get a hidden placeholder button to keep the actions aligned.
+**Virtual folder navigation:** `Objects.razor` tracks `_currentPrefix` (e.g. `"photos/2024/"`) as component state. Calls `ListObjectsAsync` with `delimiter: "/"` — folders render as clickable rows, files as regular rows in a unified `RadzenDataGrid`. Breadcrumb segments are `<span @onclick>` (not `RadzenLink`) to avoid full-page navigation. Folder create writes a zero-byte placeholder object with key `prefix/` and `ContentType: application/x-directory`. Upload prepends `_currentPrefix` to the file name. Placeholder objects (key ends with `/`) are filtered from file rows. File rows carry a `content_copy` button that opens a `ContextMenuService` menu with "Copy key" and "Copy S3 URI" (`s3://{bucket}/{key}`); feedback is a Success notification, not the icon flip used outside grids. Folder rows get a hidden placeholder button to keep the actions aligned. A search box in the toolbar (hidden while the bucket is empty) filters with a 300 ms debounce over `_currentPrefix` and everything below it — the grid then shows file rows only, keyed relative to the prefix, capped at 500 with a "N results · first 500 shown" caption; Escape, the clear button and breadcrumb navigation restore the folder view.
 
 **Dashboard "Disk" card:** free of total space of the blob volume via `IStorageSpaceService`, visible to every role because the 507 hits every role. `Warning` at or below twice `Storage:MinimumFreeDiskBytes`, `Danger` at or below it. The disk read in `LoadStats` has its own change label, because free space moves without any bucket changing.
 
