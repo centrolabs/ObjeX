@@ -74,7 +74,17 @@ public static class S3ObjectEndpoint
                 if (fs.GetAvailableFreeSpace() < storageOptions.Value.MinimumFreeDiskBytes)
                     return S3Xml.Error(S3Errors.EntityTooLarge, "Insufficient disk space.", 507);
 
+                if (!ContentMd5.TryParse(request.Headers.ContentMD5, out var expectedPartMd5))
+                    return S3Xml.Error(S3Errors.InvalidDigest, "The Content-MD5 you specified is not valid.");
+
                 var (partPath, partEtag) = await fs.StorePartAsync(uploadId, partNumber, S3RequestBody.Decoded(request), request.HttpContext.RequestAborted);
+
+                if (!ContentMd5.Matches(expectedPartMd5, partEtag))
+                {
+                    File.Delete(partPath);
+                    return S3Xml.Error(S3Errors.BadDigest, "The Content-MD5 you specified did not match what we received.");
+                }
+
                 var partSize = new FileInfo(partPath).Length;
 
                 // Upsert: replace existing part with same number if re-uploaded
@@ -167,6 +177,9 @@ public static class S3ObjectEndpoint
             var quotaError = await StorageQuota.CheckAsync(ctx, S3RequestBody.DecodedContentLength(request) ?? 0);
             if (quotaError is not null) return quotaError;
 
+            if (!ContentMd5.TryParse(request.Headers.ContentMD5, out var expectedMd5))
+                return S3Xml.Error(S3Errors.InvalidDigest, "The Content-MD5 you specified is not valid.");
+
             var contentType = request.ContentType ?? "application/octet-stream";
             var customMetadata = ExtractCustomMetadata(request.Headers);
 
@@ -176,6 +189,12 @@ public static class S3ObjectEndpoint
             var storagePath = await storage.StoreAsync(bucket, key, hashingStream, ctx.RequestAborted);
             var size = await storage.GetSizeAsync(bucket, key, ctx.RequestAborted);
             var etag = hashingStream.GetETag();
+
+            if (!ContentMd5.Matches(expectedMd5, etag))
+            {
+                await storage.DeleteAsync(bucket, key, ctx.RequestAborted);
+                return S3Xml.Error(S3Errors.BadDigest, "The Content-MD5 you specified did not match what we received.");
+            }
 
             // Post-check with actual size for chunked transfers (no Content-Length)
             if (request.ContentLength is null)

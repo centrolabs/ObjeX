@@ -20,5 +20,7 @@ public static class S3Errors
     public const string InvalidPartOrder = "InvalidPartOrder";
     public const string EntityTooSmall = "EntityTooSmall";
     public const string MalformedXML = "MalformedXML";
+    public const string BadDigest = "BadDigest";
+    public const string InvalidDigest = "InvalidDigest";
     public const string NotImplemented = "NotImplemented";
 }

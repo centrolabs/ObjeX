@@ -139,8 +139,23 @@ public static class S3PostObjectEndpoint
         if (await metadata.GetBucketAsync(bucket, IsPrivileged(ctx) ? null : GetCallerId(ctx)) is null)
             return S3Xml.Error(S3Errors.NoSuchBucket, "The specified bucket does not exist.", 404);
 
+        if (!ContentMd5.TryParse(request.Headers.ContentMD5, out var expectedMd5))
+            return S3Xml.Error(S3Errors.InvalidDigest, "The Content-MD5 you specified is not valid.");
+
+        // AWS requires Content-MD5 here; ObjeX only verifies it when the client sends it.
+        var body = request.Body;
+        if (expectedMd5 is not null)
+        {
+            var buffered = new MemoryStream();
+            await request.Body.CopyToAsync(buffered, ctx.RequestAborted);
+            if (!ContentMd5.Matches(expectedMd5, ContentMd5.ComputeHex(buffered.GetBuffer().AsSpan(0, (int)buffered.Length))))
+                return S3Xml.Error(S3Errors.BadDigest, "The Content-MD5 you specified did not match what we received.");
+            buffered.Position = 0;
+            body = buffered;
+        }
+
         XDocument doc;
-        try { doc = await XDocument.LoadAsync(request.Body, LoadOptions.None, ctx.RequestAborted); }
+        try { doc = await XDocument.LoadAsync(body, LoadOptions.None, ctx.RequestAborted); }
         catch { return S3Xml.Error(S3Errors.MalformedXML, "The XML you provided was not well-formed."); }
 
         var keys = doc.Descendants()
