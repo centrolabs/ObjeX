@@ -23,6 +23,18 @@
         <span class="meta-label">Last Modified</span>
         <span class="meta-value">@UpdatedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss")</span>
     </div>
+    @{ var custom = CustomMetadata.Parse(CustomMetadataJson); }
+    @if (custom.Count > 0)
+    {
+        <div class="meta-section">Custom metadata</div>
+        foreach (var entry in custom)
+        {
+            <div class="meta-row">
+                <span class="meta-label">@entry.Key</span>
+                <code class="meta-value" style="font-size:0.82rem;word-break:break-all">@entry.Value</code>
+            </div>
+        }
+    }
 </RadzenStack>
 
 <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.End" Style="margin-top:1.25rem">
@@ -47,6 +59,13 @@
         letter-spacing: 0.04em;
     }
     .meta-value { flex: 1; }
+    .meta-section {
+        padding: 1rem 0 0.35rem;
+        font-size: 0.8rem;
+        color: var(--rz-text-secondary-color);
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+    }
 </style>
 
 @code {
@@ -56,6 +75,7 @@
     [Parameter] public string ETag        { get; set; } = string.Empty;
     [Parameter] public DateTime CreatedAt { get; set; }
     [Parameter] public DateTime UpdatedAt { get; set; }
+    [Parameter] public string? CustomMetadataJson { get; set; }
 
     [Inject] DialogService DialogService { get; set; } = null!;
 }
