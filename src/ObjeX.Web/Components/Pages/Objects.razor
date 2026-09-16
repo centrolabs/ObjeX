@@ -46,7 +46,7 @@
         <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
             @if (_bucketExists && _bucket is { ObjectCount: > 0 })
             {
-                <input class="rz-textbox" style="width:220px" type="text" placeholder="Search" autocomplete="off"
+                <input class="rz-textbox" style="width:220px" type="text" placeholder="Search" title="* matches any text, ? one character" autocomplete="off"
                        value="@_searchTerm" @oninput="OnSearchInput" @onkeydown="OnSearchKeyDown" />
                 <RadzenButton Icon="close" ButtonStyle="ButtonStyle.Light" Variant="Variant.Text"
                               Click="@ClearSearch" title="Clear search"
@@ -67,15 +67,15 @@
     <RadzenProgressBar Value="@_uploadProgress" Max="100" ShowValue="false"
                        Style="@($"height:4px;margin-top:-0.5rem;visibility:{(_uploading ? "visible" : "hidden")}")" />
 
-    <RadzenCard Style="@($"padding:0.6rem 1rem;visibility:{(_selected.Count > 0 ? "visible" : "hidden")}")">
+    <RadzenCard Style="@($"padding:0.6rem 1rem;opacity:{(_selected.Count > 0 ? "1" : "0.5")};transition:opacity 0.15s")">
         <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="1rem">
             <RadzenText Style="color:var(--rz-text-secondary-color)">@_selected.Count selected</RadzenText>
             <RadzenButton Text="Download ZIP" Icon="download" ButtonStyle="ButtonStyle.Primary"
-                          Size="ButtonSize.Small" Click="BulkDownload" />
+                          Size="ButtonSize.Small" Click="BulkDownload" Disabled="@(_selected.Count == 0)" />
             <RadzenButton Text="Delete" Icon="delete" ButtonStyle="ButtonStyle.Danger"
-                          Size="ButtonSize.Small" Click="BulkDelete" />
+                          Size="ButtonSize.Small" Click="BulkDelete" Disabled="@(_selected.Count == 0)" />
             <RadzenButton Text="Clear" Icon="close" ButtonStyle="ButtonStyle.Secondary"
-                          Size="ButtonSize.Small" Click="@(() => _selected.Clear())" />
+                          Size="ButtonSize.Small" Click="@(() => _selected.Clear())" Disabled="@(_selected.Count == 0)" />
         </RadzenStack>
     </RadzenCard>
 
