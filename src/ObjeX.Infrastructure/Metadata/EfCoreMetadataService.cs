@@ -106,13 +106,7 @@ public class EfCoreMetadataService(ObjeXDbContext ctx) : IMetadataService
         if (!string.IsNullOrEmpty(prefix))
             query = query.Where(o => o.Key.StartsWith(prefix));
 
-        // S3 orders keys by UTF-8 bytes; SQLite's default BINARY collation already does that,
-        // PostgreSQL needs COLLATE "C" because a locale collation sorts "a" before "B".
-        query = ctx.Database.ProviderName == "Npgsql.EntityFrameworkCore.PostgreSQL"
-            ? query.OrderBy(o => EF.Functions.Collate(o.Key, "C"))
-            : query.OrderBy(o => o.Key);
-
-        var allMatching = await query.ToListAsync(ctk);
+        var allMatching = await OrderByKey(query).ToListAsync(ctk);
 
         if (string.IsNullOrEmpty(delimiter))
             return new ListObjectsResult(allMatching, []);
@@ -133,6 +127,33 @@ public class EfCoreMetadataService(ObjeXDbContext ctx) : IMetadataService
 
         return new ListObjectsResult(objects, commonPrefixes);
     }
+
+    public async Task<IReadOnlyList<BlobObject>> SearchObjectsAsync(string bucketName, string? prefix, string term, int limit, CancellationToken ctk = default)
+    {
+        if (string.IsNullOrWhiteSpace(term)) return [];
+
+        var pattern = $"%{EscapeLike(term.ToLowerInvariant())}%";
+        var query = ctx.BlobObjects.AsNoTracking()
+            .Where(o => o.BucketName == bucketName && !o.Key.EndsWith("/"));
+        if (!string.IsNullOrEmpty(prefix))
+            query = query.Where(o => o.Key.StartsWith(prefix));
+
+        // Both sides lower-cased, because PostgreSQL's LIKE is case-sensitive and SQLite's is ASCII-only.
+        query = query.Where(o => EF.Functions.Like(o.Key.ToLower(), pattern, "\\"));
+
+        return await OrderByKey(query).Take(limit).ToListAsync(ctk);
+    }
+
+    /// <summary>The term comes from a user, so LIKE's own wildcards have to match literally.</summary>
+    private static string EscapeLike(string term) =>
+        term.Replace("\\", "\\\\").Replace("%", "\\%").Replace("_", "\\_");
+
+    // S3 orders keys by UTF-8 bytes; SQLite's default BINARY collation already does that,
+    // PostgreSQL needs COLLATE "C" because a locale collation sorts "a" before "B".
+    private IOrderedQueryable<BlobObject> OrderByKey(IQueryable<BlobObject> query) =>
+        ctx.Database.ProviderName == "Npgsql.EntityFrameworkCore.PostgreSQL"
+            ? query.OrderBy(o => EF.Functions.Collate(o.Key, "C"))
+            : query.OrderBy(o => o.Key);
 
     public async Task<IEnumerable<BlobObject>> ListAllObjectsAsync(CancellationToken ctk = default)
     {

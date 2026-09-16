@@ -17,6 +17,8 @@ public interface IMetadataService
     Task<BlobObject> SaveObjectAsync(BlobObject blobObject, string? auditUserId = null, CancellationToken ctk = default);
     Task<BlobObject?> GetObjectAsync(string bucketName, string key, CancellationToken ctk = default);
     Task<ListObjectsResult> ListObjectsAsync(string bucketName, string? prefix = null, string? delimiter = null, CancellationToken ctk = default);
+    /// <summary>Keys under <paramref name="prefix"/> containing <paramref name="term"/> case-insensitively; placeholders excluded, wildcards in the term are literal.</summary>
+    Task<IReadOnlyList<BlobObject>> SearchObjectsAsync(string bucketName, string? prefix, string term, int limit, CancellationToken ctk = default);
     Task<IEnumerable<BlobObject>> ListAllObjectsAsync(CancellationToken ctk = default);
     Task DeleteObjectAsync(string bucketName, string key, string? auditUserId = null, CancellationToken ctk = default);
     /// <summary>Deletes the given keys in one transaction and returns how many rows existed; unknown keys are ignored, as in S3.</summary>

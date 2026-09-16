@@ -39,11 +39,19 @@
             @if (_bucket is not null)
             {
                 <RadzenText TextStyle="TextStyle.Caption" Style="margin:0 0 0 0.75rem;color:var(--rz-text-secondary-color)">
-                    @_bucket.ObjectCount.ToString("N0") objects · @FileHelper.FormatBytes(_bucket.TotalSize)
+                    @HeaderCaption
                 </RadzenText>
             }
         </RadzenStack>
-        <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem">
+        <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
+            @if (_bucketExists && _bucket is { ObjectCount: > 0 })
+            {
+                <input class="rz-textbox" style="width:220px" type="text" placeholder="Search" autocomplete="off"
+                       value="@_searchTerm" @oninput="OnSearchInput" @onkeydown="OnSearchKeyDown" />
+                <RadzenButton Icon="close" ButtonStyle="ButtonStyle.Light" Variant="Variant.Text"
+                              Click="@ClearSearch" title="Clear search"
+                              style="@(_searchTerm.Length > 0 ? "" : "display:none")" />
+            }
             <RadzenButton Text="New Folder" Icon="create_new_folder"
                           ButtonStyle="ButtonStyle.Secondary" Disabled="@(!_bucketExists)"
                           Click="@OnNewFolderClick" />
@@ -72,7 +80,8 @@
     </RadzenCard>
 
     <div class="objects-grid" style="overflow-x:auto">
-    <RadzenDataGrid Data="@_rows" TItem="ListRow" AllowSorting="true" EmptyText="No objects yet. Drag files here or click Upload.">
+    <RadzenDataGrid Data="@_rows" TItem="ListRow" AllowSorting="true"
+                    EmptyText="@(_searchApplied ? "No matches." : "No objects yet. Drag files here or click Upload.")">
         <Columns>
             <RadzenDataGridColumn TItem="ListRow" Width="48px" Sortable="false" Resizable="false">
                 <HeaderTemplate>
@@ -193,6 +202,20 @@
     IJSObjectReference? _dropZoneModule;
     string _currentUserId = string.Empty;
     bool _isPrivileged;
+    string _searchTerm = string.Empty;
+    bool _searchApplied;
+    bool _searchLimitHit;
+    CancellationTokenSource _searchCts = new();
+
+    const int SearchLimit = 500;
+    const int SearchDebounceMs = 300;
+
+    string HeaderCaption =>
+        _searchApplied
+            ? _searchLimitHit
+                ? $"{_rows.Count:N0} results · first {SearchLimit} shown"
+                : $"{_rows.Count:N0} results"
+            : $"{_bucket!.ObjectCount:N0} objects · {FileHelper.FormatBytes(_bucket.TotalSize)}";
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -229,15 +252,82 @@
             delimiter: "/");
         _objects = result.Objects.ToList();
         _folders = result.CommonPrefixes.ToList();
+
+        // The search box is gone once the bucket is empty, so a term left over from a delete would be unclearable.
+        if (_bucket is null or { ObjectCount: 0 })
+            _searchTerm = string.Empty;
+
+        if (string.IsNullOrWhiteSpace(_searchTerm))
+            ShowFolderView();
+        else
+            await RunSearch(_searchCts.Token);
+    }
+
+    void BuildFolderRows() =>
         _rows = [
             .._folders.Select(f => new ListRow(f[_currentPrefix.Length..].TrimEnd('/') + "/", true, f)),
             .._objects.Where(o => !o.Key.EndsWith("/")).Select(o => new ListRow(o.Key[_currentPrefix.Length..], false, Object: o))
         ];
+
+    async Task RunSearch(CancellationToken ctk)
+    {
+        // One row over the limit tells the caption whether the result set was cut off.
+        var hits = await MetadataService.SearchObjectsAsync(BucketName, _currentPrefix, _searchTerm, SearchLimit + 1, ctk);
+        _searchLimitHit = hits.Count > SearchLimit;
+        _rows = hits.Take(SearchLimit).Select(o => new ListRow(o.Key[_currentPrefix.Length..], false, Object: o)).ToList();
+        _selected.Clear();
+        _searchApplied = true;
+    }
+
+    async Task OnSearchInput(ChangeEventArgs e)
+    {
+        _searchTerm = e.Value?.ToString() ?? string.Empty;
+        // Blazor serialises handlers on its dispatcher, so replacing the source cannot race with the awaiting keystroke.
+        _searchCts.Cancel();
+        _searchCts = new CancellationTokenSource();
+        var ctk = _searchCts.Token;
+
+        if (string.IsNullOrWhiteSpace(_searchTerm))
+        {
+            ShowFolderView();
+            return;
+        }
+
+        try
+        {
+            await Task.Delay(SearchDebounceMs, ctk);
+            await RunSearch(ctk);
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (OperationCanceledException) { }
+    }
+
+    void OnSearchKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Escape") ClearSearch();
+    }
+
+    void ClearSearch()
+    {
+        _searchTerm = string.Empty;
+        ShowFolderView();
+    }
+
+    // Cancels the pending debounce too, so a stale keystroke cannot re-apply the search afterwards.
+    void ShowFolderView()
+    {
+        _searchCts.Cancel();
+        _searchCts = new CancellationTokenSource();
+        if (_searchApplied) _selected.Clear();
+        _searchApplied = false;
+        _searchLimitHit = false;
+        BuildFolderRows();
     }
 
     // Pushes a history entry per folder; OnParametersSetAsync does the loading, so Back and Forward work the same way.
     void NavigateToPrefix(string prefix)
     {
+        ClearSearch();
         var url = string.IsNullOrEmpty(prefix)
             ? $"/buckets/{BucketName}"
             : $"/buckets/{BucketName}?prefix={Uri.EscapeDataString(prefix)}";
@@ -250,6 +340,7 @@
         if (!_bucketExists || prefix == _loadedPrefix) return;
 
         _selected.Clear();
+        _searchTerm = string.Empty;
         _currentPrefix = prefix;
         await LoadObjects();
     }
