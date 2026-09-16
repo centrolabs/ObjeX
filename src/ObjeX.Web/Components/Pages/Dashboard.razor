@@ -24,46 +24,45 @@
         <RadzenCard class="stat-card">
             <RadzenStack Gap="0.4rem">
                 <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" JustifyContent="JustifyContent.SpaceBetween">
-                    <RadzenText TextStyle="TextStyle.Overline">Total Buckets</RadzenText>
-                    <RadzenIcon Icon="folder" Style="color:var(--rz-primary);opacity:0.8;font-size:1.4rem" />
+                    <RadzenText TextStyle="TextStyle.Overline">Buckets</RadzenText>
+                    <RadzenIcon Icon="folder" class="stat-icon" />
                 </RadzenStack>
-                <RadzenText TextStyle="TextStyle.H3">@_buckets.Count</RadzenText>
+                <RadzenText TextStyle="TextStyle.H4" class="stat-value">@_buckets.Count</RadzenText>
             </RadzenStack>
         </RadzenCard>
         <RadzenCard class="stat-card">
             <RadzenStack Gap="0.4rem">
                 <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" JustifyContent="JustifyContent.SpaceBetween">
-                    <RadzenText TextStyle="TextStyle.Overline">Total Objects</RadzenText>
-                    <RadzenIcon Icon="description" Style="color:var(--rz-primary);opacity:0.8;font-size:1.4rem" />
+                    <RadzenText TextStyle="TextStyle.Overline">Objects</RadzenText>
+                    <RadzenIcon Icon="description" class="stat-icon" />
                 </RadzenStack>
-                <RadzenText TextStyle="TextStyle.H3">@_totalObjects.ToString("N0")</RadzenText>
+                <RadzenText TextStyle="TextStyle.H4" class="stat-value">@_totalObjects.ToString("N0")</RadzenText>
+                @if (_totalObjects > 0)
+                {
+                    <RadzenText TextStyle="TextStyle.Caption">avg @FileHelper.FormatBytes(_totalSize / _totalObjects)</RadzenText>
+                }
             </RadzenStack>
         </RadzenCard>
-        <RadzenCard class="stat-card">
-            <RadzenStack Gap="0.4rem">
-                <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" JustifyContent="JustifyContent.SpaceBetween">
-                    <RadzenText TextStyle="TextStyle.Overline">Storage Used</RadzenText>
-                    <RadzenIcon Icon="save" Style="color:var(--rz-primary);opacity:0.8;font-size:1.4rem" />
+        @if (_isPrivileged)
+        {
+            <RadzenCard class="stat-card">
+                <RadzenStack Gap="0.4rem">
+                    <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" JustifyContent="JustifyContent.SpaceBetween">
+                        <RadzenText TextStyle="TextStyle.Overline">Storage Used</RadzenText>
+                        <RadzenIcon Icon="save" class="stat-icon" />
+                    </RadzenStack>
+                    <RadzenText TextStyle="TextStyle.H4" class="stat-value">@FileHelper.FormatBytes(_totalSize)</RadzenText>
+                    <RadzenText TextStyle="TextStyle.Caption">all buckets</RadzenText>
                 </RadzenStack>
-                <RadzenText TextStyle="TextStyle.H3">@FileHelper.FormatBytes(_totalSize)</RadzenText>
-            </RadzenStack>
-        </RadzenCard>
-        <RadzenCard class="stat-card">
-            <RadzenStack Gap="0.4rem">
-                <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" JustifyContent="JustifyContent.SpaceBetween">
-                    <RadzenText TextStyle="TextStyle.Overline">Avg Object Size</RadzenText>
-                    <RadzenIcon Icon="compress" Style="color:var(--rz-primary);opacity:0.8;font-size:1.4rem" />
-                </RadzenStack>
-                <RadzenText TextStyle="TextStyle.H3">@(_totalObjects > 0 ? FileHelper.FormatBytes(_totalSize / _totalObjects) : "—")</RadzenText>
-            </RadzenStack>
-        </RadzenCard>
+            </RadzenCard>
+        }
         <RadzenCard class="stat-card">
             <RadzenStack Gap="0.4rem">
                 <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" JustifyContent="JustifyContent.SpaceBetween">
                     <RadzenText TextStyle="TextStyle.Overline">My Storage</RadzenText>
-                    <RadzenIcon Icon="person" Style="color:var(--rz-primary);opacity:0.8;font-size:1.4rem" />
+                    <RadzenIcon Icon="person" class="stat-icon" />
                 </RadzenStack>
-                <RadzenText TextStyle="TextStyle.H3">@FileHelper.FormatBytes(_myStorage?.UsedBytes ?? 0)</RadzenText>
+                <RadzenText TextStyle="TextStyle.H4" class="stat-value">@FileHelper.FormatBytes(_myStorage?.UsedBytes ?? 0)</RadzenText>
                 @if (_myStorage is { HasQuota: true })
                 {
                     <RadzenText TextStyle="TextStyle.Caption">of @FileHelper.FormatBytes(_myStorage.QuotaBytes!.Value)</RadzenText>
@@ -80,9 +79,9 @@
             <RadzenStack Gap="0.4rem">
                 <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" JustifyContent="JustifyContent.SpaceBetween">
                     <RadzenText TextStyle="TextStyle.Overline">Disk</RadzenText>
-                    <RadzenIcon Icon="storage" Style="color:var(--rz-primary);opacity:0.8;font-size:1.4rem" />
+                    <RadzenIcon Icon="storage" class="stat-icon" />
                 </RadzenStack>
-                <RadzenText TextStyle="TextStyle.H3">@FileHelper.FormatBytes(_disk?.FreeBytes ?? 0)</RadzenText>
+                <RadzenText TextStyle="TextStyle.H4" class="stat-value">@FileHelper.FormatBytes(_disk?.FreeBytes ?? 0)</RadzenText>
                 @if (_disk is not null)
                 {
                     <RadzenText TextStyle="TextStyle.Caption">free of @FileHelper.FormatBytes(_disk.TotalBytes)</RadzenText>
@@ -90,7 +89,7 @@
                                        ProgressBarStyle="@(_disk.IsBelowMinimum ? ProgressBarStyle.Danger : _disk.IsNearMinimum ? ProgressBarStyle.Warning : ProgressBarStyle.Primary)" />
                     @if (_disk.IsBelowMinimum)
                     {
-                        <RadzenText TextStyle="TextStyle.Caption" Style="color:var(--rz-danger)">Uploads are rejected until space is freed</RadzenText>
+                        <RadzenText TextStyle="TextStyle.Caption" Style="color:var(--rz-danger)">Uploads rejected</RadzenText>
                     }
                     else if (_disk.IsNearMinimum)
                     {
@@ -228,9 +227,12 @@
     .rz-data-grid-data td { height: 44px !important; padding-top: 0 !important; padding-bottom: 0 !important; }
 
     .stat-card {
-        flex: 1;
-        min-width: 140px;
+        flex: 1 1 170px;
         border-left: 3px solid var(--rz-primary);
+    }
+    .stat-value {
+        white-space: nowrap;
+        font-variant-numeric: tabular-nums;
     }
     .stat-icon {
         font-size: 1.4rem;
