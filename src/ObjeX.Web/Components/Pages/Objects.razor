@@ -547,11 +547,7 @@
 
     // SVG can carry script, so the download endpoint never serves it inline and the preview would show a broken image.
     static bool IsPreviewable(string contentType) =>
-        (contentType.StartsWith("image/") && contentType != "image/svg+xml") ||
-        contentType.StartsWith("video/") ||
-        contentType.StartsWith("audio/") ||
-        TextPreview.IsTextLike(contentType) ||
-        contentType == "application/pdf";
+        InlineMediaTypes.IsInlineSafe(contentType) || TextPreview.IsTextLike(contentType);
 
     async Task PreviewObject(BlobObject obj)
     {

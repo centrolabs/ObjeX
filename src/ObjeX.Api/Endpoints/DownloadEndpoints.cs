@@ -14,13 +14,6 @@ public static class DownloadEndpoints
     static bool IsPrivileged(HttpContext ctx) =>
         ctx.User.IsInRole("Admin") || ctx.User.IsInRole("Manager");
 
-    // The stored Content-Type is chosen by the uploader; only these types may render in the UI origin, everything else downloads.
-    static bool IsInlineSafe(string mediaType) =>
-        mediaType is "image/png" or "image/jpeg" or "image/gif" or "image/webp" or "image/avif"
-            or "application/pdf" or "text/plain"
-        || mediaType.StartsWith("video/", StringComparison.Ordinal)
-        || mediaType.StartsWith("audio/", StringComparison.Ordinal);
-
     public static void MapDownloadEndpoints(this WebApplication app)
     {
         // Single-file download — used by the Blazor UI (cookie auth, port 9001)
@@ -51,8 +44,8 @@ public static class DownloadEndpoints
                 stream = buffer;
             }
 
-            var mediaType = obj.ContentType.Split(';')[0].Trim().ToLowerInvariant();
-            var inline = download != true && IsInlineSafe(mediaType);
+            var mediaType = InlineMediaTypes.MediaType(obj.ContentType);
+            var inline = download != true && InlineMediaTypes.IsInlineSafe(mediaType);
 
             var contentType = inline ? obj.ContentType : "application/octet-stream";
             var fileName = inline ? null : Path.GetFileName(key);

@@ -1,4 +1,5 @@
 @using ObjeX.Core.Interfaces
+@using ObjeX.Core.Utilities
 
 <div class="preview-container">
     @if (IsImage)
@@ -60,10 +61,11 @@
     string _text = string.Empty;
     bool _truncated;
 
-    bool IsImage => ContentType.StartsWith("image/") && ContentType != "image/svg+xml";
-    bool IsVideo => ContentType.StartsWith("video/");
-    bool IsAudio => ContentType.StartsWith("audio/");
-    bool IsPdf   => ContentType == "application/pdf";
+    string MediaType => InlineMediaTypes.MediaType(ContentType);
+    bool IsImage => MediaType.StartsWith("image/") && InlineMediaTypes.IsInlineSafe(MediaType);
+    bool IsVideo => MediaType.StartsWith("video/");
+    bool IsAudio => MediaType.StartsWith("audio/");
+    bool IsPdf   => MediaType == "application/pdf";
     bool IsText  => TextPreview.IsTextLike(ContentType);
 
     protected override async Task OnInitializedAsync()
