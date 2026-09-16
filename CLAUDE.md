@@ -22,7 +22,7 @@ src/
 ├── ObjeX.Core/          # Domain — zero framework dependencies
 │   ├── Interfaces/      # IMetadataService, IObjectStorageService, IStorageQuotaService, IStorageSpaceService, IHashService, IHasTimestamps
 │   ├── Models/          # Bucket, BlobObject, S3Credential, User, AuditEntry, ListObjectsResult, MultipartUpload, MultipartUploadPart, SystemSettings
-│   ├── Utilities/       # HashingStream (MD5 passthrough for ETag computation during upload), PresignedUrlGenerator, S3Conventions (region, addressing style), InlineMediaTypes (download/preview allowlist)
+│   ├── Utilities/       # HashingStream (MD5 passthrough for ETag computation during upload), PresignedUrlGenerator, S3Conventions (region, addressing style), InlineMediaTypes (download/preview allowlist), ETags (multipart ETag detection)
 │   └── Validation/      # BucketNameValidator (GetValidationError)
 ├── ObjeX.Infrastructure/
 │   ├── Data/            # ObjeXDbContext (EF Core + SQLite, extends IdentityDbContext<User>)
@@ -35,10 +35,10 @@ src/
 │   └── Storage/         # FileSystemStorageService, StorageSpaceService (free disk of the blob volume)
 ├── ObjeX.Migrations.PostgreSql/  # PostgreSQL-specific EF Core migrations
 ├── ObjeX.Tests/         # xUnit — unit (Core validators, hashing) + integration (WebApplicationFactory, real SQLite)
-│   ├── Unit/            # BucketNameValidator, ObjectKeyValidator, HashingStream, Sha256HashService, StorageSpaceStatus
+│   ├── Unit/            # BucketNameValidator, ObjectKeyValidator, HashingStream, Sha256HashService, StorageSpaceStatus, ETags, CustomMetadata, InlineMediaTypes, S3ClientSnippets, TextPreview
 │   └── Integration/     # S3 API round-trips, auth, multipart, quotas, storage space, resilience, cookie auth, health
 └── ObjeX.Web/           # Razor class library: components, pages, dialogs, layout — no host, no wwwroot
-    ├── Helpers/         # FileHelper, AppVersion, S3ClientSnippets
+    ├── Helpers/         # FileHelper, AppVersion, S3ClientSnippets, TextPreview, CustomMetadata
     └── Components/      # Routes, RedirectToLogin, S3ConnectSnippets
         ├── Pages/       # Dashboard, Buckets, Objects, Settings, Login, NotFound, Users, ChangePassword, AuditLog, Error, Profile
         ├── Dialogs/     # CreateBucketDialog, UploadObjectDialog, CreateS3CredentialDialog, ShowS3CredentialDialog, CreateFolderDialog, CreateUserDialog, ShowUserPasswordDialog, ChangeOwnerDialog, FilePreviewDialog, FileMetadataDialog, PresignedUrlDialog, S3ConnectDialog
@@ -121,7 +121,7 @@ CSP is intentionally omitted — Blazor Server requires inline scripts and a Sig
 
 `GET /api/objects/{bucket}/{*key}` applies its own media-type allowlist, because the stored `Content-Type` is chosen by whoever uploaded the object. Only the allowlist in `InlineMediaTypes` (`ObjeX.Core/Utilities`: `image/png|jpeg|gif|webp|avif|bmp|x-icon`, `video/*`, `audio/*`, `application/pdf`, `text/plain`, compared on the media type with parameters stripped) is served inline; the preview gate in `Objects.razor` and `FilePreviewDialog` reads the same list, plus the text types of `TextPreview.IsTextLike`, which the dialog loads through storage rather than the endpoint; everything else — `text/html`, `image/svg+xml`, `application/octet-stream` — becomes `application/octet-stream` with `Content-Disposition: attachment`. Inline responses also carry `Content-Security-Policy: sandbox`, except PDFs, which Chrome's viewer refuses to render in a sandboxed document and which cannot script the parent DOM anyway.
 
-`SigV4AuthMiddleware` (`ObjeX.Api/Middleware/`) runs inside the S3 pipeline (`S3Pipeline.UseS3Api`), i.e. for every request arriving on `Server:S3Port`. It: parses the `Authorization: AWS4-HMAC-SHA256 ...` header (or presigned query params), looks up the `AccessKeyId` in `db.S3Credentials`, validates the HMAC-SHA256 signature, checks timestamp freshness (±15 min, presigned URLs use `X-Amz-Expires`), verifies the payload hash against `x-amz-content-sha256`, then sets `context.User` to a `ClaimsIdentity` with scheme `"SigV4"`. Returns S3 XML error responses on failure.
+`SigV4AuthMiddleware` (`ObjeX.Api/Middleware/`) runs inside the S3 pipeline (`S3Pipeline.UseS3Api`), i.e. for every request arriving on `Server:S3Port`. It: parses the `Authorization: AWS4-HMAC-SHA256 ...` header (or presigned query params), looks up the `AccessKeyId` in `db.S3Credentials`, validates the HMAC-SHA256 signature, checks timestamp freshness (±15 min, presigned URLs use `X-Amz-Expires`), verifies the payload hash against `x-amz-content-sha256` — only that branch calls `EnableBuffering()`, so `UNSIGNED-PAYLOAD`, `STREAMING-*`, presigned and POST Object bodies are never spilled to a temp file — then sets `context.User` to a `ClaimsIdentity` with scheme `"SigV4"`. Returns S3 XML error responses on failure.
 
 ### 401 vs 302 for API Paths
 
@@ -226,11 +226,11 @@ services.AddSingleton<IObjectStorageService>(sp => sp.GetRequiredService<FileSys
 | Job class | Location | Schedule | Return type | What it does |
 |---|---|---|---|---|
 | `CleanupOrphanedBlobsJob` | `Infrastructure/Jobs/` | Weekly Sun 03:00 UTC | `Task<CleanupResult>` | Derives the expected path of every object from bucket + key (never from the stored `StoragePath`, which goes stale when the data directory moves), scans `*.blob` files on disk, deletes any not in that set unless modified within the last hour (an upload's blob exists before its row) |
-| `VerifyBlobIntegrityJob` | `Infrastructure/Jobs/` | Weekly Sun 04:00 UTC | `Task<IntegrityResult>` | Reads every blob file, recomputes MD5, compares against stored ETag — logs errors for corrupted or missing blobs |
+| `VerifyBlobIntegrityJob` | `Infrastructure/Jobs/` | Weekly Sun 04:00 UTC | `Task<IntegrityResult>` | Reads every blob file, recomputes MD5, compares against stored ETag — logs errors for corrupted or missing blobs. Multipart objects (`ETags.IsMultipart`, ETag carries `-N`) count as `Skipped` and are never hashed, because their ETag is the MD5 of the part MD5s; a missing blob is still reported for them |
 | `CleanupAbandonedMultipartJob` | `Infrastructure/Jobs/` | Weekly Sun 05:00 UTC | `Task<AbandonedMultipartResult>` | Deletes multipart uploads older than 7 days (DB rows + part files on disk), also removes orphaned `_multipart` directories |
 
 `CleanupResult` (record, defined in same file): `FilesChecked`, `FilesDeleted`, `DurationSeconds`, `Timestamp`.
-`IntegrityResult` (record, defined in same file): `Checked`, `Corrupted`, `Missing`, `DurationSeconds`, `Timestamp`.
+`IntegrityResult` (record, defined in same file): `Checked`, `Corrupted`, `Missing`, `Skipped`, `DurationSeconds`, `Timestamp`.
 `AbandonedMultipartResult` (record, defined in same file): `UploadsChecked`, `UploadsDeleted`, `DurationSeconds`, `Timestamp`. Returning a value from the job method makes the result visible in the Hangfire dashboard job history.
 
 `FileSystemStorageService.BasePath` is `internal` — accessible to jobs in the same `ObjeX.Infrastructure` assembly, not visible outside.
@@ -265,6 +265,7 @@ public interface IMetadataService
     Task<BlobObject> SaveObjectAsync(BlobObject blobObject, string? auditUserId = null, CancellationToken ctk = default);
     Task<BlobObject?> GetObjectAsync(string bucketName, string key, CancellationToken ctk = default);
     Task<ListObjectsResult> ListObjectsAsync(string bucketName, string? prefix = null, string? delimiter = null, CancellationToken ctk = default);
+    // Keys in UTF-8 byte order: ORDER BY key, COLLATE "C" on PostgreSQL (decided by Database.ProviderName); CommonPrefixes ordinal-sorted and deduplicated
     Task<IEnumerable<BlobObject>> ListAllObjectsAsync(CancellationToken ctk = default); // all objects across all buckets — NOT filtered, used by Hangfire cleanup
     Task DeleteObjectAsync(string bucketName, string key, string? auditUserId = null, CancellationToken ctk = default);
     Task<bool> ExistsObjectAsync(string bucketName, string key, CancellationToken ctk = default);
@@ -397,7 +398,7 @@ External S3 clients → HTTP → ObjeX.Api endpoints → same services
 
 **Render mode:** Set globally on `<Routes @rendermode="InteractiveServer" />` in `ObjeX.Api/Components/App.razor`. Do NOT add `@rendermode` per-page — the global setting covers all pages.
 
-**UI library:** Radzen Blazor. Registered via `AddRadzenComponents()` in `Startup/ServiceCollectionExtensions.AddObjeXBlazor`. Required host components in `MainLayout.razor`: `<RadzenDialog />` and `<RadzenNotification />`.
+**UI library:** Radzen Blazor. Registered via `AddRadzenComponents()` in `Startup/ServiceCollectionExtensions.AddObjeXBlazor`. `<RadzenComponents />` in `MainLayout.razor` hosts dialog, notification, context menu, tooltip and chart tooltip. Do not add a separate `<RadzenDialog />`, `<RadzenNotification />` or `<RadzenContextMenu />` next to it — each host subscribes to the service unguarded, so a second one renders every popup twice.
 
 **Validation pattern:**
 - **Enforcement** → service layer only (`EfCoreMetadataService` calls `BucketNameValidator`, throws `ArgumentException` on invalid input)
@@ -412,13 +413,15 @@ External S3 clients → HTTP → ObjeX.Api endpoints → same services
 
 Keyboard handling: text-input dialogs (`CreateBucketDialog`, `CreateS3CredentialDialog`) bind `@onkeydown` on the `<input>` — Enter submits (if valid), Escape cancels. `ShowS3CredentialDialog` binds `@onkeydown` on the container `<RadzenStack tabindex="-1">`. `CreateFolderDialog` follows the same pattern. Do NOT rely on Radzen's built-in Enter-to-submit — it doesn't exist.
 
+`FileMetadataDialog` renders the stored `x-amz-meta-*` headers as a "Custom metadata" section via `Helpers/CustomMetadata.Parse` — prefix stripped, ordinal key order, malformed or empty JSON treated as no entries.
+
 `ShowS3CredentialDialog` displays both `AccessKeyId` and `SecretAccessKey` with copy-to-clipboard buttons. Shows a warning alert: "Save your secret access key now — it won't be shown again." The dialog has `CloseDialogOnOverlayClick = false, ShowClose = false` — user must click Done.
 
 **File downloads are the exception to "no API calls from Blazor":** Blazor Server runs on the server and cannot push file bytes to the browser's download manager through SignalR. Download buttons use a plain `<a href="/api/objects/..." download>` pointing at the API endpoint. This is not an architecture violation — it's a browser constraint.
 
 **Clickable links in grids:** Use `<a href="..." style="color:var(--rz-primary);text-decoration:none">` — do NOT use `<RadzenLink>` which renders red in the Material theme. This applies to bucket name links in `Buckets.razor` and `Dashboard.razor`.
 
-**Virtual folder navigation:** `Objects.razor` tracks `_currentPrefix` (e.g. `"photos/2024/"`) as component state. Calls `ListObjectsAsync` with `delimiter: "/"` — folders render as clickable rows, files as regular rows in a unified `RadzenDataGrid`. Breadcrumb segments are `<span @onclick>` (not `RadzenLink`) to avoid full-page navigation. Folder create writes a zero-byte placeholder object with key `prefix/` and `ContentType: application/x-directory`. Upload prepends `_currentPrefix` to the file name. Placeholder objects (key ends with `/`) are filtered from file rows.
+**Virtual folder navigation:** `Objects.razor` tracks `_currentPrefix` (e.g. `"photos/2024/"`) as component state. Calls `ListObjectsAsync` with `delimiter: "/"` — folders render as clickable rows, files as regular rows in a unified `RadzenDataGrid`. Breadcrumb segments are `<span @onclick>` (not `RadzenLink`) to avoid full-page navigation. Folder create writes a zero-byte placeholder object with key `prefix/` and `ContentType: application/x-directory`. Upload prepends `_currentPrefix` to the file name. Placeholder objects (key ends with `/`) are filtered from file rows. File rows carry a `content_copy` button that opens a `ContextMenuService` menu with "Copy key" and "Copy S3 URI" (`s3://{bucket}/{key}`); feedback is a Success notification, not the icon flip used outside grids. Folder rows get a hidden placeholder button to keep the actions aligned.
 
 **Dashboard "Disk" card:** free of total space of the blob volume via `IStorageSpaceService`, visible to every role because the 507 hits every role. `Warning` at or below twice `Storage:MinimumFreeDiskBytes`, `Danger` at or below it. The disk read in `LoadStats` has its own change label, because free space moves without any bucket changing.
 
@@ -438,7 +441,7 @@ Keyboard handling: text-input dialogs (`CreateBucketDialog`, `CreateS3Credential
 
 ```
 # Internal endpoints — port 9001 (used by Blazor UI, cookie auth)
-GET    /api/objects/{bucket}/{*key}          → download object (browser file download)
+GET    /api/objects/{bucket}/{*key}          → download object (browser file download); x-objex-verify-integrity re-hashes, multipart objects skip the check
 GET    /api/objects/{bucket}/download        → ZIP download; accepts ?prefix= to scope to a virtual folder
 
 # Auth (no auth required)
@@ -465,7 +468,7 @@ PUT    /{bucket}                → create bucket (S3 XML response)
 DELETE /{bucket}                → delete bucket
 PUT    /{bucket}/{*key}         → upload object (returns ETag header); x-amz-copy-source → CopyObject; x-amz-meta-* captured
 PUT    /{bucket}/{*key}?partNumber=N&uploadId=X → UploadPart; upserts part, returns ETag header
-GET    /{bucket}/{*key}         → download object; ?download=true forces application/octet-stream attachment; Range requests supported; x-amz-meta-* returned; x-objex-verify-integrity header triggers ETag re-hash (500 on mismatch)
+GET    /{bucket}/{*key}         → download object; ?download=true forces application/octet-stream attachment; Range requests supported; x-amz-meta-* returned; x-objex-verify-integrity header triggers ETag re-hash (500 on mismatch; multipart objects are served without the check)
 GET    /{bucket}/{*key}?uploadId=X → ListParts XML
 HEAD   /{bucket}/{*key}         → object metadata (ETag, Content-Length, Content-Type, x-amz-meta-* headers)
 DELETE /{bucket}/{*key}         → delete object (204)
