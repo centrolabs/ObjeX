@@ -18,6 +18,7 @@ namespace ObjeX.Api.Startup;
 public static class DatabaseInitializer
 {
     private static readonly string[] Roles = ["Admin", "Manager", "User"];
+    private static readonly string BuiltInAdminPassword = new DefaultAdminOptions().Password;
 
     public static async Task InitializeAsync(
         WebApplication app,
@@ -85,7 +86,14 @@ public static class DatabaseInitializer
         if (existing is not null)
             return existing;
 
-        var admin = new User { UserName = options.Username, Email = options.Email, EmailConfirmed = true };
+        // Nobody may keep the built-in password. No TemporaryPasswordExpiresAt — a fresh install must not lock itself out.
+        var admin = new User
+        {
+            UserName = options.Username,
+            Email = options.Email,
+            EmailConfirmed = true,
+            MustChangePassword = options.Password == BuiltInAdminPassword,
+        };
         var result = await userManager.CreateAsync(admin, options.Password);
         if (!result.Succeeded)
         {

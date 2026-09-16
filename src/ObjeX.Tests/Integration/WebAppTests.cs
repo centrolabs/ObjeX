@@ -65,9 +65,9 @@ public class WebAppTests(ObjeXFactory factory) : IClassFixture<ObjeXFactory>
         ]);
 
         var response = await client.PostAsync("/account/login", formContent);
-        // Successful login redirects (302) to returnUrl
+        // The seeded admin still carries the built-in password, so it is sent to the change form, not to returnUrl.
         Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
-        Assert.Equal("/", response.Headers.Location?.OriginalString);
+        Assert.Equal("/change-password", response.Headers.Location?.OriginalString);
 
         // Response should set a cookie
         Assert.True(response.Headers.TryGetValues("Set-Cookie", out var cookies));
