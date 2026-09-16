@@ -52,8 +52,6 @@ public class SigV4AuthMiddleware(RequestDelegate next, ILogger<SigV4AuthMiddlewa
             return;
         }
 
-        context.Request.EnableBuffering();
-
         var maxPresignedExpiry = context.Request.Query.ContainsKey("X-Amz-Expires")
             ? Math.Min((await db.SystemSettings.FindAsync([1], context.RequestAborted))?.PresignedUrlMaxExpirySeconds ?? AwsMaxPresignedExpirySeconds, AwsMaxPresignedExpirySeconds)
             : AwsMaxPresignedExpirySeconds;
@@ -88,8 +86,6 @@ public class SigV4AuthMiddleware(RequestDelegate next, ILogger<SigV4AuthMiddlewa
                 "The request signature we calculated does not match the signature you provided.", 403);
             return;
         }
-
-        context.Request.Body.Position = 0;
 
         if (!await VerifyPayloadHashAsync(context.Request))
         {
@@ -244,6 +240,8 @@ public class SigV4AuthMiddleware(RequestDelegate next, ILogger<SigV4AuthMiddlewa
             declared.StartsWith("STREAMING-", StringComparison.OrdinalIgnoreCase))
             return true;
 
+        // Buffering spills the body to a temp file, so only this branch pays for it: nothing else here reads the body.
+        request.EnableBuffering();
         var actualHash = Convert.ToHexString(await SHA256.HashDataAsync(request.Body)).ToLowerInvariant();
         request.Body.Position = 0;
 

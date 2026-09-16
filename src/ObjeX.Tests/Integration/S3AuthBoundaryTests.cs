@@ -67,6 +67,43 @@ public class S3AuthBoundaryTests(ObjeXFactory factory) : IClassFixture<ObjeXFact
     }
 
     [Fact]
+    public async Task UnsignedPayload_BodyIsNotHashed_Returns200()
+    {
+        var content = "unsigned payload body"u8.ToArray();
+        var request = new HttpRequestMessage(HttpMethod.Put, "/test-bucket/unsigned-payload.txt")
+        {
+            Content = new ByteArrayContent(content)
+        };
+        S3RequestSigner.SignRequest(request, factory.AccessKeyId, factory.SecretAccessKey, content,
+            contentSha256: "UNSIGNED-PAYLOAD");
+
+        var response = await _client.SendAsync(request);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        var get = new HttpRequestMessage(HttpMethod.Get, "/test-bucket/unsigned-payload.txt");
+        S3RequestSigner.SignRequest(get, factory.AccessKeyId, factory.SecretAccessKey);
+        Assert.Equal(content, await (await _client.SendAsync(get)).Content.ReadAsByteArrayAsync());
+    }
+
+    [Fact]
+    public async Task PayloadHashMismatch_Returns400()
+    {
+        var declared = Convert.ToHexString(
+            System.Security.Cryptography.SHA256.HashData("a different body"u8.ToArray())).ToLowerInvariant();
+
+        var request = new HttpRequestMessage(HttpMethod.Put, "/test-bucket/payload-mismatch.txt")
+        {
+            Content = new ByteArrayContent("the actual body"u8.ToArray())
+        };
+        S3RequestSigner.SignRequest(request, factory.AccessKeyId, factory.SecretAccessKey,
+            contentSha256: declared);
+
+        var response = await _client.SendAsync(request);
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Contains("SignatureDoesNotMatch", await response.Content.ReadAsStringAsync());
+    }
+
+    [Fact]
     public async Task PresignedUrl_Valid_Returns200()
     {
         // Upload an object first
