@@ -11,6 +11,7 @@
 @inject IObjectStorageService StorageService
 @inject ILogger<Objects> Logger
 @inject DialogService DialogService
+@inject ContextMenuService ContextMenuService
 @inject NotificationService NotificationService
 @inject NavigationManager Navigation
 @inject IOptions<S3Options> S3
@@ -105,7 +106,7 @@
             <RadzenDataGridColumn TItem="ListRow" Title="Uploaded" Property="SortDate">
                 <Template Context="row">@(row.IsFolder ? "" : row.Object!.CreatedAt.ToString("yyyy-MM-dd HH:mm"))</Template>
             </RadzenDataGridColumn>
-            <RadzenDataGridColumn TItem="ListRow" Title="" Width="240px" Sortable="false">
+            <RadzenDataGridColumn TItem="ListRow" Title="" Width="280px" Sortable="false">
                 <Template Context="row">
                     <div style="display:flex;align-items:center;justify-content:flex-end">
                     @if (row.IsFolder)
@@ -113,7 +114,8 @@
                         <a href="@FileHelper.FolderZipUrl(BucketName, row.FolderPath!)" download="@(row.Name[..^1]).zip" target="_blank" style="display:flex">
                             <RadzenButton Icon="download" ButtonStyle="ButtonStyle.Primary" Variant="Variant.Text" />
                         </a>
-                        <RadzenButton Icon="link"        ButtonStyle="ButtonStyle.Secondary" Variant="Variant.Text" style="visibility:hidden" />
+                        <RadzenButton Icon="link"         ButtonStyle="ButtonStyle.Secondary" Variant="Variant.Text" style="visibility:hidden" />
+                        <RadzenButton Icon="content_copy" ButtonStyle="ButtonStyle.Secondary" Variant="Variant.Text" style="visibility:hidden" />
                         <RadzenButton Icon="visibility" ButtonStyle="ButtonStyle.Dark"     Variant="Variant.Text" style="visibility:hidden" />
                         <RadzenButton Icon="info"       ButtonStyle="ButtonStyle.Dark"     Variant="Variant.Text" style="visibility:hidden" />
                         <RadzenButton Icon="delete"     ButtonStyle="ButtonStyle.Danger"    Variant="Variant.Text"
@@ -127,6 +129,9 @@
                         <RadzenButton Icon="link" ButtonStyle="ButtonStyle.Secondary" Variant="Variant.Text"
                                       Click="@(() => CopyPresignedLink(row.Object!))"
                                       title="Copy presigned link" />
+                        <RadzenButton Icon="content_copy" ButtonStyle="ButtonStyle.Secondary" Variant="Variant.Text"
+                                      Click="@(args => ShowCopyMenu(args, row.Object!))"
+                                      title="Copy key or S3 URI" />
                         @if (IsPreviewable(row.Object!.ContentType))
                         {
                             <RadzenButton Icon="visibility" ButtonStyle="ButtonStyle.Dark" Variant="Variant.Text"
@@ -564,6 +569,31 @@
                 { "Key",         obj.Key },
             },
             new DialogOptions { Width = "860px", CloseDialogOnOverlayClick = true, ShowClose = true });
+    }
+
+    void ShowCopyMenu(MouseEventArgs args, BlobObject obj) =>
+        ContextMenuService.Open(args,
+            [
+                new ContextMenuItem { Text = "Copy key",    Value = "key" },
+                new ContextMenuItem { Text = "Copy S3 URI", Value = "uri" },
+            ],
+            // The click callback is synchronous, so the copy runs detached and reports its own failures.
+            e => _ = CopyFromMenu(obj, e));
+
+    async Task CopyFromMenu(BlobObject obj, MenuItemEventArgs e)
+    {
+        ContextMenuService.Close();
+        var isKey = (string?)e.Value == "key";
+        var text = isKey ? obj.Key : $"s3://{BucketName}/{obj.Key}";
+        try
+        {
+            await JS.InvokeVoidAsync("navigator.clipboard.writeText", text);
+            NotificationService.Notify(NotificationSeverity.Success, isKey ? "Key copied" : "S3 URI copied");
+        }
+        catch (Exception ex)
+        {
+            NotificationService.Notify(NotificationSeverity.Error, "Copy failed", ex.Message);
+        }
     }
 
     async Task CopyPresignedLink(BlobObject obj)
