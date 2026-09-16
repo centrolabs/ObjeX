@@ -50,7 +50,7 @@ src/
 ## Architecture Rules
 
 - **ObjeX.Core** has zero framework/NuGet dependencies — only BCL. Keep it that way.
-- **ObjeX.Infrastructure** implements Core interfaces. Never reference Api or Web.
+- **ObjeX.Infrastructure** implements Core interfaces. Never reference Api or Web. Internals are visible to `ObjeX.Tests` (`InternalsVisibleTo`).
 - **ObjeX.Api** wires everything together. `Program.cs` only composes: typed options → `Startup/ServiceCollectionExtensions` (`AddObjeXDatabase/Storage/Identity/Blazor`, `AddObjeXBackgroundJobs`, `AddS3Api`) → `DatabaseInitializer` → pipeline. No business logic here.
 - **ObjeX.Web** references both `ObjeX.Core` and `ObjeX.Infrastructure` (for `ObjeXDbContext` injection in Blazor components).
 - New storage backends → implement `IObjectStorageService`. New metadata stores → implement `IMetadataService`. No other changes needed.
@@ -277,8 +277,11 @@ public interface IMetadataService
     Task<BlobObject?> GetObjectAsync(string bucketName, string key, CancellationToken ctk = default);
     Task<ListObjectsResult> ListObjectsAsync(string bucketName, string? prefix = null, string? delimiter = null, CancellationToken ctk = default);
     // Keys in UTF-8 byte order: ORDER BY key, COLLATE "C" on PostgreSQL (decided by Database.ProviderName); CommonPrefixes ordinal-sorted and deduplicated
+    // Search term: * = any run of characters, ? = exactly one; %, _ and \ stay literal. No wildcard = matches anywhere; with a wildcard = anchored at the end (*.pdf excludes a.pdfx). Translation in Infrastructure/Metadata/SearchPattern.cs
     Task<IReadOnlyList<BlobObject>> SearchObjectsAsync(string bucketName, string? prefix, string term, int limit, CancellationToken ctk = default);
-    // keys under prefix containing term (case-insensitive, LIKE wildcards escaped), placeholders excluded, byte order, at most limit
+    // keys under prefix, case-insensitive, placeholders excluded, byte order, at most limit
+    Task<IReadOnlyList<BlobObject>> SearchAllObjectsAsync(string? ownerFilter, string term, int limit, CancellationToken ctk = default);
+    // same term semantics across every bucket owned by ownerFilter (null = all); ordered by bucket then key, provider-aware collation
     Task<IEnumerable<BlobObject>> ListAllObjectsAsync(CancellationToken ctk = default); // all objects across all buckets — NOT filtered, used by Hangfire cleanup
     Task DeleteObjectAsync(string bucketName, string key, string? auditUserId = null, CancellationToken ctk = default);
     Task<int> DeleteObjectsAsync(string bucketName, IEnumerable<string> keys, string? auditUserId = null, CancellationToken ctk = default);
@@ -443,6 +446,8 @@ Keyboard handling: text-input dialogs (`CreateBucketDialog`, `CreateS3Credential
 **Virtual folder navigation:** `Objects.razor` tracks `_currentPrefix` (e.g. `"photos/2024/"`) as component state. Calls `ListObjectsAsync` with `delimiter: "/"` — folders render as clickable rows, files as regular rows in a unified `RadzenDataGrid`. Breadcrumb segments are `<span @onclick>` (not `RadzenLink`) to avoid full-page navigation. Folder create writes a zero-byte placeholder object with key `prefix/` and `ContentType: application/x-directory`. Upload prepends `_currentPrefix` to the file name. Placeholder objects (key ends with `/`) are filtered from file rows. File rows carry a `content_copy` button that opens a `ContextMenuService` menu with "Copy key" and "Copy S3 URI" (`s3://{bucket}/{key}`); feedback is a Success notification, not the icon flip used outside grids. Folder rows get a hidden placeholder button to keep the actions aligned. A search box in the toolbar (hidden while the bucket is empty) filters with a 300 ms debounce over `_currentPrefix` and everything below it — the grid then shows file rows only, keyed relative to the prefix, capped at 500 with a "N results · first 500 shown" caption; Escape, the clear button and breadcrumb navigation restore the folder view.
 
 **Dashboard "Disk" card:** free of total space of the blob volume via `IStorageSpaceService`, visible to every role because the 507 hits every role. `Warning` at or below twice `Storage:MinimumFreeDiskBytes`, `Danger` at or below it. The disk read in `LoadStats` has its own change label, because free space moves without any bucket changing.
+
+**Global search on `/buckets`:** `Buckets.razor` has a 300 ms debounced search box (hidden when the user has no buckets) that calls `SearchAllObjectsAsync(_isPrivileged ? null : userId, term, 501)` and swaps the bucket grid for a result grid — Bucket link, Key linking to its folder (`?prefix=`, per-segment encoded), Size, Modified, download; Escape or the clear button restores the bucket grid.
 
 **Dark mode:** Theme stored in `objex-theme` cookie. `App.razor` reads cookie via `IHttpContextAccessor` server-side and passes to `<RadzenTheme>` — no flash on load. An inline `<script>` in `<head>` sets the cookie from `prefers-color-scheme` on first visit. Toggle in Settings page uses `ThemeService.SetTheme()` + JS cookie write. `ThemeService` is registered as `AddScoped<ThemeService>()` — do NOT use `AddRadzenCookieThemeService` (it fights the server-side rendering). Read initial switch state from cookie via JS in `OnAfterRenderAsync`, not from `ThemeService.Theme` (which is null on Blazor init).
 
