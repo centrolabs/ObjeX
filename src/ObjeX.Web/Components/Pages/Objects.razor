@@ -258,9 +258,15 @@
             _searchTerm = string.Empty;
 
         if (string.IsNullOrWhiteSpace(_searchTerm))
+        {
             ShowFolderView();
+        }
         else
-            await RunSearch(_searchCts.Token);
+        {
+            // A keystroke during the refresh cancels it; that keystroke renders its own result.
+            try { await RunSearch(_searchCts.Token); }
+            catch (OperationCanceledException) { }
+        }
     }
 
     void BuildFolderRows() =>
