@@ -90,6 +90,14 @@ public static class S3RequestSigner
             $"Credential={accessKeyId}/{scope}, SignedHeaders={signedHeaders}, Signature={signature}");
     }
 
+    /// <summary>Signs a base64 policy document for POST Object, which authenticates via form fields instead of headers.</summary>
+    public static (string Credential, string Signature) SignPolicy(string accessKeyId, string secretAccessKey, string policyBase64)
+    {
+        var date = DateTime.UtcNow.ToString("yyyyMMdd");
+        var signature = ToHex(HmacSha256(DeriveSigningKey(secretAccessKey, date), Encoding.UTF8.GetBytes(policyBase64)));
+        return ($"{accessKeyId}/{date}/{Region}/{Service}/aws4_request", signature);
+    }
+
     private static string BuildCanonicalQueryString(string query)
     {
         query = query.TrimStart('?');

@@ -175,23 +175,31 @@ public static class S3PostObjectEndpoint
         return S3Xml.DeleteResult(deleted, errors);
     }
 
+    private static JsonDocument? TryParsePolicy(byte[] policyBytes)
+    {
+        try { return JsonDocument.Parse(policyBytes); }
+        catch (JsonException) { return null; }
+    }
+
     private static string? ValidatePolicy(string policyB64, string bucket, string key, IFormCollection form)
     {
         byte[] policyBytes;
         try { policyBytes = Convert.FromBase64String(policyB64); }
         catch { return "Invalid policy encoding."; }
 
-        using var policy = JsonDocument.Parse(policyBytes);
+        using var policy = TryParsePolicy(policyBytes);
+        if (policy is null)
+            return "Invalid policy document.";
 
-        if (policy.RootElement.TryGetProperty("expiration", out var expProp))
-        {
-            if (DateTime.TryParse(expProp.GetString(), null,
-                    System.Globalization.DateTimeStyles.AdjustToUniversal, out var expiration))
-            {
-                if (DateTime.UtcNow > expiration)
-                    return "Policy has expired.";
-            }
-        }
+        // A policy without a usable expiration would stay valid forever once it leaks, so AWS requires the field.
+        if (!policy.RootElement.TryGetProperty("expiration", out var expProp)
+            || !DateTime.TryParse(expProp.GetString(), System.Globalization.CultureInfo.InvariantCulture,
+                   System.Globalization.DateTimeStyles.AdjustToUniversal | System.Globalization.DateTimeStyles.AssumeUniversal,
+                   out var expiration))
+            return "Policy is missing a valid expiration.";
+
+        if (DateTime.UtcNow > expiration)
+            return "Policy has expired.";
 
         if (!policy.RootElement.TryGetProperty("conditions", out var conditions))
             return "Policy missing conditions.";
