@@ -154,6 +154,8 @@ Username: admin  (or DefaultAdmin:Username in config)
 Email:    admin@objex.local  (or DefaultAdmin:Email)
 Password: admin  (or DefaultAdmin:Password)
 ```
+When the configured password equals the built-in default, the admin is created with `MustChangePassword = true` and lands on `/change-password` after the first login. `TemporaryPasswordExpiresAt` stays null, so a fresh install cannot lock itself out. A password set via `DefaultAdmin:Password` is not forced. Integration tests that log in as `admin/admin` therefore get a redirect to `/change-password`, not to `returnUrl`.
+
 ⚠️ Change this in production via `appsettings.json` or environment variables.
 
 ### Login / Logout
@@ -243,13 +245,22 @@ services.AddSingleton<IObjectStorageService>(sp => sp.GetRequiredService<FileSys
 // ObjeX.Core/Interfaces/IObjectStorageService.cs
 public interface IObjectStorageService
 {
-    Task<string> StoreAsync(string bucketName, string key, Stream data, CancellationToken ctk = default);
+    Task<string> StoreAsync(string bucketName, string key, Stream data, CancellationToken ctk = default); // stage + commit
+    Task<IStagedBlob> StageAsync(string bucketName, string key, Stream data, CancellationToken ctk = default);
     Task<Stream> RetrieveAsync(string bucketName, string key, CancellationToken ctk = default);
     Task DeleteAsync(string bucketName, string key, CancellationToken ctk = default);
     Task DeleteBucketAsync(string bucketName, CancellationToken ctk = default); // removes the bucket's blob folder; called after the rows are gone
     Task<bool> ExistsAsync(string bucketName, string key, CancellationToken ctk = default);
     Task<long> GetSizeAsync(string bucketName, string key, CancellationToken ctk = default);
 }
+
+// ObjeX.Core/Interfaces/IStagedBlob.cs
+public interface IStagedBlob : IAsyncDisposable
+{
+    long Size { get; }                                          // bytes written to the temp file
+    Task<string> CommitAsync(CancellationToken ctk = default);  // moves the temp file into place, returns the storage path
+}
+// DisposeAsync without a commit deletes the temp file; the object under the key keeps its old bytes.
 
 // ObjeX.Core/Interfaces/IMetadataService.cs
 public interface IMetadataService
@@ -268,8 +279,12 @@ public interface IMetadataService
     // Keys in UTF-8 byte order: ORDER BY key, COLLATE "C" on PostgreSQL (decided by Database.ProviderName); CommonPrefixes ordinal-sorted and deduplicated
     Task<IEnumerable<BlobObject>> ListAllObjectsAsync(CancellationToken ctk = default); // all objects across all buckets — NOT filtered, used by Hangfire cleanup
     Task DeleteObjectAsync(string bucketName, string key, string? auditUserId = null, CancellationToken ctk = default);
+    Task<int> DeleteObjectsAsync(string bucketName, IEnumerable<string> keys, string? auditUserId = null, CancellationToken ctk = default);
+    // DeleteObjectsAsync: one transaction, one stats update, one DeleteObject audit entry per deleted key; unknown keys are ignored (S3 semantics), returns rows deleted
     Task<bool> ExistsObjectAsync(string bucketName, string key, CancellationToken ctk = default);
     Task UpdateBucketStatsAsync(string bucketName, CancellationToken ctk = default);
+    // UpdateBucketStatsAsync is the full recount, for repair only. SaveObjectAsync/DeleteObjectAsync/DeleteObjectsAsync adjust ObjectCount and TotalSize
+    // by the changed object's delta via ExecuteUpdate in the same transaction as the row change; overwrite = count unchanged, size delta = new - old.
 }
 
 // ObjeX.Core/Models/ListObjectsResult.cs
@@ -282,7 +297,9 @@ public record StorageQuotaStatus(long UsedBytes, long? QuotaBytes); // HasQuota,
 public interface IStorageQuotaService
 {
     // Used = size of the user's buckets. Quota = per-user value, else the global default for the User role, else null (unlimited).
-    // The rule behind the S3 507 check (Api/S3/StorageQuota) and the Dashboard's "My Storage" card; the Users page applies the same rule in one query for all users.
+    // The S3 507 check (Api/S3/StorageQuota) resolves the bucket's OwnerId and calls GetAsync(ownerId), never the caller: an Admin or Manager
+    // uploading into a user's bucket is bound by that user's quota. An overwrite is charged newSize - existingSize, floored at zero.
+    // The Dashboard's "My Storage" card uses the same rule; the Users page applies it in one query for all users.
     Task<StorageQuotaStatus> GetAsync(string userId, CancellationToken ctk = default);
 }
 
@@ -367,7 +384,7 @@ Example:
   path   = /data/blobs/photos/a3/f7/a3f7c2....blob
 ```
 
-**Atomic writes:** `StoreAsync` writes to `{hash}.blob.tmp` first, then `File.Move(..., overwrite: true)` into the final path. Move is atomic on Linux. On crash, the `.tmp` file is cleaned up at next startup (files older than 1 hour are deleted). This prevents corrupt blobs with valid metadata pointing to them.
+**Staged writes:** `StageAsync` writes `{hash}.blob.{guid}.tmp` and returns an `IStagedBlob`. PUT object, UploadPart and POST Object run the `Content-MD5` check and the post-write quota check between stage and commit; an early return disposes the staged blob, and the previous object keeps its bytes and its metadata row. `CommitAsync` is the `File.Move(..., overwrite: true)`, atomic on Linux. `StoreAsync` is stage plus commit; CopyObject and the Blazor upload still use it, because their quota pre-check is exact. Parts follow the same pattern through `FileSystemStorageService.StagePartAsync`, which also yields the part ETag. On crash the `.tmp` file is cleaned up at next startup (files older than 1 hour are deleted).
 
 **Why hashed paths:**
 - Eliminates path traversal risk — the logical key never touches the filesystem raw
@@ -488,7 +505,8 @@ POST   /                        → S3 POST Object (bucketEndpoint mode); bucket
 # - S3PostObjectEndpoint (ObjeX.Api/Endpoints/S3Endpoints/) — browser-based uploads via presigned POST policy
 #   Auth is form-field-based (policy + X-Amz-Signature), not header SigV4. Middleware handles this as a third auth path.
 #   The policy must carry a parsable expiration, otherwise 403 — it is the only time limit on a leaked signature. Malformed policy JSON is a 403 too, never a 500.
-# - S3RequestBody (ObjeX.Api/S3/) — unwraps aws-chunked bodies (Content-Encoding: aws-chunked or x-amz-content-sha256: STREAMING-*) for PUT and UploadPart; SDKs send that framing whenever they stream with a trailing checksum, the CLI does so over HTTPS. Chunk signatures and trailer checksums are not verified.
+# - S3RequestBody (ObjeX.Api/S3/) — unwraps aws-chunked bodies (Content-Encoding: aws-chunked or x-amz-content-sha256: STREAMING-*) for PUT and UploadPart; SDKs send that framing whenever they stream with a trailing checksum, the CLI does so over HTTPS. AwsChunkedStream copies chunk data straight into the caller's buffer; only header lines use a fixed 1 KB scratch buffer, so a declared chunk size never sizes an allocation. A chunk size that is not hex, wider than 8 hex digits or above 1 GiB, and a body that ends before its terminating chunk, throw InvalidDataException (S3 XML 500). Chunk signatures and trailer checksums are not verified.
+# - ObjectDeletion (ObjeX.Api/S3/) — shared row-then-blob delete for the S3 endpoints; DeleteManyAsync backs DeleteObjects: all rows in one DeleteObjectsAsync call, then one blob delete per key, so a metadata failure yields an <Error> for every key of the batch
 # - ContentMd5 (ObjeX.Api/S3/) — verifies the optional Content-MD5 header on PUT object, UploadPart and DeleteObjects. Decoded before the body is read: 400 InvalidDigest unless base64 of 16 bytes. Compared after: 400 BadDigest, the blob or part file is deleted, no row is written. CopyObject, POST Object and CompleteMultipartUpload do not check it; for aws-chunked bodies the digest covers the decoded payload.
 # - S3MultipartEndpoint (ObjeX.Api/Endpoints/S3Endpoints/) — Initiate + Complete (single MapPost dispatch on ?uploads vs ?uploadId)
 # - Parts stored at {BasePath}/_multipart/{uploadId}/{partNumber}.part; cleaned up after Complete or Abort
@@ -539,7 +557,7 @@ POST   /                        → S3 POST Object (bucketEndpoint mode); bucket
 ```bash
 cd src/ObjeX.Api
 dotnet run
-# → http://localhost:9001  (login: admin / admin)
+# → http://localhost:9001  (login: admin / admin, forced password change on first login)
 # → http://localhost:9001/hangfire   (job dashboard)
 # → http://localhost:9001/health
 ```
