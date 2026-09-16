@@ -4,6 +4,7 @@
 @using ObjeX.Core.Models
 @using ObjeX.Infrastructure.Data
 @inject IDbContextFactory<ObjeXDbContext> DbFactory
+@inject BrowserTimeZone Tz
 
 <PageTitle>Audit Log — ObjeX</PageTitle>
 
@@ -18,7 +19,7 @@
                 <RadzenDataGridColumn TItem="AuditEntry" Property="Timestamp" Title="Time" Width="190px"
                                       SortOrder="SortOrder.Descending">
                     <Template Context="e">
-                        @e.Timestamp.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss")
+                        @Tz.FormatSeconds(e.Timestamp)
                     </Template>
                 </RadzenDataGridColumn>
                 <RadzenDataGridColumn TItem="AuditEntry" Property="UserId" Title="User" Width="140px">

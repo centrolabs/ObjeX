@@ -18,6 +18,7 @@
 @inject AuthenticationStateProvider AuthStateProvider
 @inject IDbContextFactory<ObjeXDbContext> DbFactory
 @inject IJSRuntime JS
+@inject BrowserTimeZone Tz
 
 <PageTitle>@BucketName — ObjeX</PageTitle>
 
@@ -113,7 +114,7 @@
                 <Template Context="row">@(row.IsFolder ? "" : FileHelper.FormatBytes(row.Object!.Size))</Template>
             </RadzenDataGridColumn>
             <RadzenDataGridColumn TItem="ListRow" Title="Uploaded" Property="SortDate">
-                <Template Context="row">@(row.IsFolder ? "" : row.Object!.CreatedAt.ToString("yyyy-MM-dd HH:mm"))</Template>
+                <Template Context="row">@(row.IsFolder ? "" : Tz.Format(row.Object!.CreatedAt))</Template>
             </RadzenDataGridColumn>
             <RadzenDataGridColumn TItem="ListRow" Title="" Width="280px" Sortable="false">
                 <Template Context="row">
@@ -747,7 +748,7 @@
 
         await JS.InvokeVoidAsync("navigator.clipboard.writeText", url);
 
-        var expiresAt = DateTime.Now.AddSeconds(expiresSeconds);
-        NotificationService.Notify(NotificationSeverity.Success, "Link copied", $"Expires at {expiresAt:HH:mm:ss}");
+        NotificationService.Notify(NotificationSeverity.Success, "Link copied",
+            $"Expires at {Tz.FormatSeconds(DateTime.UtcNow.AddSeconds(expiresSeconds))}");
     }
 }

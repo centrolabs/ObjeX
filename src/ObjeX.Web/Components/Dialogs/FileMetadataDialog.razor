@@ -17,11 +17,11 @@
     </div>
     <div class="meta-row">
         <span class="meta-label">Uploaded</span>
-        <span class="meta-value">@CreatedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss")</span>
+        <span class="meta-value">@Tz.FormatSeconds(CreatedAt)</span>
     </div>
     <div class="meta-row">
         <span class="meta-label">Last Modified</span>
-        <span class="meta-value">@UpdatedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss")</span>
+        <span class="meta-value">@Tz.FormatSeconds(UpdatedAt)</span>
     </div>
     @{ var custom = CustomMetadata.Parse(CustomMetadataJson); }
     @if (custom.Count > 0)
@@ -78,4 +78,5 @@
     [Parameter] public string? CustomMetadataJson { get; set; }
 
     [Inject] DialogService DialogService { get; set; } = null!;
+    [Inject] BrowserTimeZone Tz { get; set; } = null!;
 }

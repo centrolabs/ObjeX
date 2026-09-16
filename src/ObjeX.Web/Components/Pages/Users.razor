@@ -14,6 +14,7 @@
 @inject NotificationService NotificationService
 @inject AuthenticationStateProvider AuthStateProvider
 @inject IOptions<DefaultAdminOptions> DefaultAdmin
+@inject BrowserTimeZone Tz
 
 <PageTitle>Users — ObjeX</PageTitle>
 
@@ -68,7 +69,7 @@
                 </RadzenDataGridColumn>
                 <RadzenDataGridColumn TItem="UserRow" Property="CreatedAt" Title="Created" Width="160px">
                     <Template Context="row">
-                        @row.CreatedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm")
+                        @Tz.Format(row.CreatedAt)
                     </Template>
                 </RadzenDataGridColumn>
                 <RadzenDataGridColumn TItem="UserRow" Title="" Width="190px" TextAlign="TextAlign.Right" Sortable="false">

@@ -11,3 +11,11 @@
         <FocusOnNavigate RouteData="routeData" Selector="h1" />
     </Found>
 </Router>
+
+@code {
+    [Parameter] public string? TimeZoneId { get; set; }
+
+    [Inject] BrowserTimeZone Tz { get; set; } = null!;
+
+    protected override void OnParametersSet() => Tz.Set(TimeZoneId);
+}

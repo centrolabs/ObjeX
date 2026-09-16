@@ -9,6 +9,7 @@ using ObjeX.Infrastructure.Health;
 using ObjeX.Infrastructure.Metadata;
 using ObjeX.Infrastructure.Options;
 using ObjeX.Infrastructure.Storage;
+using ObjeX.Web.Services;
 using Radzen;
 
 namespace ObjeX.Api.Startup;
@@ -135,6 +136,7 @@ public static class ServiceCollectionExtensions
         services.AddHttpContextAccessor();
         services.AddRadzenComponents();
         services.AddScoped<ThemeService>();
+        services.AddScoped<BrowserTimeZone>();
         services.AddCascadingAuthenticationState();
         services.AddResponseCompression(options => options.EnableForHttps = true);
 

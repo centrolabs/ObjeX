@@ -1,4 +1,5 @@
 @inject DialogService DialogService
+@inject BrowserTimeZone Tz
 
 <RadzenStack Gap="1rem" @onkeydown="OnKeyDown" tabindex="-1">
 
@@ -37,7 +38,7 @@
     else
     {
         <RadzenText TextStyle="TextStyle.Caption" Style="color:var(--rz-text-secondary-color)">
-            Expires at: @DateTime.Now.AddSeconds(TotalSeconds).ToString("yyyy-MM-dd HH:mm:ss")
+            Expires at: @Tz.FormatSeconds(DateTime.UtcNow.AddSeconds(TotalSeconds))
         </RadzenText>
     }
 

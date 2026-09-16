@@ -15,6 +15,7 @@
 @inject AuthenticationStateProvider AuthStateProvider
 @inject IOptions<DefaultAdminOptions> DefaultAdmin
 @inject IDbContextFactory<ObjeXDbContext> DbFactory
+@inject BrowserTimeZone Tz
 
 <PageTitle>Buckets — ObjeX</PageTitle>
 
@@ -61,7 +62,7 @@
                     <Template Context="obj">@FileHelper.FormatBytes(obj.Size)</Template>
                 </RadzenDataGridColumn>
                 <RadzenDataGridColumn TItem="BlobObject" Property="UpdatedAt" Title="Modified" Width="160px">
-                    <Template Context="obj">@obj.UpdatedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</Template>
+                    <Template Context="obj">@Tz.Format(obj.UpdatedAt)</Template>
                 </RadzenDataGridColumn>
                 <RadzenDataGridColumn TItem="BlobObject" Title="" Width="60px" Sortable="false">
                     <Template Context="obj">
@@ -103,7 +104,9 @@
                     </Template>
                 </RadzenDataGridColumn>
             }
-            <RadzenDataGridColumn TItem="Bucket" Property="CreatedAt" Title="Created" FormatString="{0:yyyy-MM-dd HH:mm}" />
+            <RadzenDataGridColumn TItem="Bucket" Property="CreatedAt" Title="Created">
+                <Template Context="bucket">@Tz.Format(bucket.CreatedAt)</Template>
+            </RadzenDataGridColumn>
             <RadzenDataGridColumn TItem="Bucket" Title="" Width="@(_isAdmin ? "100px" : "60px")" Sortable="false">
                 <Template Context="bucket">
                     <RadzenStack Orientation="Orientation.Horizontal" Gap="0" JustifyContent="JustifyContent.End">

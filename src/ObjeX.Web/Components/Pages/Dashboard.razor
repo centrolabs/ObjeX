@@ -8,6 +8,7 @@
 @inject IStorageSpaceService SpaceService
 @inject ILogger<Dashboard> Logger
 @inject AuthenticationStateProvider AuthStateProvider
+@inject BrowserTimeZone Tz
 
 <PageTitle>Dashboard — ObjeX</PageTitle>
 
@@ -16,7 +17,7 @@
                  JustifyContent="JustifyContent.SpaceBetween">
         <RadzenText TextStyle="TextStyle.H4">Dashboard</RadzenText>
         <RadzenText TextStyle="TextStyle.Caption" Style="color:var(--rz-text-secondary-color)">
-            Updated @_lastUpdated.ToString("HH:mm:ss")
+            Updated @Tz.FormatSeconds(_lastUpdated)
         </RadzenText>
     </RadzenStack>
 
@@ -213,7 +214,7 @@
                             </Template>
                         </RadzenDataGridColumn>
                         <RadzenDataGridColumn TItem="Bucket" Property="CreatedAt" Title="Created">
-                            <Template Context="b">@b.CreatedAt.ToString("yyyy-MM-dd")</Template>
+                            <Template Context="b">@Tz.Format(b.CreatedAt)</Template>
                         </RadzenDataGridColumn>
                     </Columns>
                 </RadzenDataGrid>
@@ -252,7 +253,7 @@
     long _totalObjects;
     long _totalSize;
     int _totalFileTypeCount;
-    DateTime _lastUpdated = DateTime.Now;
+    DateTime _lastUpdated = DateTime.UtcNow;
     Timer? _timer;
     string _currentUserId = string.Empty;
     bool _isPrivileged;
@@ -300,7 +301,7 @@
         var fingerprint = string.Join("|", buckets.Select(b => $"{b.Name}:{b.ObjectCount}:{b.TotalSize}:{b.UpdatedAt.Ticks}"));
         if (fingerprint == _fingerprint)
         {
-            if (diskChanged) _lastUpdated = DateTime.Now;
+            if (diskChanged) _lastUpdated = DateTime.UtcNow;
             return diskChanged;
         }
 
@@ -323,7 +324,7 @@
             .ToList();
 
         _totalFileTypeCount = _fileTypeStats.Sum(x => x.Count);
-        _lastUpdated = DateTime.Now;
+        _lastUpdated = DateTime.UtcNow;
         return true;
     }
 

@@ -13,6 +13,7 @@
 @inject DialogService DialogService
 @inject NotificationService NotificationService
 @inject AuthenticationStateProvider AuthStateProvider
+@inject BrowserTimeZone Tz
 
 <PageTitle>Settings — ObjeX</PageTitle>
 
@@ -155,12 +156,12 @@
                         </RadzenDataGridColumn>
                         <RadzenDataGridColumn TItem="S3Credential" Property="CreatedAt" Title="Created" Width="160px">
                             <Template Context="cred">
-                                @cred.CreatedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm")
+                                @Tz.Format(cred.CreatedAt)
                             </Template>
                         </RadzenDataGridColumn>
                         <RadzenDataGridColumn TItem="S3Credential" Property="LastUsedAt" Title="Last Used" Width="160px">
                             <Template Context="cred">
-                                @(cred.LastUsedAt.HasValue ? cred.LastUsedAt.Value.ToLocalTime().ToString("yyyy-MM-dd HH:mm") : "Never")
+                                @(cred.LastUsedAt is { } used ? Tz.Format(used) : "Never")
                             </Template>
                         </RadzenDataGridColumn>
                         <RadzenDataGridColumn TItem="S3Credential" Title="" Width="100px" TextAlign="TextAlign.Right">

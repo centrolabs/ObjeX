@@ -15,13 +15,14 @@
     <link rel="apple-touch-icon" href="apple-touch-icon.png" />
     <link rel="manifest" href="site.webmanifest" />
     <HeadOutlet @rendermode="InteractiveServer" />
-    <script>if (!document.cookie.includes('objex-theme=')) { document.cookie = 'objex-theme=material-dark; path=/; max-age=31536000'; }</script>
+    <script>if (!document.cookie.includes('objex-theme=')) { document.cookie = 'objex-theme=material-dark; path=/; max-age=31536000'; }
+        document.cookie = 'objex-tz=' + encodeURIComponent(Intl.DateTimeFormat().resolvedOptions().timeZone) + '; path=/; max-age=31536000; SameSite=Lax';</script>
     <RadzenTheme Theme="@(HttpContextAccessor.HttpContext?.Request.Cookies["objex-theme"] ?? "material-dark")" />
     <link rel="stylesheet" href="@Assets["app.css"]" />
 </head>
 
 <body>
-    <Routes @rendermode="InteractiveServer" />
+    <Routes @rendermode="InteractiveServer" TimeZoneId="@(HttpContextAccessor.HttpContext?.Request.Cookies["objex-tz"])" />
     <ReconnectModal />
     <script src="@Assets["_framework/blazor.web.js"]"></script>
     <script src="_content/Radzen.Blazor/Radzen.Blazor.js?v=@(typeof(Colors).Assembly.GetName().Version)"></script>
