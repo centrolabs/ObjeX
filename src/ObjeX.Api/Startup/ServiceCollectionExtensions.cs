@@ -130,9 +130,7 @@ public static class ServiceCollectionExtensions
     public static IServiceCollection AddObjeXBlazor(this IServiceCollection services)
     {
         services.AddRazorComponents()
-            .AddInteractiveServerComponents()
-            // Uploads travel over the SignalR circuit (InputFile), so the hub must accept large messages.
-            .AddHubOptions(o => o.MaximumReceiveMessageSize = 500 * 1024 * 1024);
+            .AddInteractiveServerComponents();
         services.AddHttpContextAccessor();
         services.AddRadzenComponents();
         services.AddScoped<ThemeService>();
