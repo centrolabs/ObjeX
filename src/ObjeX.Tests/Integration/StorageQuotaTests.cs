@@ -110,6 +110,43 @@ public class StorageQuotaTests(ObjeXFactory factory) : IClassFixture<ObjeXFactor
         }
     }
 
+    [Fact]
+    public async Task Overwrite_ChargesOnlyTheGrowthOverTheStoredSize()
+    {
+        var (userId, accessKeyId, secretKey) = await CreateUserWithQuota("quota-overwrite", quotaBytes: 1000);
+        var bucket = await CreateBucketForUser(userId, "quota-overwrite-bucket");
+
+        var first = new byte[800];
+        var firstPut = new HttpRequestMessage(HttpMethod.Put, $"/{bucket}/same-key.bin") { Content = new ByteArrayContent(first) };
+        firstPut.Content.Headers.ContentLength = first.Length;
+        S3RequestSigner.SignRequest(firstPut, accessKeyId, secretKey, first);
+        Assert.Equal(HttpStatusCode.OK, (await _client.SendAsync(firstPut)).StatusCode);
+
+        // 800 + 900 exceeds the quota, 900 - 800 on top of the stored 800 does not
+        var second = new byte[900];
+        var secondPut = new HttpRequestMessage(HttpMethod.Put, $"/{bucket}/same-key.bin") { Content = new ByteArrayContent(second) };
+        secondPut.Content.Headers.ContentLength = second.Length;
+        S3RequestSigner.SignRequest(secondPut, accessKeyId, secretKey, second);
+        Assert.Equal(HttpStatusCode.OK, (await _client.SendAsync(secondPut)).StatusCode);
+    }
+
+    [Fact]
+    public async Task AdminUpload_IntoAnotherUsersBucket_HitsThatUsersQuota()
+    {
+        var (userId, _, _) = await CreateUserWithQuota("quota-foreign", quotaBytes: 100);
+        var bucket = await CreateBucketForUser(userId, "quota-foreign-bucket");
+
+        var content = new byte[2000];
+        var putRequest = new HttpRequestMessage(HttpMethod.Put, $"/{bucket}/admin-write.bin") { Content = new ByteArrayContent(content) };
+        putRequest.Content.Headers.ContentLength = content.Length;
+        S3RequestSigner.SignRequest(putRequest, factory.AccessKeyId, factory.SecretAccessKey, content);
+
+        var response = await _client.SendAsync(putRequest);
+
+        Assert.Equal((HttpStatusCode)507, response.StatusCode);
+        Assert.Contains("<Code>EntityTooLarge</Code>", await response.Content.ReadAsStringAsync());
+    }
+
     private async Task<(string UserId, string AccessKeyId, string SecretKey)> CreateUserWithQuota(
         string username, long? quotaBytes)
     {

@@ -137,11 +137,11 @@ public static class S3ObjectEndpoint
                 if (srcObj is null)
                     return S3Xml.Error(S3Errors.NoSuchKey, "The specified source key does not exist.", 404);
 
-                var copyQuotaError = await StorageQuota.CheckAsync(ctx, srcObj.Size);
-                if (copyQuotaError is not null) return copyQuotaError;
-
                 if (await metadata.GetBucketAsync(bucket, IsPrivileged(ctx) ? null : GetCallerId(ctx)) is null)
                     return S3Xml.Error(S3Errors.NoSuchBucket, "The destination bucket does not exist.", 404);
+
+                var copyQuotaError = await StorageQuota.CheckAsync(ctx, bucket, key, srcObj.Size);
+                if (copyQuotaError is not null) return copyQuotaError;
 
                 var srcStream = await storage.RetrieveAsync(srcBucket, srcKey, ctx.RequestAborted);
                 await using var copyHashStream = new HashingStream(srcStream);
@@ -173,7 +173,7 @@ public static class S3ObjectEndpoint
                 return S3Xml.Error(S3Errors.EntityTooLarge, "Insufficient disk space.", 507);
 
             // Pre-check with Content-Length if available; catches already-over-quota early
-            var quotaError = await StorageQuota.CheckAsync(ctx, S3RequestBody.DecodedContentLength(request) ?? 0);
+            var quotaError = await StorageQuota.CheckAsync(ctx, bucket, key, S3RequestBody.DecodedContentLength(request) ?? 0);
             if (quotaError is not null) return quotaError;
 
             if (!ContentMd5.TryParse(request.Headers.ContentMD5, out var expectedMd5))
@@ -195,7 +195,7 @@ public static class S3ObjectEndpoint
             // Post-check with actual size for chunked transfers (no Content-Length)
             if (request.ContentLength is null)
             {
-                var postQuotaError = await StorageQuota.CheckAsync(ctx, size);
+                var postQuotaError = await StorageQuota.CheckAsync(ctx, bucket, key, size);
                 if (postQuotaError is not null)
                     return postQuotaError;
             }
