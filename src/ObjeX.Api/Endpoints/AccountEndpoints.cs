@@ -17,13 +17,14 @@ public static class AccountEndpoints
             var password = form["password"].ToString();
             var returnUrl = form["returnUrl"].ToString();
             var rememberMe = form["rememberMe"] == "true";
+            ctx.Response.Cookies.Append("objex-remember", rememberMe ? "1" : "0",
+                new CookieOptions { MaxAge = TimeSpan.FromDays(365), HttpOnly = true, SameSite = SameSiteMode.Lax, Secure = ctx.Request.IsHttps, IsEssential = true });
             var ip = ctx.Connection.RemoteIpAddress?.ToString() ?? "unknown";
             var sanitizedLogin = login.Replace("\r", "").Replace("\n", "");
 
             string LoginRedirect(string? message)
             {
                 var qs = $"error=1&login={Uri.EscapeDataString(login)}";
-                if (rememberMe) qs += "&remember=1";
                 if (message is not null) qs += $"&msg={Uri.EscapeDataString(message)}";
                 if (!string.IsNullOrEmpty(returnUrl)) qs += $"&returnUrl={Uri.EscapeDataString(returnUrl)}";
                 return $"/login?{qs}";

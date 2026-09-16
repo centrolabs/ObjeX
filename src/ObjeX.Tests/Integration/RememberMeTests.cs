@@ -58,6 +58,23 @@ public class RememberMeTests(ObjeXFactory factory) : IClassFixture<ObjeXFactory>
         Assert.True(Math.Abs(drift.TotalMinutes) < 5, $"expires drifted by {drift.TotalMinutes} minutes");
     }
 
+    [Theory]
+    [InlineData(true, "1")]
+    [InlineData(false, "0")]
+    public async Task Login_RemembersTheChoiceInACookie(bool rememberMe, string expected)
+    {
+        var client = await ClientWithUserAsync("remember-choice");
+        List<KeyValuePair<string, string>> fields = [new("login", "remember-choice"), new("password", Password)];
+        if (rememberMe) fields.Add(new("rememberMe", "true"));
+
+        var response = await client.PostAsync("/account/login", new FormUrlEncodedContent(fields));
+
+        var cookies = SetCookieHeaderValue.ParseList(response.Headers.GetValues(HeaderNames.SetCookie).ToList());
+        var choice = Assert.Single(cookies, c => c.Name == "objex-remember");
+        Assert.Equal(expected, choice.Value.ToString());
+        Assert.True(choice.MaxAge >= TimeSpan.FromDays(364));
+    }
+
     [Fact]
     public async Task WithoutRememberMe_IssuesASessionCookie()
     {

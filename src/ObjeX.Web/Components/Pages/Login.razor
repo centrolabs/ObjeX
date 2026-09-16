@@ -4,6 +4,9 @@
 @inject AuthenticationStateProvider AuthStateProvider
 @inject NavigationManager Navigation
 @inject NotificationService NotificationService
+@inject IHttpContextAccessor HttpContextAccessor
+@inject PersistentComponentState ApplicationState
+@implements IDisposable
 
 <PageTitle>Login — ObjeX</PageTitle>
 
@@ -32,7 +35,7 @@
                     </RadzenStack>
 
                     <label style="display:flex; align-items:center; gap:0.5rem; font-size:0.875rem; cursor:pointer">
-                        <input type="checkbox" name="rememberMe" value="true" checked="@(Remember == "1")" />
+                        <input type="checkbox" name="rememberMe" value="true" checked="@_remember" />
                         Stay signed in
                     </label>
 
@@ -51,10 +54,22 @@
     [SupplyParameterFromQuery] public string? Error { get; set; }
     [SupplyParameterFromQuery] public string? Msg { get; set; }
     [SupplyParameterFromQuery(Name = "login")] public string? LoginValue { get; set; }
-    [SupplyParameterFromQuery(Name = "remember")] public string? Remember { get; set; }
+
+    bool _remember;
+    PersistingComponentStateSubscription _persisting;
 
     protected override async Task OnInitializedAsync()
     {
+        // The cookie is only readable while prerendering; the interactive circuit restores the value from the persisted state.
+        _persisting = ApplicationState.RegisterOnPersisting(() =>
+        {
+            ApplicationState.PersistAsJson(nameof(_remember), _remember);
+            return Task.CompletedTask;
+        });
+        _remember = ApplicationState.TryTakeFromJson<bool>(nameof(_remember), out var restored)
+            ? restored
+            : HttpContextAccessor.HttpContext?.Request.Cookies["objex-remember"] == "1";
+
         var authState = await AuthStateProvider.GetAuthenticationStateAsync();
         if (authState.User.Identity?.IsAuthenticated == true)
             Navigation.NavigateTo(ReturnUrl ?? "/", forceLoad: true);
@@ -69,4 +84,6 @@
             await InvokeAsync(StateHasChanged);
         }
     }
+
+    public void Dispose() => _persisting.Dispose();
 }
