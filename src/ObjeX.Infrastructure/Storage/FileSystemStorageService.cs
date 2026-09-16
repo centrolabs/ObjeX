@@ -53,16 +53,22 @@ public class FileSystemStorageService : IObjectStorageService
 
     public async Task<string> StoreAsync(string bucketName, string key, Stream data, CancellationToken ctk = default)
     {
+        await using var staged = await StageAsync(bucketName, key, data, ctk);
+        return await staged.CommitAsync(ctk);
+    }
+
+    public async Task<IStagedBlob> StageAsync(string bucketName, string key, Stream data, CancellationToken ctk = default)
+    {
         var filePath = AssertWithinBasePath(GetSafePath(bucketName, key));
         var tmpPath = $"{filePath}.{Guid.NewGuid():N}.tmp";
         Directory.CreateDirectory(Path.GetDirectoryName(filePath)!);
 
+        long size;
         try
         {
-            await using (var fileStream = File.Create(tmpPath))
-                await data.CopyToAsync(fileStream, ctk);
-
-            File.Move(tmpPath, filePath, overwrite: true);
+            await using var fileStream = File.Create(tmpPath);
+            await data.CopyToAsync(fileStream, ctk);
+            size = fileStream.Length;
         }
         catch
         {
@@ -70,7 +76,7 @@ public class FileSystemStorageService : IObjectStorageService
             throw;
         }
 
-        return filePath;
+        return new StagedBlob(tmpPath, filePath, size);
     }
 
     public async Task<Stream> RetrieveAsync(string bucketName, string key, CancellationToken ctk = default)
@@ -119,22 +125,25 @@ public class FileSystemStorageService : IObjectStorageService
     public long GetAvailableFreeSpace() =>
         StorageSpaceService.AvailableFreeSpace(BasePath);
 
-    public async Task<(string partPath, string etag)> StorePartAsync(
+    public async Task<StagedPart> StagePartAsync(
         Guid uploadId, int partNumber, Stream data, CancellationToken ctk = default)
     {
         var dir = Path.Combine(BasePath, "_multipart", uploadId.ToString());
         Directory.CreateDirectory(dir);
         var partPath = AssertWithinBasePath(Path.Combine(dir, $"{partNumber}.part"));
-        var tmpPath = partPath + ".tmp";
+        var tmpPath = $"{partPath}.{Guid.NewGuid():N}.tmp";
 
         string etag;
+        long size;
         try
         {
             await using var hashingStream = new HashingStream(data);
             await using (var fileStream = File.Create(tmpPath))
+            {
                 await hashingStream.CopyToAsync(fileStream, ctk);
+                size = fileStream.Length;
+            }
             etag = hashingStream.GetETag();
-            File.Move(tmpPath, partPath, overwrite: true);
         }
         catch
         {
@@ -142,7 +151,7 @@ public class FileSystemStorageService : IObjectStorageService
             throw;
         }
 
-        return (partPath, etag);
+        return new StagedPart(tmpPath, partPath, size, etag);
     }
 
     public async Task<string> AssemblePartsAsync(

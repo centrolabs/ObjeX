@@ -77,15 +77,14 @@ public static class S3ObjectEndpoint
                 if (!ContentMd5.TryParse(request.Headers.ContentMD5, out var expectedPartMd5))
                     return S3Xml.Error(S3Errors.InvalidDigest, "The Content-MD5 you specified is not valid.");
 
-                var (partPath, partEtag) = await fs.StorePartAsync(uploadId, partNumber, S3RequestBody.Decoded(request), request.HttpContext.RequestAborted);
+                await using var stagedPart = await fs.StagePartAsync(uploadId, partNumber, S3RequestBody.Decoded(request), request.HttpContext.RequestAborted);
+                var partEtag = stagedPart.ETag;
 
                 if (!ContentMd5.Matches(expectedPartMd5, partEtag))
-                {
-                    File.Delete(partPath);
                     return S3Xml.Error(S3Errors.BadDigest, "The Content-MD5 you specified did not match what we received.");
-                }
 
-                var partSize = new FileInfo(partPath).Length;
+                var partSize = stagedPart.Size;
+                var partPath = await stagedPart.CommitAsync(request.HttpContext.RequestAborted);
 
                 // Upsert: replace existing part with same number if re-uploaded
                 var existing = await db.MultipartUploadParts
@@ -186,26 +185,22 @@ public static class S3ObjectEndpoint
             var bodyStream = S3RequestBody.Decoded(request);
 
             await using var hashingStream = new HashingStream(bodyStream);
-            var storagePath = await storage.StoreAsync(bucket, key, hashingStream, ctx.RequestAborted);
-            var size = await storage.GetSizeAsync(bucket, key, ctx.RequestAborted);
+            await using var staged = await storage.StageAsync(bucket, key, hashingStream, ctx.RequestAborted);
+            var size = staged.Size;
             var etag = hashingStream.GetETag();
 
             if (!ContentMd5.Matches(expectedMd5, etag))
-            {
-                await storage.DeleteAsync(bucket, key, ctx.RequestAborted);
                 return S3Xml.Error(S3Errors.BadDigest, "The Content-MD5 you specified did not match what we received.");
-            }
 
             // Post-check with actual size for chunked transfers (no Content-Length)
             if (request.ContentLength is null)
             {
                 var postQuotaError = await StorageQuota.CheckAsync(ctx, size);
                 if (postQuotaError is not null)
-                {
-                    await storage.DeleteAsync(bucket, key, ctx.RequestAborted);
                     return postQuotaError;
-                }
             }
+
+            var storagePath = await staged.CommitAsync(ctx.RequestAborted);
 
             await metadata.SaveObjectAsync(new BlobObject
             {

@@ -7,6 +7,7 @@ namespace ObjeX.Core.Interfaces;
 public interface IObjectStorageService
 {
     Task<string> StoreAsync(string bucketName, string key, Stream data, CancellationToken ctk = default);
+    Task<IStagedBlob> StageAsync(string bucketName, string key, Stream data, CancellationToken ctk = default);
     Task<Stream> RetrieveAsync(string bucketName, string key, CancellationToken ctk = default);
     Task DeleteAsync(string bucketName, string key, CancellationToken ctk = default);
     Task DeleteBucketAsync(string bucketName, CancellationToken ctk = default);

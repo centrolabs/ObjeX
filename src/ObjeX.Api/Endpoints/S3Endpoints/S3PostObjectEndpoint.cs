@@ -109,9 +109,10 @@ public static class S3PostObjectEndpoint
 
         await using var fileStream = file.OpenReadStream();
         await using var hashingStream = new HashingStream(fileStream);
-        var storagePath = await storage.StoreAsync(bucket, key, hashingStream);
-        var size = await storage.GetSizeAsync(bucket, key);
+        await using var staged = await storage.StageAsync(bucket, key, hashingStream, ctx.RequestAborted);
+        var size = staged.Size;
         var etag = hashingStream.GetETag();
+        var storagePath = await staged.CommitAsync(ctx.RequestAborted);
 
         await metadata.SaveObjectAsync(new BlobObject
         {
