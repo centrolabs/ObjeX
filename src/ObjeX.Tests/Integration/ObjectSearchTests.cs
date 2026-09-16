@@ -7,8 +7,9 @@ using ObjeX.Infrastructure.Data;
 namespace ObjeX.Tests.Integration;
 
 /// <summary>
-/// Search spans every level below the current prefix, so it has to ignore folder placeholders and
-/// treat the term as literal text — a key like "report-100%.txt" must not behave as a LIKE pattern.
+/// Search spans every level below the current prefix, so it has to ignore folder placeholders.
+/// Only "*" (any run of characters) and "?" (exactly one) are wildcards; LIKE's own "%", "_" and "\"
+/// stay literal, so a key like "report-100%.txt" must not behave as a pattern.
 /// </summary>
 public class ObjectSearchTests(ObjeXFactory factory) : IClassFixture<ObjeXFactory>
 {
@@ -75,6 +76,31 @@ public class ObjectSearchTests(ObjeXFactory factory) : IClassFixture<ObjeXFactor
         Assert.Equal(["report-100%.txt"], await SearchAsync("search-wildcards", null, "100%"));
         Assert.Equal(["a_b.txt"], await SearchAsync("search-wildcards", null, "a_b"));
         Assert.Equal([@"back\slash.txt"], await SearchAsync("search-wildcards", null, @"back\s"));
+    }
+
+    [Fact]
+    public async Task Star_MatchesAnyRunAndAnchorsAtTheEnd()
+    {
+        await SeedAsync("search-star", "invoice.pdf", "2024/q1/report.pdf", "notes.txt", "x.pdfx");
+
+        Assert.Equal(["2024/q1/report.pdf", "invoice.pdf"], await SearchAsync("search-star", null, "*.pdf"));
+        Assert.Equal(["2024/q1/report.pdf"], await SearchAsync("search-star", null, "q1/*.pdf"));
+    }
+
+    [Fact]
+    public async Task QuestionMark_MatchesExactlyOneCharacter()
+    {
+        await SeedAsync("search-single", "img_0001.jpg", "img_00001.jpg", "img_001.jpg");
+
+        Assert.Equal(["img_0001.jpg"], await SearchAsync("search-single", null, "img_????.jpg"));
+    }
+
+    [Fact]
+    public async Task LiteralPercentStaysLiteralNextToAStar()
+    {
+        await SeedAsync("search-mixed", "report-100%.txt", "report-1000.txt", "report-100%.csv");
+
+        Assert.Equal(["report-100%.txt"], await SearchAsync("search-mixed", null, "100%*.txt"));
     }
 
     [Fact]

@@ -132,7 +132,7 @@ public class EfCoreMetadataService(ObjeXDbContext ctx) : IMetadataService
     {
         if (string.IsNullOrWhiteSpace(term)) return [];
 
-        var pattern = $"%{EscapeLike(term.ToLowerInvariant())}%";
+        var pattern = SearchPattern.FromTerm(term.ToLowerInvariant());
         var query = ctx.BlobObjects.AsNoTracking()
             .Where(o => o.BucketName == bucketName && !o.Key.EndsWith("/"));
         if (!string.IsNullOrEmpty(prefix))
@@ -143,10 +143,6 @@ public class EfCoreMetadataService(ObjeXDbContext ctx) : IMetadataService
 
         return await OrderByKey(query).Take(limit).ToListAsync(ctk);
     }
-
-    /// <summary>The term comes from a user, so LIKE's own wildcards have to match literally.</summary>
-    private static string EscapeLike(string term) =>
-        term.Replace("\\", "\\\\").Replace("%", "\\%").Replace("_", "\\_");
 
     // S3 orders keys by UTF-8 bytes; SQLite's default BINARY collation already does that,
     // PostgreSQL needs COLLATE "C" because a locale collation sorts "a" before "B".

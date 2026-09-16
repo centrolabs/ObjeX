@@ -17,7 +17,11 @@ public interface IMetadataService
     Task<BlobObject> SaveObjectAsync(BlobObject blobObject, string? auditUserId = null, CancellationToken ctk = default);
     Task<BlobObject?> GetObjectAsync(string bucketName, string key, CancellationToken ctk = default);
     Task<ListObjectsResult> ListObjectsAsync(string bucketName, string? prefix = null, string? delimiter = null, CancellationToken ctk = default);
-    /// <summary>Keys under <paramref name="prefix"/> containing <paramref name="term"/> case-insensitively; placeholders excluded, wildcards in the term are literal.</summary>
+    /// <summary>
+    /// Keys under <paramref name="prefix"/> matching <paramref name="term"/> case-insensitively; placeholders excluded.
+    /// <c>*</c> matches any run of characters, <c>?</c> exactly one, <c>%</c>, <c>_</c> and <c>\</c> are literal.
+    /// A term without a wildcard matches anywhere, a term with one is anchored at the end.
+    /// </summary>
     Task<IReadOnlyList<BlobObject>> SearchObjectsAsync(string bucketName, string? prefix, string term, int limit, CancellationToken ctk = default);
     Task<IEnumerable<BlobObject>> ListAllObjectsAsync(CancellationToken ctk = default);
     Task DeleteObjectAsync(string bucketName, string key, string? auditUserId = null, CancellationToken ctk = default);
