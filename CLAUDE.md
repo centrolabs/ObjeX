@@ -17,10 +17,10 @@ src/
 │   ├── Startup/         # ServiceCollectionExtensions (AddObjeX* per concern), DatabaseInitializer (migrate, pragmas, roles, admin, seeding), BackgroundJobs (Hangfire wiring, recurring schedule, stale-job prune)
 │   ├── Components/      # App.razor (host document), _Imports.razor
 │   ├── wwwroot/         # app.css, favicons, fonts/, site.webmanifest
-│   ├── S3/              # S3Pipeline (the S3 port's request pipeline), SigV4Parser, SigV4Signer, S3Xml, S3Errors, StorageQuota
+│   ├── S3/              # S3Pipeline (the S3 port's request pipeline), SigV4Parser, SigV4Signer, S3Xml, S3Errors, StorageQuota, ContentMd5
 │   └── Metrics/         # ObjeXMetrics, BucketMetricsSyncJob
 ├── ObjeX.Core/          # Domain — zero framework dependencies
-│   ├── Interfaces/      # IMetadataService, IObjectStorageService, IHashService, IHasTimestamps
+│   ├── Interfaces/      # IMetadataService, IObjectStorageService, IStorageQuotaService, IStorageSpaceService, IHashService, IHasTimestamps
 │   ├── Models/          # Bucket, BlobObject, S3Credential, User, AuditEntry, ListObjectsResult, MultipartUpload, MultipartUploadPart, SystemSettings
 │   ├── Utilities/       # HashingStream (MD5 passthrough for ETag computation during upload), PresignedUrlGenerator, S3Conventions (region, addressing style), InlineMediaTypes (download/preview allowlist)
 │   └── Validation/      # BucketNameValidator (GetValidationError)
@@ -32,11 +32,11 @@ src/
 │   ├── Metadata/        # EfCoreMetadataService (SQLite and PostgreSQL alike)
 │   ├── Migrations/      # EF Core migrations
 │   ├── Options/         # S3Options (PublicUrl), DefaultAdminOptions — here, not in Api, because Web needs them and cannot reference Api
-│   └── Storage/         # FileSystemStorageService
+│   └── Storage/         # FileSystemStorageService, StorageSpaceService (free disk of the blob volume)
 ├── ObjeX.Migrations.PostgreSql/  # PostgreSQL-specific EF Core migrations
 ├── ObjeX.Tests/         # xUnit — unit (Core validators, hashing) + integration (WebApplicationFactory, real SQLite)
-│   ├── Unit/            # BucketNameValidator, ObjectKeyValidator, HashingStream, Sha256HashService
-│   └── Integration/     # S3 API round-trips, auth, multipart, quotas, resilience, cookie auth, health
+│   ├── Unit/            # BucketNameValidator, ObjectKeyValidator, HashingStream, Sha256HashService, StorageSpaceStatus
+│   └── Integration/     # S3 API round-trips, auth, multipart, quotas, storage space, resilience, cookie auth, health
 └── ObjeX.Web/           # Razor class library: components, pages, dialogs, layout — no host, no wwwroot
     ├── Helpers/         # FileHelper, AppVersion, S3ClientSnippets
     └── Components/      # Routes, RedirectToLogin, S3ConnectSnippets
@@ -285,6 +285,15 @@ public interface IStorageQuotaService
     Task<StorageQuotaStatus> GetAsync(string userId, CancellationToken ctk = default);
 }
 
+// ObjeX.Core/Interfaces/IStorageSpaceService.cs
+public record StorageSpaceStatus(long FreeBytes, long TotalBytes, long MinimumFreeBytes); // IsBelowMinimum, IsNearMinimum (<= 2x minimum), UsedBytes, UsedPercent
+public interface IStorageSpaceService
+{
+    // DriveInfo of the blob root plus Storage:MinimumFreeDiskBytes, the threshold below which the S3 upload path answers 507.
+    // Singleton from AddObjeXStorage; FileSystemStorageService.GetAvailableFreeSpace() delegates here, so one class reads the drive.
+    StorageSpaceStatus Get();
+}
+
 // ObjeX.Core/Interfaces/IHashService.cs
 public interface IHashService
 {
@@ -411,6 +420,8 @@ Keyboard handling: text-input dialogs (`CreateBucketDialog`, `CreateS3Credential
 
 **Virtual folder navigation:** `Objects.razor` tracks `_currentPrefix` (e.g. `"photos/2024/"`) as component state. Calls `ListObjectsAsync` with `delimiter: "/"` — folders render as clickable rows, files as regular rows in a unified `RadzenDataGrid`. Breadcrumb segments are `<span @onclick>` (not `RadzenLink`) to avoid full-page navigation. Folder create writes a zero-byte placeholder object with key `prefix/` and `ContentType: application/x-directory`. Upload prepends `_currentPrefix` to the file name. Placeholder objects (key ends with `/`) are filtered from file rows.
 
+**Dashboard "Disk" card:** free of total space of the blob volume via `IStorageSpaceService`, visible to every role because the 507 hits every role. `Warning` at or below twice `Storage:MinimumFreeDiskBytes`, `Danger` at or below it. The disk read in `LoadStats` has its own change label, because free space moves without any bucket changing.
+
 **Dark mode:** Theme stored in `objex-theme` cookie. `App.razor` reads cookie via `IHttpContextAccessor` server-side and passes to `<RadzenTheme>` — no flash on load. An inline `<script>` in `<head>` sets the cookie from `prefers-color-scheme` on first visit. Toggle in Settings page uses `ThemeService.SetTheme()` + JS cookie write. `ThemeService` is registered as `AddScoped<ThemeService>()` — do NOT use `AddRadzenCookieThemeService` (it fights the server-side rendering). Read initial switch state from cookie via JS in `OnAfterRenderAsync`, not from `ThemeService.Theme` (which is null on Blazor init).
 
 **Font:** Inter, self-hosted in `ObjeX.Api/wwwroot/fonts/` (weights 300–700). Applied globally via `:root { --rz-body-font-family: 'Inter' }` + `*:not(.material-icons):not(.material-icons-outlined):not([class*="rz-icon"]):not(i)` — the `:not()` exclusions are critical to prevent Material Icons from rendering as text.
@@ -475,6 +486,7 @@ POST   /                        → S3 POST Object (bucketEndpoint mode); bucket
 #   Auth is form-field-based (policy + X-Amz-Signature), not header SigV4. Middleware handles this as a third auth path.
 #   The policy must carry a parsable expiration, otherwise 403 — it is the only time limit on a leaked signature. Malformed policy JSON is a 403 too, never a 500.
 # - S3RequestBody (ObjeX.Api/S3/) — unwraps aws-chunked bodies (Content-Encoding: aws-chunked or x-amz-content-sha256: STREAMING-*) for PUT and UploadPart; SDKs send that framing whenever they stream with a trailing checksum, the CLI does so over HTTPS. Chunk signatures and trailer checksums are not verified.
+# - ContentMd5 (ObjeX.Api/S3/) — verifies the optional Content-MD5 header on PUT object, UploadPart and DeleteObjects. Decoded before the body is read: 400 InvalidDigest unless base64 of 16 bytes. Compared after: 400 BadDigest, the blob or part file is deleted, no row is written. CopyObject, POST Object and CompleteMultipartUpload do not check it; for aws-chunked bodies the digest covers the decoded payload.
 # - S3MultipartEndpoint (ObjeX.Api/Endpoints/S3Endpoints/) — Initiate + Complete (single MapPost dispatch on ?uploads vs ?uploadId)
 # - Parts stored at {BasePath}/_multipart/{uploadId}/{partNumber}.part; cleaned up after Complete or Abort
 # - Final ETag: MD5(binary concat of part MD5 bytes) + "-" + partCount (S3 multipart format)
