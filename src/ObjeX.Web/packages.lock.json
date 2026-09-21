@@ -4,9 +4,9 @@
     "net10.0": {
       "Radzen.Blazor": {
         "type": "Direct",
-        "requested": "[11.4.0, )",
-        "resolved": "11.4.0",
-        "contentHash": "Gv36bvGh6UQlC/YfRtuWVGcCmZlXLM7tnEaJgHhNCF9bpQUSA0WtDVJTS5ulF5nT6j2n5pXBG98qRsUX39G6xg=="
+        "requested": "[11.4.1, )",
+        "resolved": "11.4.1",
+        "contentHash": "qLjpvH0QJJFvzAgaDoo45XQ6+AAjrPxlUSk4daxwfTP+RGVV78G41paSE17y5NFaDR5exKHsCF+uhkVgg9xfDw=="
       },
       "EFCore.NamingConventions": {
         "type": "Transitive",
@@ -142,7 +142,7 @@
           "Microsoft.AspNetCore.Identity.EntityFrameworkCore": "[10.0.12, )",
           "Microsoft.EntityFrameworkCore.Sqlite": "[10.0.12, )",
           "Npgsql.EntityFrameworkCore.PostgreSQL": "[10.0.3, )",
-          "ObjeX.Core": "[1.2.2, )"
+          "ObjeX.Core": "[1.2.3, )"
         }
       }
     }
