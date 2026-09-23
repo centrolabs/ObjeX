@@ -46,6 +46,8 @@ src/
         └── Layout/      # MainLayout, NavMenu, EmptyLayout
 ```
 
+`docs/architecture.md` holds the architecture, sequence, ER and state diagrams. Source is `docs/diagrams/objex.mmd` (one diagram per `%%% Title` section); `docs/diagrams/render.sh` regenerates the committed SVGs, `docs/diagrams/index.html` is a live viewer. Update the diagrams when a flow they show changes.
+
 ---
 
 ## Architecture Rules

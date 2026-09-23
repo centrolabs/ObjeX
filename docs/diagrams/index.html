@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>ObjeX diagrams</title>
+<!-- Live viewer for objex.mmd. Serve this folder: python3 -m http.server 8765, then open http://127.0.0.1:8765/ -->
+<style>
+  html,body{margin:0;height:100%;overflow:hidden;background:#f8fafc;font-family:Inter,system-ui,sans-serif;color:#0f172a}
+  #bar{position:fixed;top:0;left:0;right:0;height:40px;display:flex;align-items:center;gap:14px;padding:0 14px;background:#0f172a;color:#e2e8f0;font-size:13px;z-index:10}
+  #bar a{color:#93c5fd;text-decoration:none}
+  #side{position:fixed;top:40px;left:0;bottom:0;width:230px;background:#fff;border-right:1px solid #e2e8f0;padding:10px 0;z-index:9;overflow:auto;font-size:13px}
+  #side div{padding:7px 14px;cursor:pointer;display:flex;gap:8px;align-items:baseline}
+  #side div:hover{background:#f1f5f9}
+  #side div.active{background:#e0f2fe}
+  #side b{color:#94a3b8;font-weight:500;min-width:14px}
+  #side span.bad{color:#b91c1c}
+  #canvas{position:fixed;top:40px;left:230px;right:0;bottom:0;overflow:hidden;cursor:grab;touch-action:none;
+    background-color:#f8fafc;background-image:radial-gradient(#cbd5e1 1px,transparent 1px);background-size:24px 24px}
+  #canvas.dragging{cursor:grabbing}
+  #world{position:absolute;left:0;top:0;width:max-content;transform-origin:0 0;will-change:transform}
+  .block{padding:40px 60px 80px 60px;width:max-content}
+  .block h1{margin:0 0 18px 0;font-size:32px;font-weight:600;color:#0f172a}
+  .block h1 small{font-size:16px;font-weight:400;color:#64748b;margin-left:12px}
+  .block svg{display:block;max-width:none!important}
+  .block pre.err{color:#b91c1c;white-space:pre-wrap;font:14px/1.4 ui-monospace,monospace;background:#fff;padding:10px;border:1px solid #fecaca;border-radius:6px;max-width:900px}
+  #ctl{position:fixed;right:16px;bottom:16px;display:flex;gap:2px;background:#fff;border:1px solid #e2e8f0;border-radius:8px;box-shadow:0 2px 8px rgba(15,23,42,.08);padding:4px;z-index:11;font-size:13px;user-select:none}
+  #ctl button{background:transparent;border:0;border-radius:6px;min-width:34px;height:32px;padding:0 10px;font:inherit;color:#0f172a;cursor:pointer}
+  #ctl button:hover{background:#f1f5f9}
+  #pct{min-width:58px;text-align:center}
+  #help{position:fixed;left:246px;bottom:16px;font-size:11px;color:#94a3b8;z-index:11;pointer-events:none}
+</style>
+</head>
+<body>
+<div id="bar"><b>ObjeX diagrams</b><span id="status">rendering…</span><span style="flex:1"></span><a href="objex.mmd" download>objex.mmd</a></div>
+<div id="side"></div>
+<div id="canvas"><div id="world"></div></div>
+<div id="ctl">
+  <button id="zout" title="Zoom out (−)">−</button>
+  <button id="pct" title="Reset to 100% (0)">100%</button>
+  <button id="zin" title="Zoom in (+)">+</button>
+  <button id="fit" title="Fit all (Shift+1)">Fit all</button>
+</div>
+<div id="help">scroll = move · pinch / ⌘+scroll = zoom · drag = move · 1–9 = jump to diagram · + − 0 · Shift+1 fit all</div>
+
+<script type="module">
+import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11.17.2/dist/mermaid.esm.min.mjs";
+import elkLayouts from "https://cdn.jsdelivr.net/npm/@mermaid-js/layout-elk@0.2.3/dist/mermaid-layout-elk.esm.min.mjs";
+mermaid.registerLayoutLoaders(elkLayouts);
+mermaid.initialize({ startOnLoad:false, securityLevel:"loose", theme:"base", maxTextSize:400000, maxEdges:4000 });
+
+const canvas = document.getElementById("canvas"), world = document.getElementById("world"), side = document.getElementById("side");
+const pctEl = document.getElementById("pct"), statusEl = document.getElementById("status");
+
+// ---- camera ------------------------------------------------------------------
+const cam = { x:0, y:0, k:1 }, MIN = 0.05, MAX = 8;
+let raf = 0;
+function apply() {
+  if (raf) return;
+  raf = requestAnimationFrame(() => { raf = 0; world.style.transform = `translate(${cam.x}px,${cam.y}px) scale(${cam.k})`; pctEl.textContent = Math.round(cam.k*100) + "%"; updateActive(); });
+}
+function zoomAt(cx, cy, factor) {
+  const k = Math.min(MAX, Math.max(MIN, cam.k * factor)); const f = k / cam.k;
+  cam.x = cx - (cx - cam.x) * f; cam.y = cy - (cy - cam.y) * f; cam.k = k; apply();
+}
+function fitRect(x, y, w, h, pad = 40) {
+  const W = canvas.clientWidth, H = canvas.clientHeight;
+  cam.k = Math.min(MAX, Math.max(MIN, Math.min((W - 2*pad) / w, (H - 2*pad) / h)));
+  cam.x = (W - w * cam.k) / 2 - x * cam.k; cam.y = (H - h * cam.k) / 2 - y * cam.k; apply();
+}
+function fitAll() { fitRect(0, 0, world.offsetWidth, world.offsetHeight); }
+function fitBlock(i) { const b = blocks[i]?.el; if (!b) return; fitRect(b.offsetLeft, b.offsetTop, b.offsetWidth, b.offsetHeight); }
+function resetZoom() { zoomAt(canvas.clientWidth/2, canvas.clientHeight/2, 1/cam.k); }
+function centerOf(e) { const r = canvas.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; }
+function updateActive() {
+  // the block under the viewport centre gets the highlight
+  const cy = (canvas.clientHeight/2 - cam.y) / cam.k;
+  let idx = 0; blocks.forEach((b, i) => { if (b.el.offsetTop <= cy) idx = i; });
+  [...side.children].forEach((d, i) => d.classList.toggle("active", i === idx));
+}
+
+canvas.addEventListener("wheel", e => {
+  e.preventDefault();
+  if (e.ctrlKey || e.metaKey) {
+    const [cx, cy] = centerOf(e);
+    const d = Math.max(-60, Math.min(60, e.deltaMode === 1 ? e.deltaY * 20 : e.deltaY));
+    zoomAt(cx, cy, Math.exp(-d * 0.005));
+  } else {
+    const m = e.deltaMode === 1 ? 16 : 1;
+    cam.x -= e.deltaX * m; cam.y -= e.deltaY * m; apply();
+  }
+}, { passive:false });
+
+const ptrs = new Map(); let drag = null, pinch = null;
+canvas.addEventListener("pointerdown", e => {
+  if (e.button !== 0 && e.button !== 1) return;
+  ptrs.set(e.pointerId, e);
+  if (ptrs.size === 1) { drag = { x:e.clientX, y:e.clientY, cx:cam.x, cy:cam.y, moved:false, id:e.pointerId }; canvas.classList.add("dragging"); }
+  else if (ptrs.size === 2) { for (const id of ptrs.keys()) canvas.setPointerCapture(id); const [a, b] = [...ptrs.values()]; pinch = { d: Math.hypot(a.clientX-b.clientX, a.clientY-b.clientY), k: cam.k }; drag = null; }
+});
+canvas.addEventListener("pointermove", e => {
+  if (!ptrs.has(e.pointerId)) return; ptrs.set(e.pointerId, e);
+  if (pinch && ptrs.size === 2) {
+    const [a, b] = [...ptrs.values()]; const d = Math.hypot(a.clientX-b.clientX, a.clientY-b.clientY);
+    const r = canvas.getBoundingClientRect(); const cx = (a.clientX+b.clientX)/2 - r.left, cy = (a.clientY+b.clientY)/2 - r.top;
+    zoomAt(cx, cy, (pinch.k * d / pinch.d) / cam.k); return;
+  }
+  if (drag) {
+    const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+    if (!drag.moved && Math.hypot(dx, dy) > 4) { drag.moved = true; canvas.setPointerCapture(drag.id); }
+    if (drag.moved) { cam.x = drag.cx + dx; cam.y = drag.cy + dy; apply(); }
+  }
+});
+function up(e) {
+  ptrs.delete(e.pointerId);
+  if (drag?.moved) { const stop = ev => { ev.stopPropagation(); ev.preventDefault(); }; canvas.addEventListener("click", stop, { capture:true, once:true }); }
+  if (ptrs.size === 0) { drag = null; pinch = null; canvas.classList.remove("dragging"); }
+}
+canvas.addEventListener("pointerup", up); canvas.addEventListener("pointercancel", up);
+canvas.addEventListener("dblclick", e => { const [cx, cy] = centerOf(e); zoomAt(cx, cy, 1.6); });
+
+window.addEventListener("keydown", e => {
+  if (e.target.tagName === "INPUT") return;
+  const W = canvas.clientWidth, H = canvas.clientHeight;
+  if (e.shiftKey && e.code === "Digit1") fitAll();
+  else if (!e.shiftKey && !e.metaKey && !e.ctrlKey && /^Digit[1-9]$/.test(e.code)) fitBlock(Number(e.code.slice(5)) - 1);
+  else if (e.key === "+" || e.key === "=") zoomAt(W/2, H/2, 1.25);
+  else if (e.key === "-") zoomAt(W/2, H/2, 0.8);
+  else if (e.key === "0") resetZoom();
+  else if (e.key === "ArrowLeft") { cam.x += 80; apply(); } else if (e.key === "ArrowRight") { cam.x -= 80; apply(); }
+  else if (e.key === "ArrowUp") { cam.y += 80; apply(); } else if (e.key === "ArrowDown") { cam.y -= 80; apply(); }
+});
+document.getElementById("zin").onclick = () => zoomAt(canvas.clientWidth/2, canvas.clientHeight/2, 1.25);
+document.getElementById("zout").onclick = () => zoomAt(canvas.clientWidth/2, canvas.clientHeight/2, 0.8);
+document.getElementById("pct").onclick = resetZoom;
+document.getElementById("fit").onclick = fitAll;
+
+// ---- source parsing: diagrams separated by lines "%%% Title" ------------------------
+function parse(src) {
+  const out = []; let title = "Architecture", buf = [];
+  for (const line of src.split("\n")) {
+    const m = line.match(/^%%% (.+)$/);
+    if (m) { if (buf.join("").trim()) out.push({ title, src: buf.join("\n") }); title = m[1].trim(); buf = []; }
+    else buf.push(line);
+  }
+  if (buf.join("").trim()) out.push({ title, src: buf.join("\n") });
+  return out;
+}
+
+// ---- render loop --------------------------------------------------------------------
+let blocks = [], lastSrc = "", firstFit = false, busy = false;
+async function renderAll(chunks) {
+  const prev = blocks; blocks = []; world.innerHTML = ""; side.innerHTML = "";
+  let ok = 0;
+  for (let i = 0; i < chunks.length; i++) {
+    const c = chunks[i];
+    const el = document.createElement("div"); el.className = "block";
+    el.innerHTML = `<h1>${i+1} · ${c.title}</h1>`;
+    world.appendChild(el);
+    const entry = document.createElement("div"); entry.innerHTML = `<b>${i+1}</b><span>${c.title}</span>`;
+    entry.onclick = () => fitBlock(i); side.appendChild(entry);
+    const cached = prev.find(p => p.src === c.src && p.svg);
+    try {
+      let svg, bind;
+      if (cached) { svg = cached.svg; bind = cached.bind; }
+      else { const r = await mermaid.render(`d${i}_${Date.now()}`, c.src); svg = r.svg; bind = r.bindFunctions; }
+      const holder = document.createElement("div"); holder.innerHTML = svg; el.appendChild(holder); bind?.(holder);
+      const s = holder.querySelector("svg"); s.removeAttribute("style");
+      const vb = s.viewBox?.baseVal; if (vb && vb.width) { s.setAttribute("width", vb.width); s.setAttribute("height", vb.height); }
+      blocks.push({ ...c, el, svg, bind }); ok++;
+    } catch (e) {
+      const pre = document.createElement("pre"); pre.className = "err"; pre.textContent = String(e?.message ?? e); el.appendChild(pre);
+      entry.querySelector("span").classList.add("bad");
+      blocks.push({ ...c, el });
+    }
+  }
+  statusEl.textContent = `live · ${ok}/${chunks.length} rendered · ${new Date().toLocaleTimeString()}`;
+  if (!firstFit) { fitBlock(0); firstFit = true; } else updateActive();
+}
+async function tick() {
+  if (busy) return; busy = true;
+  try {
+    const src = await (await fetch("objex.mmd?ts=" + Date.now(), { cache:"no-store" })).text();
+    if (src !== lastSrc) { lastSrc = src; await renderAll(parse(src)); }
+  } catch {} finally { busy = false; }
+}
+await tick(); setInterval(tick, 2000);
+window.addEventListener("resize", () => { if (firstFit) updateActive(); });
+</script>
+</body>
+</html>
