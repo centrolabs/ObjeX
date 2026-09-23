@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
-# Splits objex.mmd at "%%% Title" lines and renders one SVG per diagram with mermaid-cli.
-# Needs Node; the first run downloads Chrome for puppeteer (~150 MB). Run after every change to objex.mmd.
+# Splits objex.mmd at "%%% Title" lines and renders each diagram twice with mermaid-cli:
+# NN-name.svg (light, white background) and NN-name.dark.svg (mermaid dark theme, GitHub dark background).
+# docs/architecture.md picks one per colour scheme with <picture>. Run after every change to objex.mmd.
+# Needs Node; the first run downloads Chrome for puppeteer (~150 MB).
 set -euo pipefail
 cd "$(dirname "$0")"
 rm -f ./*.svg
@@ -13,7 +15,9 @@ awk -v dir="$tmp" '
   { print > file }
 ' objex.mmd
 for f in "$tmp"/*.mmd; do
-  out="$(basename "${f%.mmd}").svg"
-  npx -y @mermaid-js/mermaid-cli -q -i "$f" -o "$out" -b transparent -c "$tmp/config.json"
-  echo "rendered $out"
+  name="$(basename "${f%.mmd}")"
+  npx -y @mermaid-js/mermaid-cli -q -i "$f" -o "$name.svg" -b white -c "$tmp/config.json"
+  sed 's/"theme": "base"/"theme": "dark"/' "$f" > "$tmp/dark.mmd"
+  npx -y @mermaid-js/mermaid-cli -q -i "$tmp/dark.mmd" -o "$name.dark.svg" -b "#0d1117" -c "$tmp/config.json"
+  echo "rendered $name.svg + $name.dark.svg"
 done
