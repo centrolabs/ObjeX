@@ -46,9 +46,9 @@
       },
       "Microsoft.AspNetCore.App.Internal.Assets": {
         "type": "Direct",
-        "requested": "[10.0.11, )",
-        "resolved": "10.0.11",
-        "contentHash": "tYYYBZsuF2DSz1I3hcfB8qC4nNekIKufkYZOJ2R28fNK3PkS7fJao/mIX5H84NH94UACZQ4dhvt8GDlkrJFwLg=="
+        "requested": "[10.0.12, )",
+        "resolved": "10.0.12",
+        "contentHash": "+sIBo9AMBZH46qHWHQdfzcGMt+RuBaPYrUMOAM9VjA7MQ9QtIez3lq1C3E05+Yroa94KKt3DSWaxmCI4H28a9Q=="
       },
       "Microsoft.EntityFrameworkCore.Design": {
         "type": "Direct",
@@ -325,8 +325,8 @@
       },
       "Radzen.Blazor": {
         "type": "Transitive",
-        "resolved": "11.4.0",
-        "contentHash": "Gv36bvGh6UQlC/YfRtuWVGcCmZlXLM7tnEaJgHhNCF9bpQUSA0WtDVJTS5ulF5nT6j2n5pXBG98qRsUX39G6xg=="
+        "resolved": "11.4.1",
+        "contentHash": "qLjpvH0QJJFvzAgaDoo45XQ6+AAjrPxlUSk4daxwfTP+RGVV78G41paSE17y5NFaDR5exKHsCF+uhkVgg9xfDw=="
       },
       "Serilog": {
         "type": "Transitive",
@@ -485,22 +485,22 @@
           "Microsoft.AspNetCore.Identity.EntityFrameworkCore": "[10.0.12, )",
           "Microsoft.EntityFrameworkCore.Sqlite": "[10.0.12, )",
           "Npgsql.EntityFrameworkCore.PostgreSQL": "[10.0.3, )",
-          "ObjeX.Core": "[1.2.2, )"
+          "ObjeX.Core": "[1.2.3, )"
         }
       },
       "objex.migrations.postgresql": {
         "type": "Project",
         "dependencies": {
           "Npgsql.EntityFrameworkCore.PostgreSQL": "[10.0.3, )",
-          "ObjeX.Infrastructure": "[1.2.2, )"
+          "ObjeX.Infrastructure": "[1.2.3, )"
         }
       },
       "objex.web": {
         "type": "Project",
         "dependencies": {
-          "ObjeX.Core": "[1.2.2, )",
-          "ObjeX.Infrastructure": "[1.2.2, )",
-          "Radzen.Blazor": "[11.4.0, )"
+          "ObjeX.Core": "[1.2.3, )",
+          "ObjeX.Infrastructure": "[1.2.3, )",
+          "Radzen.Blazor": "[11.4.1, )"
         }
       }
     }
