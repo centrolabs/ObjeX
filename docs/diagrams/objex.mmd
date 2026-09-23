@@ -1,0 +1,459 @@
+%%{init: {"flowchart": {"defaultRenderer": "elk", "htmlLabels": true, "nodeSpacing": 24, "rankSpacing": 48, "useMaxWidth": false}, "elk": {"mergeEdges": true, "nodePlacementStrategy": "NETWORK_SIMPLEX"}, "theme": "base", "themeVariables": {"fontSize": "18px", "fontFamily": "system-ui, sans-serif"}}}%%
+flowchart LR
+
+node_browser(("Browser"))
+node_s3client(("S3 client<br/>CLI · SDK · presigned URL"))
+node_prometheus(("Prometheus"))
+
+subgraph group_host["ObjeX.Api host"]
+  node_program["Program.cs<br/>Kestrel :9001 UI · :9000 S3<br/>composes AddObjeX* services"]
+  node_initializer["DatabaseInitializer<br/>migrate · PRAGMAs · roles<br/>default admin · seed"]
+  node_shared["Shared middleware<br/>forwarded headers · request log<br/>security headers · port split"]
+end
+
+subgraph group_s3["S3 pipeline · :9000 · SigV4"]
+  node_sigv4["SigV4AuthMiddleware<br/>header · presigned query · POST policy<br/>SigV4Parser + SigV4Signer"]
+  node_s3routing["S3 routing<br/>RequireAuthorization · CORS<br/>XML errors · fallback 404"]
+  node_bucketapi["Bucket endpoints<br/>list · HEAD · PUT · DELETE"]
+  node_objectapi["Object endpoints<br/>PUT · GET · HEAD · DELETE<br/>Copy · DeleteObjects · Range"]
+  node_multipart["Multipart endpoints<br/>Initiate · UploadPart<br/>Complete · Abort"]
+  node_postobject["POST Object<br/>presigned POST policy"]
+  node_helpers["Upload helpers<br/>S3RequestBody aws-chunked · ContentMd5<br/>StorageQuota 507 · ObjectDeletion"]
+end
+
+subgraph group_ui["UI pipeline · :9001 · cookie"]
+  node_cookie["Identity cookie auth<br/>60 min sliding · 401 on /api<br/>status pages · antiforgery"]
+  node_opsapi["Ops endpoints<br/>/hangfire (Admin) · /health<br/>/health/ready · /metrics"]
+  node_blazor["Blazor Server<br/>App.razor · InteractiveServer"]
+  node_account["/account/login · /logout<br/>lockout · remember me"]
+  node_downloads["/api/objects download · ZIP<br/>inline allowlist · CSP sandbox"]
+  node_presign["/api/presign<br/>expiry from SystemSettings"]
+end
+
+subgraph group_web["ObjeX.Web · Razor library"]
+  node_routes["Routes + MainLayout<br/>AuthorizeView gate<br/>BrowserTimeZone · ThemeService"]
+  node_pages["Pages<br/>Dashboard · Buckets · Objects<br/>Settings · Users · AuditLog · Profile"]
+  node_dialogs["Dialogs<br/>Upload · CreateBucket · Credential<br/>PresignedUrl · Preview · Metadata"]
+end
+
+subgraph group_services["Services · Core interface ⇒ Infrastructure implementation"]
+  node_meta["IMetadataService ⇒ EfCoreMetadataService<br/>stats delta + audit in one transaction<br/>SearchPattern wildcards"]
+  node_store["IObjectStorageService ⇒ FileSystemStorageService<br/>SHA256 paths · IStagedBlob stage → commit<br/>parts · free-disk check"]
+  node_quota["IStorageQuotaService ⇒ StorageQuotaService<br/>user override → global → unlimited"]
+  node_space["IStorageSpaceService ⇒ StorageSpaceService<br/>DriveInfo of blob root"]
+  node_dbctx["ObjeXDbContext<br/>IdentityDbContext · snake_case<br/>SQLite or Npgsql"]
+end
+
+subgraph group_core["ObjeX.Core · BCL only"]
+  node_utils["Utilities · Validation<br/>HashingStream · PresignedUrlGenerator<br/>ETags · InlineMediaTypes · validators"]
+  node_models["Models<br/>Bucket · BlobObject · S3Credential<br/>User · AuditEntry · SystemSettings"]
+end
+
+subgraph group_jobs["Background work"]
+  node_jobs["BackgroundJobs<br/>Hangfire · declares 3 · prunes rest"]
+  node_cleanup["CleanupOrphanedBlobsJob<br/>Sun 03:00"]
+  node_integrity["VerifyBlobIntegrityJob<br/>Sun 04:00"]
+  node_abandoned["CleanupAbandonedMultipartJob<br/>Sun 05:00"]
+  node_metrics["BucketMetricsSyncJob 30 s<br/>→ ObjeXMetrics gauges"]
+end
+
+subgraph group_persist["Persistence"]
+  node_db[("Metadata DB<br/>SQLite WAL or PostgreSQL")]
+  node_hangfiredb[("Hangfire storage<br/>same DB")]
+  node_blobs[/"Blob root<br/>{bucket}/{L1}/{L2}/{sha256}.blob<br/>_multipart/{uploadId}/{n}.part"/]
+  node_logs[/"Serilog file sink"/]
+end
+
+%% actors
+node_browser --> node_shared
+node_s3client --> node_shared
+node_prometheus -->|"scrape"| node_opsapi
+
+%% host
+node_program --> node_initializer
+node_program --> node_shared
+node_program --> node_jobs
+node_program -.-> node_metrics
+node_initializer --> node_dbctx
+node_shared --> node_logs
+node_shared -->|":9000"| node_sigv4
+node_shared -->|":9001"| node_cookie
+
+%% S3
+node_sigv4 --> node_dbctx
+node_sigv4 --> node_s3routing
+node_s3routing --> node_bucketapi
+node_s3routing --> node_objectapi
+node_s3routing --> node_multipart
+node_s3routing --> node_postobject
+node_objectapi --> node_helpers
+node_multipart --> node_helpers
+node_postobject --> node_helpers
+node_bucketapi --> node_meta
+node_objectapi --> node_meta
+node_multipart --> node_meta
+node_postobject --> node_meta
+node_bucketapi --> node_store
+node_objectapi --> node_store
+node_postobject --> node_store
+node_multipart -->|"parts"| node_store
+node_helpers --> node_meta
+node_helpers --> node_store
+node_helpers -->|"owner quota"| node_quota
+
+%% UI
+node_cookie --> node_opsapi
+node_cookie --> node_blazor
+node_cookie --> node_account
+node_cookie --> node_downloads
+node_cookie --> node_presign
+node_account --> node_dbctx
+node_opsapi --> node_hangfiredb
+node_opsapi --> node_dbctx
+node_opsapi --> node_store
+node_metrics --> node_dbctx
+node_metrics --> node_opsapi
+node_downloads --> node_meta
+node_downloads --> node_store
+node_downloads --> node_utils
+node_presign --> node_meta
+node_presign --> node_dbctx
+node_presign --> node_utils
+
+%% Web
+node_blazor --> node_routes --> node_pages --> node_dialogs
+node_pages --> node_meta
+node_pages --> node_dbctx
+node_pages --> node_quota
+node_pages --> node_space
+node_pages -->|"upload"| node_store
+node_dialogs -->|"preview"| node_store
+node_dialogs -->|"validation"| node_utils
+
+%% Core → Infrastructure
+node_meta --> node_utils
+node_meta --> node_models
+node_meta --> node_dbctx
+node_quota --> node_dbctx
+node_store --> node_space
+node_store --> node_blobs
+node_space --> node_blobs
+node_dbctx --> node_db
+node_hangfiredb -.->|"shares"| node_db
+
+%% Jobs
+node_jobs --> node_hangfiredb
+node_jobs --> node_cleanup
+node_jobs --> node_integrity
+node_jobs --> node_abandoned
+node_cleanup --> node_meta
+node_cleanup --> node_store
+node_integrity --> node_meta
+node_integrity --> node_store
+node_abandoned --> node_dbctx
+node_abandoned --> node_store
+
+%% Click targets (verified paths)
+click node_program "https://github.com/centrolabs/objex/blob/main/src/ObjeX.Api/Program.cs" _blank
+click node_initializer "https://github.com/centrolabs/objex/blob/main/src/ObjeX.Api/Startup/DatabaseInitializer.cs" _blank
+click node_shared "https://github.com/centrolabs/objex/blob/main/src/ObjeX.Api/S3/S3Pipeline.cs" _blank
+click node_sigv4 "https://github.com/centrolabs/objex/blob/main/src/ObjeX.Api/Middleware/SigV4AuthMiddleware.cs" _blank
+click node_s3routing "https://github.com/centrolabs/objex/blob/main/src/ObjeX.Api/S3/S3Pipeline.cs" _blank
+click node_bucketapi "https://github.com/centrolabs/objex/blob/main/src/ObjeX.Api/Endpoints/S3Endpoints/S3BucketEndpoint.cs" _blank
+click node_objectapi "https://github.com/centrolabs/objex/blob/main/src/ObjeX.Api/Endpoints/S3Endpoints/S3ObjectEndpoint.cs" _blank
+click node_multipart "https://github.com/centrolabs/objex/blob/main/src/ObjeX.Api/Endpoints/S3Endpoints/S3MultipartEndpoint.cs" _blank
+click node_postobject "https://github.com/centrolabs/objex/blob/main/src/ObjeX.Api/Endpoints/S3Endpoints/S3PostObjectEndpoint.cs" _blank
+click node_helpers "https://github.com/centrolabs/objex/tree/main/src/ObjeX.Api/S3" _blank
+click node_cookie "https://github.com/centrolabs/objex/blob/main/src/ObjeX.Api/Startup/ServiceCollectionExtensions.cs" _blank
+click node_opsapi "https://github.com/centrolabs/objex/blob/main/src/ObjeX.Api/Program.cs" _blank
+click node_blazor "https://github.com/centrolabs/objex/blob/main/src/ObjeX.Api/Components/App.razor" _blank
+click node_account "https://github.com/centrolabs/objex/blob/main/src/ObjeX.Api/Endpoints/AccountEndpoints.cs" _blank
+click node_downloads "https://github.com/centrolabs/objex/blob/main/src/ObjeX.Api/Endpoints/DownloadEndpoints.cs" _blank
+click node_presign "https://github.com/centrolabs/objex/blob/main/src/ObjeX.Api/Endpoints/PresignEndpoints.cs" _blank
+click node_routes "https://github.com/centrolabs/objex/blob/main/src/ObjeX.Web/Components/Routes.razor" _blank
+click node_pages "https://github.com/centrolabs/objex/tree/main/src/ObjeX.Web/Components/Pages" _blank
+click node_dialogs "https://github.com/centrolabs/objex/tree/main/src/ObjeX.Web/Components/Dialogs" _blank
+click node_utils "https://github.com/centrolabs/objex/tree/main/src/ObjeX.Core/Utilities" _blank
+click node_models "https://github.com/centrolabs/objex/tree/main/src/ObjeX.Core/Models" _blank
+click node_meta "https://github.com/centrolabs/objex/blob/main/src/ObjeX.Infrastructure/Metadata/EfCoreMetadataService.cs" _blank
+click node_quota "https://github.com/centrolabs/objex/blob/main/src/ObjeX.Infrastructure/Metadata/StorageQuotaService.cs" _blank
+click node_store "https://github.com/centrolabs/objex/blob/main/src/ObjeX.Infrastructure/Storage/FileSystemStorageService.cs" _blank
+click node_space "https://github.com/centrolabs/objex/blob/main/src/ObjeX.Infrastructure/Storage/StorageSpaceService.cs" _blank
+click node_dbctx "https://github.com/centrolabs/objex/blob/main/src/ObjeX.Infrastructure/Data/ObjeXDbContext.cs" _blank
+click node_jobs "https://github.com/centrolabs/objex/blob/main/src/ObjeX.Api/Startup/BackgroundJobs.cs" _blank
+click node_cleanup "https://github.com/centrolabs/objex/blob/main/src/ObjeX.Infrastructure/Jobs/CleanupOrphanedBlobsJob.cs" _blank
+click node_integrity "https://github.com/centrolabs/objex/blob/main/src/ObjeX.Infrastructure/Jobs/VerifyBlobIntegrityJob.cs" _blank
+click node_abandoned "https://github.com/centrolabs/objex/blob/main/src/ObjeX.Infrastructure/Jobs/CleanupAbandonedMultipartJob.cs" _blank
+click node_metrics "https://github.com/centrolabs/objex/blob/main/src/ObjeX.Api/Metrics/BucketMetricsSyncJob.cs" _blank
+
+classDef toneBlue fill:#dbeafe,stroke:#2563eb,stroke-width:2px,color:#172554
+classDef toneSlate fill:#f1f5f9,stroke:#334155,stroke-width:2px,color:#0f172a
+classDef toneAmber fill:#fef3c7,stroke:#d97706,stroke-width:2px,color:#78350f
+classDef toneMint fill:#dcfce7,stroke:#16a34a,stroke-width:2px,color:#14532d
+classDef toneTeal fill:#ccfbf1,stroke:#0f766e,stroke-width:2px,color:#134e4a
+classDef toneViolet fill:#ede9fe,stroke:#7c3aed,stroke-width:2px,color:#3b0764
+classDef toneRose fill:#ffe4e6,stroke:#e11d48,stroke-width:2px,color:#881337
+classDef toneIndigo fill:#e0e7ff,stroke:#4f46e5,stroke-width:2px,color:#312e81
+classDef toneGray fill:#e5e7eb,stroke:#4b5563,stroke-width:2px,color:#111827
+
+class node_browser,node_s3client,node_prometheus toneBlue
+class node_program,node_initializer,node_shared toneSlate
+class node_sigv4,node_s3routing,node_bucketapi,node_objectapi,node_multipart,node_postobject,node_helpers toneAmber
+class node_cookie,node_opsapi,node_blazor,node_account,node_downloads,node_presign toneMint
+class node_routes,node_pages,node_dialogs toneTeal
+class node_utils,node_models toneViolet
+class node_meta,node_store,node_quota,node_space,node_dbctx toneRose
+class node_jobs,node_cleanup,node_integrity,node_abandoned,node_metrics toneIndigo
+class node_db,node_hangfiredb,node_blobs,node_logs toneGray
+
+%%% S3 PutObject · staged write
+%%{init: {"theme": "base", "themeVariables": {"fontFamily": "system-ui, sans-serif"}, "sequence": {"useMaxWidth": false, "actorFontSize": 18, "messageFontSize": 16, "noteFontSize": 15, "actorMargin": 60, "width": 220, "mirrorActors": false}}}%%
+sequenceDiagram
+  autonumber
+  participant C as S3 client
+  participant A as SigV4AuthMiddleware
+  participant E as S3ObjectEndpoint PUT
+  participant Q as StorageQuota
+  participant FS as FileSystemStorageService
+  participant M as EfCoreMetadataService
+  participant DB as Metadata DB
+  participant D as Blob root
+
+  C->>A: PUT /{bucket}/{key} · Authorization AWS4-HMAC-SHA256
+  A->>DB: S3Credentials by AccessKeyId
+  A->>A: timestamp ±15 min · signature · payload hash
+  A-->>C: 403 on failure (S3 XML)
+  A->>E: context.User = SigV4 identity
+  E->>E: ObjectKeyValidator (400 InvalidArgument)
+  E->>M: GetBucketAsync(bucket, owner filter) (404 NoSuchBucket)
+  E->>FS: GetAvailableFreeSpace() (507 below Storage:MinimumFreeDiskBytes)
+  E->>Q: CheckAsync with declared Content-Length
+  Q->>DB: bucket owner · quota · used bytes (507 over quota)
+  E->>E: ContentMd5.TryParse (400 InvalidDigest)
+  E->>FS: StageAsync(HashingStream over decoded body)
+  FS->>D: write {hash}.blob.{guid}.tmp
+  Note over E,FS: ETag = MD5 from HashingStream
+  E->>E: Content-MD5 mismatch → 400 BadDigest, staged blob disposed, old object untouched
+  opt no Content-Length (chunked)
+    E->>Q: CheckAsync with real size (507)
+  end
+  E->>FS: CommitAsync
+  FS->>D: File.Move(tmp → {bucket}/{L1}/{L2}/{hash}.blob, overwrite)
+  E->>M: SaveObjectAsync(BlobObject, auditUserId)
+  M->>DB: upsert row · ObjectCount/TotalSize delta · AuditEntry (one transaction)
+  E-->>C: 200 · ETag header
+
+%%% S3 Multipart upload
+%%{init: {"theme": "base", "themeVariables": {"fontFamily": "system-ui, sans-serif"}, "sequence": {"useMaxWidth": false, "actorFontSize": 18, "messageFontSize": 16, "noteFontSize": 15, "actorMargin": 60, "width": 220, "mirrorActors": false}}}%%
+sequenceDiagram
+  autonumber
+  participant C as S3 client
+  participant MP as S3MultipartEndpoint
+  participant OE as S3ObjectEndpoint PUT
+  participant FS as FileSystemStorageService
+  participant M as EfCoreMetadataService
+  participant DB as Metadata DB
+  participant D as Blob root
+
+  C->>MP: POST /{bucket}/{key}?uploads
+  MP->>M: GetBucketAsync (404 NoSuchBucket)
+  MP->>DB: insert MultipartUpload (ContentType, InitiatedByUserId)
+  MP-->>C: InitiateMultipartUploadResult · UploadId
+
+  loop each part 1..10000
+    C->>OE: PUT /{bucket}/{key}?partNumber=N&uploadId=X
+    OE->>DB: MultipartUpload exists · caller is initiator or Admin/Manager (404 NoSuchUpload)
+    OE->>FS: GetAvailableFreeSpace() (507)
+    OE->>FS: StagePartAsync(uploadId, N, decoded body)
+    FS->>D: _multipart/{uploadId}/{N}.part.tmp → commit
+    OE->>OE: Content-MD5 vs part ETag (400 BadDigest)
+    OE->>DB: upsert MultipartUploadPart (ETag, Size, StoragePath)
+    OE-->>C: 200 · ETag of the part
+  end
+
+  C->>MP: POST /{bucket}/{key}?uploadId=X · XML part list
+  MP->>DB: MultipartUpload + Parts (404 NoSuchUpload)
+  MP->>MP: parts ascending (400 InvalidPartOrder) · ETag matches (400 InvalidPart) · ≥ 5 MB except last (400 EntityTooSmall)
+  MP->>FS: GetAvailableFreeSpace() (507)
+  MP->>DB: StorageQuota.CheckAsync(sum of part sizes) (507)
+  MP->>FS: AssemblePartsAsync(bucket, key, ordered paths)
+  FS->>D: concatenate parts into {hash}.blob
+  Note over MP: ETag = MD5(concat of part MD5 bytes) + "-" + partCount
+  MP->>M: SaveObjectAsync(BlobObject, auditUserId)
+  M->>DB: row · stats delta · audit
+  MP->>FS: DeletePartsAsync(uploadId)
+  FS->>D: remove _multipart/{uploadId}
+  MP->>DB: delete MultipartUpload (parts cascade)
+  MP-->>C: CompleteMultipartUploadResult · ETag
+
+  Note over C,D: DELETE ?uploadId=X aborts: part files and rows removed. CleanupAbandonedMultipartJob removes uploads older than 7 days every Sunday 05:00 UTC.
+
+%%% Browser login · cookie session
+%%{init: {"theme": "base", "themeVariables": {"fontFamily": "system-ui, sans-serif"}, "sequence": {"useMaxWidth": false, "actorFontSize": 18, "messageFontSize": 16, "noteFontSize": 15, "actorMargin": 60, "width": 220, "mirrorActors": false}}}%%
+sequenceDiagram
+  autonumber
+  participant B as Browser
+  participant L as Login.razor (static SSR)
+  participant AE as POST /account/login
+  participant SM as SignInManager
+  participant DB as Metadata DB
+  participant ML as MainLayout AuthorizeView
+
+  B->>L: GET /login?returnUrl=…
+  L->>L: read objex-remember cookie · PersistentComponentState
+  L-->>B: plain HTML form (no Blazor handler, antiforgery disabled)
+  B->>AE: POST login, password, returnUrl, rememberMe
+  AE->>B: Set-Cookie objex-remember (1 year)
+  AE->>SM: FindByEmailAsync if login contains @, else FindByNameAsync
+  SM->>DB: AspNetUsers
+  AE->>SM: CheckPasswordSignInAsync(lockoutOnFailure: true)
+  alt locked out
+    AE-->>B: 302 /login?error=1&msg=locked N minutes
+  else deactivated
+    AE-->>B: 302 /login?error=1&msg=deactivated
+  else temporary password expired
+    AE-->>B: 302 /login?error=1&msg=expired
+  else wrong password or unknown user
+    Note over AE,DB: failed count +1 · lock after Auth:Lockout:MaxFailedAttempts
+    AE-->>B: 302 /login?error=1&login=…
+  else success
+    AE->>SM: SignInAsync(IsPersistent = rememberMe, ExpiresUtc = now + RememberMeDays)
+    SM-->>B: Set-Cookie Identity.Application (session: 60 min sliding)
+    alt MustChangePassword
+      AE-->>B: 302 /change-password
+    else
+      AE-->>B: 302 returnUrl (local path only) or /
+    end
+  end
+  B->>ML: GET page · cookie · SignalR circuit
+  ML->>ML: AuthorizeView: Authorized → layout, NotAuthorized → RedirectToLogin (forceLoad)
+  Note over B,ML: GET /account/logout clears the cookie and redirects to /login
+
+%%% Presigned URL · UI to S3 port
+%%{init: {"theme": "base", "themeVariables": {"fontFamily": "system-ui, sans-serif"}, "sequence": {"useMaxWidth": false, "actorFontSize": 18, "messageFontSize": 16, "noteFontSize": 15, "actorMargin": 60, "width": 220, "mirrorActors": false}}}%%
+sequenceDiagram
+  autonumber
+  participant U as Browser (PresignedUrlDialog)
+  participant P as GET /api/presign · :9001
+  participant DB as Metadata DB
+  participant G as PresignedUrlGenerator (Core)
+  participant R as Recipient
+  participant A as SigV4AuthMiddleware · :9000
+  participant E as S3ObjectEndpoint GET
+
+  U->>P: /api/presign/{bucket}/{key}?expires=N&method=GET|PUT (cookie auth)
+  P->>DB: bucket owned or Admin/Manager (403)
+  P->>DB: first S3Credential of the user (400 if none)
+  P->>DB: SystemSettings row 1 · default and max expiry
+  P->>P: clamp expires to 1..max
+  P->>G: Generate(S3:PublicUrl, bucket, key, AccessKeyId, SecretAccessKey, expires, method)
+  G-->>P: URL with X-Amz-Algorithm, Credential, Date, Expires, SignedHeaders, Signature
+  P-->>U: { url }
+  U->>R: share the link
+  R->>A: GET url on the S3 port · no headers needed
+  A->>DB: S3Credentials by AccessKeyId
+  A->>DB: SystemSettings max expiry
+  A->>A: X-Amz-Expires in 1..min(max, 604800) else 400 AuthorizationQueryParametersError
+  A->>A: now within X-Amz-Date + X-Amz-Expires else 403
+  A->>A: signature over canonical query (UNSIGNED-PAYLOAD)
+  A->>E: context.User = credential owner
+  E-->>R: object stream · Range supported · x-amz-meta-* headers
+
+%%% Data model
+%%{init: {"theme": "base", "themeVariables": {"fontFamily": "system-ui, sans-serif"}, "er": {"useMaxWidth": false, "fontSize": 16, "entityPadding": 18, "minEntityWidth": 200}}}%%
+erDiagram
+  USER ||--o{ BUCKET : owns
+  USER ||--o{ S3_CREDENTIAL : has
+  BUCKET ||--o{ BLOB_OBJECT : "contains (FK bucket_name → name)"
+  MULTIPART_UPLOAD ||--o{ MULTIPART_UPLOAD_PART : "parts (cascade)"
+  USER ||--o{ AUDIT_ENTRY : "acted (user_id, no FK)"
+
+  USER {
+    string id PK "AspNetUsers, Identity"
+    string user_name
+    string email
+    long storage_used_bytes
+    long storage_quota_bytes "nullable, per-user override"
+    bool is_deactivated
+    bool must_change_password
+    datetime temporary_password_expires_at "nullable"
+    datetime lockout_end "Identity lockout"
+  }
+  BUCKET {
+    guid id PK
+    string name UK
+    string owner_id FK "Restrict"
+    int object_count
+    long total_size
+    datetime created_at
+    datetime updated_at
+  }
+  BLOB_OBJECT {
+    guid id PK
+    string bucket_name FK "unique with key"
+    string key
+    long size
+    string content_type
+    string etag "MD5 hex, or MD5-N for multipart"
+    string storage_path
+    string custom_metadata "JSON of x-amz-meta-*"
+    datetime created_at
+    datetime updated_at
+  }
+  S3_CREDENTIAL {
+    guid id PK
+    string name
+    string access_key_id UK "OBX + 17 chars"
+    string secret_access_key "plain, needed for HMAC"
+    string user_id FK "Cascade"
+    datetime last_used_at "nullable"
+  }
+  MULTIPART_UPLOAD {
+    guid id PK "UploadId"
+    string bucket_name
+    string key
+    string content_type
+    string initiated_by_user_id
+    datetime created_at
+  }
+  MULTIPART_UPLOAD_PART {
+    guid id PK
+    guid upload_id FK "unique with part_number"
+    int part_number
+    string etag
+    long size
+    string storage_path
+  }
+  AUDIT_ENTRY {
+    long id PK "autoincrement"
+    string user_id "indexed"
+    string action "indexed"
+    string bucket_name "nullable, indexed"
+    string key "nullable"
+    string details "nullable"
+    datetime timestamp "indexed"
+  }
+  SYSTEM_SETTINGS {
+    int id PK "always 1"
+    int presigned_url_default_expiry_seconds "3600"
+    int presigned_url_max_expiry_seconds "604800"
+    long default_storage_quota_bytes "nullable = unlimited"
+  }
+
+%%% Staged blob lifecycle
+%%{init: {"theme": "base", "themeVariables": {"fontFamily": "system-ui, sans-serif", "fontSize": "18px"}, "flowchart": {"useMaxWidth": false}}}%%
+stateDiagram-v2
+  direction LR
+  [*] --> Staged : StageAsync writes {hash}.blob.{guid}.tmp
+  Staged --> Committed : CommitAsync · File.Move overwrite
+  Staged --> Discarded : DisposeAsync without commit<br/>(BadDigest, quota 507, client abort)
+  Staged --> Orphaned : process crash
+  Orphaned --> [*] : next startup deletes .tmp older than 1 h
+  Discarded --> [*] : previous object keeps bytes and row
+  Committed --> Recorded : SaveObjectAsync · row + stats delta + audit
+  Recorded --> [*]
+  Committed --> Orphaned : crash before SaveObjectAsync
+  note right of Orphaned
+    CleanupOrphanedBlobsJob (Sun 03:00 UTC) deletes .blob files
+    with no row, unless modified within the last hour
+  end note

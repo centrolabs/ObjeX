@@ -231,6 +231,10 @@ The logical key (e.g. `images/2024/photo.jpg`) lives in the database only.
 
 ---
 
+## Architecture
+
+Diagrams of the request pipelines, the upload flows, the login, presigned URLs and the data model: [docs/architecture.md](docs/architecture.md).
+
 ## Roadmap
 
 See [ROADMAP.md](./ROADMAP.md).
