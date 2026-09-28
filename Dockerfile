@@ -31,6 +31,10 @@ RUN dotnet publish ObjeX.Api/ObjeX.Api.csproj \
 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0
 
+ARG SOURCE_REVISION=
+LABEL org.opencontainers.image.source="https://github.com/centrolabs/ObjeX" \
+      org.opencontainers.image.revision="${SOURCE_REVISION}"
+
 # Install curl for container healthcheck, then clean up
 RUN apt-get update && apt-get install -y --no-install-recommends curl \
     && rm -rf /var/lib/apt/lists/*
