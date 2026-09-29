@@ -278,8 +278,10 @@ public interface IMetadataService
     Task<bool> ExistsBucketAsync(string bucketName, CancellationToken ctk = default);
     Task<BlobObject> SaveObjectAsync(BlobObject blobObject, string? auditUserId = null, CancellationToken ctk = default);
     Task<BlobObject?> GetObjectAsync(string bucketName, string key, CancellationToken ctk = default);
-    Task<ListObjectsResult> ListObjectsAsync(string bucketName, string? prefix = null, string? delimiter = null, CancellationToken ctk = default);
-    // Keys in UTF-8 byte order: ORDER BY key, COLLATE "C" on PostgreSQL (decided by Database.ProviderName); CommonPrefixes ordinal-sorted and deduplicated
+    Task<ListObjectsResult> ListObjectsAsync(string bucketName, string? prefix = null, string? delimiter = null, string? startAfter = null, int? maxKeys = null, CancellationToken ctk = default);
+    // Keys in UTF-8 byte order: ORDER BY key, COLLATE "C" on PostgreSQL (decided by Database.ProviderName), also for the key > startAfter seek.
+    // Reads 1000 rows per query; after a common prefix it jumps past all its keys (prefix with the last char + 1), so a folder of any size costs one row.
+    // startAfter is exclusive and skips a common prefix at or before it; maxKeys counts objects plus prefixes, null = everything (UI, ZIP)
     // Search term: NFC and NFD spellings match alike (keys stay byte for byte); * = any run of characters, ? = exactly one; %, _ and \ stay literal. No wildcard = matches anywhere; with a wildcard = anchored at the end (*.pdf excludes a.pdfx). Translation in Infrastructure/Metadata/SearchPattern.cs
     Task<IReadOnlyList<BlobObject>> SearchObjectsAsync(string bucketName, string? prefix, string term, int limit, CancellationToken ctk = default);
     // keys under prefix, case-insensitive, placeholders excluded, byte order, at most limit
@@ -296,7 +298,7 @@ public interface IMetadataService
 }
 
 // ObjeX.Core/Models/ListObjectsResult.cs
-public record ListObjectsResult(IEnumerable<BlobObject> Objects, IEnumerable<string> CommonPrefixes);
+public record ListObjectsResult(IEnumerable<BlobObject> Objects, IEnumerable<string> CommonPrefixes, bool IsTruncated = false, string? NextMarker = null);
 // Objects = files at current level; CommonPrefixes = virtual folder paths (e.g. "photos/2024/")
 // Placeholder objects (key ends with "/", ContentType "application/x-directory") are filtered from UI; S3 listings return every key, so clients can delete them
 
@@ -492,7 +494,9 @@ GET    /                        → list all buckets (S3 ListAllMyBuckets XML)
 HEAD   /{bucket}                → bucket exists check (200/404)
 GET    /{bucket}?location       → GetBucketLocation (S3Conventions.Region, us-east-1)
 GET    /{bucket}?uploads        → ListMultipartUploads XML
-GET    /{bucket}?versions       → ListObjectVersions; each object is its own "null" version (buckets are never versioned)
+GET    /{bucket}                → ListObjects (marker, NextMarker only with a delimiter) or ?list-type=2 ListObjectsV2 (continuation-token = base64url of the last key or prefix, start-after, fetch-owner);
+                                  max-keys default and cap 1000, negative or non-numeric → 400; encoding-type=url encodes per path segment, but V1 leaves the top-level Prefix raw because botocore does not decode it there
+GET    /{bucket}?versions       → ListObjectVersions with key-marker paging; each object is its own "null" version (buckets are never versioned)
 GET    /{bucket}?versioning     → empty VersioningConfiguration (never versioned)
 GET|PUT|DELETE /{bucket}?acl|policy|cors|lifecycle|tagging|… → 501 NotImplemented (S3Subresources, ObjeX.Api/S3/); never falls through to create or delete
 PUT    /{bucket}                → create bucket (S3 XML response)
