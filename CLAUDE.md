@@ -554,7 +554,7 @@ POST   /                        → S3 POST Object (bucketEndpoint mode); bucket
 
 **`ci.yml`** — build + test gate, GitHub-hosted runner (`ubuntu-latest`). Triggers on push to `main` and all PRs. Steps: checkout → setup .NET (from `global.json`) → restore → build Release → run xUnit test suite.
 
-**`cd.yml`** — triggers on push to `main`. Builds multi-arch image (amd64/arm64) via Buildx + QEMU and pushes to GitHub Container Registry (`ghcr.io/centrolabs/objex:latest` + `ghcr.io/centrolabs/objex:<tag>`). Uses `GITHUB_TOKEN` (automatic, no manual secrets needed).
+**`cd.yml`** — triggers only on a `v*` tag push, so `latest` is always the last release. Runs the tests, builds multi-arch image (amd64/arm64) via Buildx + QEMU and pushes to GitHub Container Registry (`ghcr.io/centrolabs/objex:latest` + `ghcr.io/centrolabs/objex:<tag>`). Uses `GITHUB_TOKEN` (automatic, no manual secrets needed).
 
 **Release** — bump `<Version>` in `Directory.Build.props` and the `**Status**` line in `README.md`, commit, push, then tag `vX.Y.Z` and push the tag. CD builds and pushes the image and creates the GitHub release. The nav footer shows `ObjeX <version> (<sha>)`; the sha comes from the SDK locally and from the `SOURCE_REVISION` build arg in Docker. The same arg sets the image labels `org.opencontainers.image.revision` and `org.opencontainers.image.source`.
 
