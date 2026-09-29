@@ -4,6 +4,7 @@ FROM --platform=$BUILDPLATFORM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 ARG TARGETARCH
 # .dockerignore excludes .git, so the SDK cannot derive the commit sha itself; CD passes it in.
 ARG SOURCE_REVISION=
+ARG VERSION=0.0.0
 WORKDIR /src
 
 # Repo-wide build settings must be an ancestor of the project dirs, otherwise MSBuild silently
@@ -27,6 +28,7 @@ RUN dotnet publish ObjeX.Api/ObjeX.Api.csproj \
     --no-self-contained \
     --no-restore \
     -p:SourceRevisionId=$SOURCE_REVISION \
+    -p:Version=$VERSION \
     -o /app/publish
 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0
