@@ -881,10 +881,10 @@
           "Hangfire.PostgreSql": "[1.21.1, )",
           "Hangfire.Storage.SQLite": "[0.4.3, )",
           "Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore": "[10.0.12, )",
-          "ObjeX.Core": "[1.2.4, )",
-          "ObjeX.Infrastructure": "[1.2.4, )",
-          "ObjeX.Migrations.PostgreSql": "[1.2.4, )",
-          "ObjeX.Web": "[1.2.4, )",
+          "ObjeX.Core": "[0.0.0, )",
+          "ObjeX.Infrastructure": "[0.0.0, )",
+          "ObjeX.Migrations.PostgreSql": "[0.0.0, )",
+          "ObjeX.Web": "[0.0.0, )",
           "Serilog.AspNetCore": "[10.0.0, )",
           "Serilog.Formatting.Compact": "[3.0.0, )",
           "Serilog.Sinks.File": "[7.0.0, )",
@@ -905,21 +905,21 @@
           "Microsoft.EntityFrameworkCore.Sqlite": "[10.0.12, )",
           "Microsoft.Extensions.Diagnostics.HealthChecks.Abstractions": "[10.0.12, )",
           "Npgsql.EntityFrameworkCore.PostgreSQL": "[10.0.3, )",
-          "ObjeX.Core": "[1.2.4, )"
+          "ObjeX.Core": "[0.0.0, )"
         }
       },
       "objex.migrations.postgresql": {
         "type": "Project",
         "dependencies": {
           "Npgsql.EntityFrameworkCore.PostgreSQL": "[10.0.3, )",
-          "ObjeX.Infrastructure": "[1.2.4, )"
+          "ObjeX.Infrastructure": "[0.0.0, )"
         }
       },
       "objex.web": {
         "type": "Project",
         "dependencies": {
-          "ObjeX.Core": "[1.2.4, )",
-          "ObjeX.Infrastructure": "[1.2.4, )",
+          "ObjeX.Core": "[0.0.0, )",
+          "ObjeX.Infrastructure": "[0.0.0, )",
           "Radzen.Blazor": "[11.5.1, )"
         }
       }

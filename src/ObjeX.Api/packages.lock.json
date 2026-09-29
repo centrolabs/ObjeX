@@ -485,21 +485,21 @@
           "Microsoft.AspNetCore.Identity.EntityFrameworkCore": "[10.0.12, )",
           "Microsoft.EntityFrameworkCore.Sqlite": "[10.0.12, )",
           "Npgsql.EntityFrameworkCore.PostgreSQL": "[10.0.3, )",
-          "ObjeX.Core": "[1.2.4, )"
+          "ObjeX.Core": "[0.0.0, )"
         }
       },
       "objex.migrations.postgresql": {
         "type": "Project",
         "dependencies": {
           "Npgsql.EntityFrameworkCore.PostgreSQL": "[10.0.3, )",
-          "ObjeX.Infrastructure": "[1.2.4, )"
+          "ObjeX.Infrastructure": "[0.0.0, )"
         }
       },
       "objex.web": {
         "type": "Project",
         "dependencies": {
-          "ObjeX.Core": "[1.2.4, )",
-          "ObjeX.Infrastructure": "[1.2.4, )",
+          "ObjeX.Core": "[0.0.0, )",
+          "ObjeX.Infrastructure": "[0.0.0, )",
           "Radzen.Blazor": "[11.5.1, )"
         }
       }

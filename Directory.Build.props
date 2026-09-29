@@ -1,8 +1,8 @@
 <Project>
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
-    <!-- Single source of truth for the product version; the SDK appends "+{git sha}" to InformationalVersion. -->
-    <Version>1.2.5</Version>
+    <!-- Local builds are 0.0.0; CD passes the release tag as Version. The SDK appends "+{git sha}" to InformationalVersion. -->
+    <Version>0.0.0</Version>
     <LangVersion>latest</LangVersion>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>

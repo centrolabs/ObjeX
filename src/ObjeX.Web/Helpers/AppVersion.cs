@@ -4,7 +4,7 @@ namespace ObjeX.Web.Helpers;
 
 public static class AppVersion
 {
-    /// <summary>The version from Directory.Build.props, without the "+{git sha}" suffix the SDK appends.</summary>
+    /// <summary>The release version passed by CD (0.0.0 in local builds), without the "+{git sha}" suffix the SDK appends.</summary>
     public static string Version { get; }
 
     /// <summary>"ObjeX 1.2.2 (abc1234)", or "ObjeX 1.2.2" when the build embedded no sha.</summary>

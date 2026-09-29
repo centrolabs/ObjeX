@@ -142,7 +142,7 @@
           "Microsoft.AspNetCore.Identity.EntityFrameworkCore": "[10.0.12, )",
           "Microsoft.EntityFrameworkCore.Sqlite": "[10.0.12, )",
           "Npgsql.EntityFrameworkCore.PostgreSQL": "[10.0.3, )",
-          "ObjeX.Core": "[1.2.4, )"
+          "ObjeX.Core": "[0.0.0, )"
         }
       }
     }
