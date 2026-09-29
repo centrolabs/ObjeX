@@ -18,8 +18,10 @@ data/
 
 # Docker itself
 Dockerfile
-docker-compose*.yml
 .dockerignore
+
+# Deployment manifests
+deploy/
 
 # Test projects (not needed in production image)
 src/ObjeX.Tests/
