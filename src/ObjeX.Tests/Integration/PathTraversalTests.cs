@@ -20,7 +20,6 @@ public class PathTraversalTests(ObjeXFactory factory) : IClassFixture<ObjeXFacto
     {
         // Use a key that contains ".." but has real content after it — tests that
         // the storage layer uses hashed paths and doesn't allow filesystem escape.
-        // Keys with ".." pass ObjectKeyValidator when sanitized result is non-empty.
         var bucket = "test-bucket";
         var key = "subdir/..%2F..%2Fetc%2Fpasswd"; // URL-encoded dots, won't be resolved by URI parser
         var content = "not really /etc/passwd"u8.ToArray();
@@ -68,19 +67,26 @@ public class PathTraversalTests(ObjeXFactory factory) : IClassFixture<ObjeXFacto
     }
 
     [Fact]
-    public async Task DotDotOnly_RejectedByValidator()
+    public async Task DotsOnlyKey_StoredSafely_RoundTrips()
     {
         var bucket = "test-bucket";
-        var key = "...."; // sanitizes to empty
+        var key = "....";
+        var content = "only dots"u8.ToArray();
 
-        var content = "should fail"u8.ToArray();
         var encodedKey = EncodeKeyForUrl(key);
         var putRequest = new HttpRequestMessage(HttpMethod.Put, $"/{bucket}/{encodedKey}");
         putRequest.Content = new ByteArrayContent(content);
         S3RequestSigner.SignRequest(putRequest, factory.AccessKeyId, factory.SecretAccessKey, content);
-        var response = await _client.SendAsync(putRequest);
-        var body = await response.Content.ReadAsStringAsync();
-        Assert.Contains("InvalidArgument", body);
+        var putResponse = await _client.SendAsync(putRequest);
+        Assert.Equal(HttpStatusCode.OK, putResponse.StatusCode);
+
+        AssertAllBlobsWithinBasePath();
+
+        var getRequest = new HttpRequestMessage(HttpMethod.Get, $"/{bucket}/{encodedKey}");
+        S3RequestSigner.SignRequest(getRequest, factory.AccessKeyId, factory.SecretAccessKey);
+        var getResponse = await _client.SendAsync(getRequest);
+        Assert.Equal(HttpStatusCode.OK, getResponse.StatusCode);
+        Assert.Equal(content, await getResponse.Content.ReadAsByteArrayAsync());
     }
 
     [Fact]
