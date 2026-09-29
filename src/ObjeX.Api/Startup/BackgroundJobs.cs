@@ -1,6 +1,7 @@
 using System.Linq.Expressions;
 using Hangfire;
 using Hangfire.PostgreSql;
+using Hangfire.PostgreSql.Factories;
 using Hangfire.Storage;
 using Hangfire.Storage.SQLite;
 using ObjeX.Api.Options;
@@ -18,16 +19,20 @@ public static class BackgroundJobs
 {
     public static IServiceCollection AddObjeXBackgroundJobs(this IServiceCollection services, DatabaseOptions database)
     {
-        services.AddHangfire(config =>
+        // Per host: AddHangfire's default is the static JobStorage.Current, shared by every host in the process.
+        services.AddSingleton<JobStorage>(_ =>
         {
-            config.UseSimpleAssemblyNameTypeSerializer()
-                  .UseRecommendedSerializerSettings();
-
             if (database.IsPostgreSql)
-                config.UsePostgreSqlStorage(o => o.UseNpgsqlConnection(database.ConnectionString));
-            else
-                config.UseSQLiteStorage(database.SqliteFilePath!); // file path, not an EF connection string
+            {
+                var options = new PostgreSqlStorageOptions();
+                return new PostgreSqlStorage(new NpgsqlConnectionFactory(database.ConnectionString, options), options);
+            }
+            return new SQLiteStorage(database.SqliteFilePath!); // file path, not an EF connection string
         });
+        services.AddHangfire((provider, config) => config
+            .UseSimpleAssemblyNameTypeSerializer()
+            .UseRecommendedSerializerSettings()
+            .UseStorage(provider.GetRequiredService<JobStorage>()));
         services.AddHangfireServer();
 
         services.AddScoped<CleanupOrphanedBlobsJob>();
