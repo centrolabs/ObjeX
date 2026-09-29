@@ -132,6 +132,18 @@ public class ObjectSearchTests(ObjeXFactory factory) : IClassFixture<ObjeXFactor
         Assert.Empty(await SearchAsync("search-blank", null, ""));
     }
 
+    [Fact]
+    public async Task Term_MatchesComposedAndDecomposedSpellings()
+    {
+        const string composed = "caf\u00e9-menu.txt";
+        const string decomposed = "cafe\u0301-plan.txt";
+        await SeedAsync("search-unicode", composed, decomposed, "cafe.txt");
+
+        Assert.Equal([decomposed, composed], await SearchAsync("search-unicode", null, "caf\u00e9"));
+        Assert.Equal([decomposed, composed], await SearchAsync("search-unicode", null, "cafe\u0301"));
+        Assert.Equal([("search-unicode", decomposed), ("search-unicode", composed)], await SearchAllAsync(null, "caf\u00e9-"));
+    }
+
     private async Task<string> CreateUserAsync(string username)
     {
         using var scope = factory.CreateScope();

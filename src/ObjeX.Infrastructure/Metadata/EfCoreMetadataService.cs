@@ -132,14 +132,14 @@ public class EfCoreMetadataService(ObjeXDbContext ctx) : IMetadataService
     {
         if (string.IsNullOrWhiteSpace(term)) return [];
 
-        var pattern = SearchPattern.FromTerm(term.ToLowerInvariant());
+        var (composed, decomposed) = SearchPattern.FromTermInBothForms(term.ToLowerInvariant());
         var query = ctx.BlobObjects.AsNoTracking()
             .Where(o => o.BucketName == bucketName && !o.Key.EndsWith("/"));
         if (!string.IsNullOrEmpty(prefix))
             query = query.Where(o => o.Key.StartsWith(prefix));
 
         // Both sides lower-cased, because PostgreSQL's LIKE is case-sensitive and SQLite's is ASCII-only.
-        query = query.Where(o => EF.Functions.Like(o.Key.ToLower(), pattern, "\\"));
+        query = query.Where(o => EF.Functions.Like(o.Key.ToLower(), composed, "\\") || EF.Functions.Like(o.Key.ToLower(), decomposed, "\\"));
 
         return await OrderByKey(query).Take(limit).ToListAsync(ctk);
     }
@@ -148,13 +148,13 @@ public class EfCoreMetadataService(ObjeXDbContext ctx) : IMetadataService
     {
         if (string.IsNullOrWhiteSpace(term)) return [];
 
-        var pattern = SearchPattern.FromTerm(term.ToLowerInvariant());
+        var (composed, decomposed) = SearchPattern.FromTermInBothForms(term.ToLowerInvariant());
         var query = ctx.BlobObjects.AsNoTracking().Where(o => !o.Key.EndsWith("/"));
         // The navigation joins Bucket, which is where ownership lives.
         if (ownerFilter is not null)
             query = query.Where(o => o.Bucket!.OwnerId == ownerFilter);
 
-        query = query.Where(o => EF.Functions.Like(o.Key.ToLower(), pattern, "\\"));
+        query = query.Where(o => EF.Functions.Like(o.Key.ToLower(), composed, "\\") || EF.Functions.Like(o.Key.ToLower(), decomposed, "\\"));
 
         return await OrderByBucketThenKey(query).Take(limit).ToListAsync(ctk);
     }
