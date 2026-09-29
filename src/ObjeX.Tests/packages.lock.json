@@ -695,8 +695,8 @@
       },
       "Radzen.Blazor": {
         "type": "Transitive",
-        "resolved": "11.4.0",
-        "contentHash": "Gv36bvGh6UQlC/YfRtuWVGcCmZlXLM7tnEaJgHhNCF9bpQUSA0WtDVJTS5ulF5nT6j2n5pXBG98qRsUX39G6xg==",
+        "resolved": "11.5.1",
+        "contentHash": "1grwHjm04KGvp9bwE+0ZPa/cCGepxi058eGza+NRMZxuTJeEc+PuQge7gvxxzjWk/VtkxrUxuaYVF8igEpHMSQ==",
         "dependencies": {
           "Microsoft.AspNetCore.Components": "10.0.12",
           "Microsoft.AspNetCore.Components.Web": "10.0.12"
@@ -881,10 +881,10 @@
           "Hangfire.PostgreSql": "[1.21.1, )",
           "Hangfire.Storage.SQLite": "[0.4.3, )",
           "Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore": "[10.0.12, )",
-          "ObjeX.Core": "[1.2.3, )",
-          "ObjeX.Infrastructure": "[1.2.3, )",
-          "ObjeX.Migrations.PostgreSql": "[1.2.3, )",
-          "ObjeX.Web": "[1.2.3, )",
+          "ObjeX.Core": "[1.2.4, )",
+          "ObjeX.Infrastructure": "[1.2.4, )",
+          "ObjeX.Migrations.PostgreSql": "[1.2.4, )",
+          "ObjeX.Web": "[1.2.4, )",
           "Serilog.AspNetCore": "[10.0.0, )",
           "Serilog.Formatting.Compact": "[3.0.0, )",
           "Serilog.Sinks.File": "[7.0.0, )",
@@ -905,22 +905,22 @@
           "Microsoft.EntityFrameworkCore.Sqlite": "[10.0.12, )",
           "Microsoft.Extensions.Diagnostics.HealthChecks.Abstractions": "[10.0.12, )",
           "Npgsql.EntityFrameworkCore.PostgreSQL": "[10.0.3, )",
-          "ObjeX.Core": "[1.2.3, )"
+          "ObjeX.Core": "[1.2.4, )"
         }
       },
       "objex.migrations.postgresql": {
         "type": "Project",
         "dependencies": {
           "Npgsql.EntityFrameworkCore.PostgreSQL": "[10.0.3, )",
-          "ObjeX.Infrastructure": "[1.2.3, )"
+          "ObjeX.Infrastructure": "[1.2.4, )"
         }
       },
       "objex.web": {
         "type": "Project",
         "dependencies": {
-          "ObjeX.Core": "[1.2.3, )",
-          "ObjeX.Infrastructure": "[1.2.3, )",
-          "Radzen.Blazor": "[11.4.0, )"
+          "ObjeX.Core": "[1.2.4, )",
+          "ObjeX.Infrastructure": "[1.2.4, )",
+          "Radzen.Blazor": "[11.5.1, )"
         }
       }
     }

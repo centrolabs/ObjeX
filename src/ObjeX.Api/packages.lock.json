@@ -325,8 +325,8 @@
       },
       "Radzen.Blazor": {
         "type": "Transitive",
-        "resolved": "11.4.1",
-        "contentHash": "qLjpvH0QJJFvzAgaDoo45XQ6+AAjrPxlUSk4daxwfTP+RGVV78G41paSE17y5NFaDR5exKHsCF+uhkVgg9xfDw=="
+        "resolved": "11.5.1",
+        "contentHash": "1grwHjm04KGvp9bwE+0ZPa/cCGepxi058eGza+NRMZxuTJeEc+PuQge7gvxxzjWk/VtkxrUxuaYVF8igEpHMSQ=="
       },
       "Serilog": {
         "type": "Transitive",
@@ -485,22 +485,22 @@
           "Microsoft.AspNetCore.Identity.EntityFrameworkCore": "[10.0.12, )",
           "Microsoft.EntityFrameworkCore.Sqlite": "[10.0.12, )",
           "Npgsql.EntityFrameworkCore.PostgreSQL": "[10.0.3, )",
-          "ObjeX.Core": "[1.2.3, )"
+          "ObjeX.Core": "[1.2.4, )"
         }
       },
       "objex.migrations.postgresql": {
         "type": "Project",
         "dependencies": {
           "Npgsql.EntityFrameworkCore.PostgreSQL": "[10.0.3, )",
-          "ObjeX.Infrastructure": "[1.2.3, )"
+          "ObjeX.Infrastructure": "[1.2.4, )"
         }
       },
       "objex.web": {
         "type": "Project",
         "dependencies": {
-          "ObjeX.Core": "[1.2.3, )",
-          "ObjeX.Infrastructure": "[1.2.3, )",
-          "Radzen.Blazor": "[11.4.1, )"
+          "ObjeX.Core": "[1.2.4, )",
+          "ObjeX.Infrastructure": "[1.2.4, )",
+          "Radzen.Blazor": "[11.5.1, )"
         }
       }
     }
