@@ -130,4 +130,16 @@ public class S3ConformanceTests(ObjeXFactory factory) : IClassFixture<ObjeXFacto
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Contains("<VersioningConfiguration", await response.Content.ReadAsStringAsync());
     }
+
+    [Fact]
+    public async Task DeleteObjects_DeletesWhitespaceOnlyKey()
+    {
+        var bucket = await NewBucketAsync();
+        Assert.Equal(HttpStatusCode.OK, (await SendAsync(HttpMethod.Put, $"/{bucket}/%20", "bar")).StatusCode);
+
+        var response = await SendAsync(HttpMethod.Post, $"/{bucket}?delete", "<Delete><Object><Key> </Key></Object></Delete>");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await SendAsync(HttpMethod.Head, $"/{bucket}/%20")).StatusCode);
+    }
 }
