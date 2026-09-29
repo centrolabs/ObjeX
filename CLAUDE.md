@@ -14,7 +14,7 @@ src/
 │   ├── Middleware/      # SigV4AuthMiddleware, SecurityHeadersMiddleware
 │   ├── Auth/            # HangfireAuthorizationFilter
 │   ├── Options/         # ServerOptions (ports), ReverseProxyOptions, AuthOptions (lockout, RememberMeDays), DatabaseOptions, StorageOptions (blob root, upload cap, min free disk), SeedOptions
-│   ├── Startup/         # ServiceCollectionExtensions (AddObjeX* per concern), DatabaseInitializer (migrate, pragmas, roles, admin, seeding), BackgroundJobs (Hangfire wiring, recurring schedule, stale-job prune)
+│   ├── Startup/         # ServiceCollectionExtensions (AddObjeX* per concern), DatabaseInitializer (migrate, pragmas, legacy blob paths, roles, admin, seeding), BackgroundJobs (Hangfire wiring, recurring schedule, stale-job prune)
 │   ├── Components/      # App.razor (host document), _Imports.razor
 │   ├── wwwroot/         # app.css, favicons, fonts/, site.webmanifest
 │   ├── S3/              # S3Pipeline (the S3 port's request pipeline), SigV4Parser, SigV4Signer, S3Xml, S3Errors, StorageQuota, ContentMd5
@@ -32,7 +32,7 @@ src/
 │   ├── Metadata/        # EfCoreMetadataService (SQLite and PostgreSQL alike)
 │   ├── Migrations/      # EF Core migrations
 │   ├── Options/         # S3Options (PublicUrl), DefaultAdminOptions — here, not in Api, because Web needs them and cannot reference Api
-│   └── Storage/         # FileSystemStorageService, StorageSpaceService (free disk of the blob volume)
+│   └── Storage/         # FileSystemStorageService, StorageSpaceService (free disk of the blob volume), LegacyKeyPathMigration (moves pre-1.2.5 alias blobs to their raw-key path at startup)
 ├── ObjeX.Migrations.PostgreSql/  # PostgreSQL-specific EF Core migrations
 ├── ObjeX.Tests/         # xUnit — unit (Core validators, hashing) + integration (WebApplicationFactory, real SQLite)
 │   ├── Unit/            # BucketNameValidator, ObjectKeyValidator, HashingStream, Sha256HashService, StorageSpaceStatus, ETags, CustomMetadata, InlineMediaTypes, S3ClientSnippets, TextPreview, BrowserTimeZone, SearchPattern
@@ -471,7 +471,7 @@ Keyboard handling: text-input dialogs (`CreateBucketDialog`, `CreateS3Credential
 ```
 # Internal endpoints — port 9001 (used by Blazor UI, cookie auth)
 GET    /api/objects/{bucket}/{*key}          → download object (browser file download); x-objex-verify-integrity re-hashes, multipart objects skip the check
-GET    /api/objects/{bucket}/download        → ZIP download; accepts ?prefix= to scope to a virtual folder
+GET    /api/objects/{bucket}/download        → ZIP download; accepts ?prefix= to scope to a virtual folder; entry names drop empty, `.` and `..` segments, `\` splits like `/` (no zip slip)
 
 # Auth (no auth required)
 POST   /account/login     → form login (sets cookie), redirects to returnUrl
@@ -556,7 +556,7 @@ POST   /                        → S3 POST Object (bucketEndpoint mode); bucket
 
 **`cd.yml`** — triggers on push to `main`. Builds multi-arch image (amd64/arm64) via Buildx + QEMU and pushes to GitHub Container Registry (`ghcr.io/centrolabs/objex:latest` + `ghcr.io/centrolabs/objex:<tag>`). Uses `GITHUB_TOKEN` (automatic, no manual secrets needed).
 
-**Release** — bump `<Version>` in `Directory.Build.props` and the `**Status**` line in `README.md`, commit, push, then tag `vX.Y.Z` and push the tag. CD builds and pushes the image and creates the GitHub release. The nav footer shows `ObjeX <version> (<sha>)`; the sha comes from the SDK locally and from the `SOURCE_REVISION` build arg in Docker.
+**Release** — bump `<Version>` in `Directory.Build.props` and the `**Status**` line in `README.md`, commit, push, then tag `vX.Y.Z` and push the tag. CD builds and pushes the image and creates the GitHub release. The nav footer shows `ObjeX <version> (<sha>)`; the sha comes from the SDK locally and from the `SOURCE_REVISION` build arg in Docker. The same arg sets the image labels `org.opencontainers.image.revision` and `org.opencontainers.image.source`.
 
 **`.github/dependabot.yml`** — weekly Monday PRs: one `nuget` group for all minor and patch updates (major updates come as single PRs, max 5 open) and one `github-actions` group.
 

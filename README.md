@@ -227,7 +227,7 @@ Blobs use **content-addressable hashed paths** — the physical filename is a SH
 └── objex.db                # SQLite — metadata + identity + Hangfire jobs
 ```
 
-The logical key (e.g. `images/2024/photo.jpg`) lives in the database only.
+The logical key (e.g. `images/2024/photo.jpg`) lives in the database only. It is hashed exactly as stored, so `a..b` and `ab` are two objects with two files.
 
 ---
 
@@ -264,7 +264,7 @@ Weekly Monday PRs: one grouped PR for all NuGet minor and patch updates, separat
 
 ## Testing
 
-113 automated tests (xUnit, ~5 seconds). Integration tests use real SQLite via `WebApplicationFactory` — no mocks.
+329 automated tests (xUnit, ~10 seconds). Integration tests use real SQLite via `WebApplicationFactory` — no mocks.
 
 ```bash
 dotnet test src/ObjeX.Tests/
@@ -284,7 +284,7 @@ warp mixed --host {host}:{port} --access-key {access-key} --secret-key {secret-k
 - Bucket CRUD — create, list, head, delete, duplicate detection, non-empty delete rejection
 - Multipart upload — initiate, upload parts, complete, download assembled file, abort cleanup
 - Auth boundaries — no credentials, invalid key, wrong signature, expired timestamp, presigned URLs (valid + expired)
-- Path traversal — `../`, `..\\`, encoded variants; all blobs verified within base path
+- Path traversal — `../`, `..\\`, encoded variants; all blobs verified within base path; distinct keys never share a blob; ZIP entry names carry no `..`
 - Storage quotas — per-user limits, global defaults, admin bypass, 507 on exceed
 - Audit log — bucket and object mutations write entries
 - Batch delete — multiple keys, mixed existing/non-existent

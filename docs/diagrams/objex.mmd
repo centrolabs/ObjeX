@@ -7,7 +7,7 @@ node_prometheus(("Prometheus"))
 
 subgraph group_host["ObjeX.Api host"]
   node_program["Program.cs<br/>Kestrel :9001 UI · :9000 S3<br/>composes AddObjeX* services"]
-  node_initializer["DatabaseInitializer<br/>migrate · PRAGMAs · roles<br/>default admin · seed"]
+  node_initializer["DatabaseInitializer<br/>migrate · PRAGMAs · legacy blob paths<br/>roles · default admin · seed"]
   node_shared["Shared middleware<br/>forwarded headers · request log<br/>security headers · port split"]
 end
 
@@ -26,7 +26,7 @@ subgraph group_ui["UI pipeline · :9001 · cookie"]
   node_opsapi["Ops endpoints<br/>/hangfire (Admin) · /health<br/>/health/ready · /metrics"]
   node_blazor["Blazor Server<br/>App.razor · InteractiveServer"]
   node_account["/account/login · /logout<br/>lockout · remember me"]
-  node_downloads["/api/objects download · ZIP<br/>inline allowlist · CSP sandbox"]
+  node_downloads["/api/objects download · ZIP<br/>inline allowlist · CSP sandbox<br/>safe ZIP entry names"]
   node_presign["/api/presign<br/>expiry from SystemSettings"]
 end
 
@@ -75,6 +75,7 @@ node_program --> node_shared
 node_program --> node_jobs
 node_program -.-> node_metrics
 node_initializer --> node_dbctx
+node_initializer --> node_store
 node_shared --> node_logs
 node_shared -->|":9000"| node_sigv4
 node_shared -->|":9001"| node_cookie
