@@ -7,6 +7,8 @@ Auth is AWS Signature Version 4. Create credentials in the web UI under **Settin
 | Method | Path | Description |
 |---|---|---|
 | `GET` | `/` | List buckets |
+| `GET` | `/{bucket}` | List objects; `prefix`, `delimiter`, `max-keys` (≤ 1000), `marker`, `encoding-type=url` |
+| `GET` | `/{bucket}?list-type=2` | List objects V2; `continuation-token`, `start-after`, `fetch-owner` |
 | `HEAD` | `/{bucket}` | Bucket exists |
 | `GET` | `/{bucket}?location` | Bucket location (`us-east-1`) |
 | `GET` | `/{bucket}?uploads` | List multipart uploads |
@@ -23,7 +25,7 @@ Auth is AWS Signature Version 4. Create credentials in the web UI under **Settin
 | `POST` | `/{bucket}/{key}?uploadId=X` | Complete multipart upload |
 | `POST` | `/{bucket}?delete` | Delete several objects |
 | `POST` | `/{bucket}`, `/` | Presigned POST upload (form fields) |
-| `GET` | `/{bucket}?versions` | List versions; each object is its own `null` version |
+| `GET` | `/{bucket}?versions` | List versions with `key-marker`; each object is its own `null` version |
 | `GET` | `/{bucket}?versioning` | Empty configuration: buckets are never versioned |
 | any | `?acl`, `?policy`, `?cors`, `?lifecycle`, `?tagging` and other subresources, on buckets and objects | `501 Not Implemented` |
 
