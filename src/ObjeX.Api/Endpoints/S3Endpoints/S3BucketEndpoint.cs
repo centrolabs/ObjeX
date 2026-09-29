@@ -128,7 +128,7 @@ public static class S3BucketEndpoint
                 var continuationToken = query["continuation-token"].FirstOrDefault();
                 var startAfter = query["start-after"].FirstOrDefault();
                 var after = startAfter;
-                if (continuationToken is not null && !ContinuationToken.TryDecode(continuationToken, out after))
+                if (!string.IsNullOrEmpty(continuationToken) && !ContinuationToken.TryDecode(continuationToken, out after))
                     return S3Xml.Error(S3Errors.InvalidArgument, "The continuation token provided is incorrect.");
 
                 var pageV2 = await metadata.ListObjectsAsync(bucket, prefix, delimiter, after, maxKeys);

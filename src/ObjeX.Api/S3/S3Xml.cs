@@ -34,7 +34,8 @@ public static class S3Xml
 
     public static IResult ListObjects(ListObjectsResult page, Listing listing, string? marker)
     {
-        var xml = Begin("ListBucketResult", listing);
+        // botocore does not decode Prefix for ListObjects (it does for V2), so it goes out unencoded here.
+        var xml = Begin("ListBucketResult", listing, encodePrefix: false);
         xml.AppendLine($"  <Marker>{Value(marker, listing)}</Marker>");
         if (page.IsTruncated && !string.IsNullOrEmpty(listing.Delimiter))
             xml.AppendLine($"  <NextMarker>{Value(page.NextMarker, listing)}</NextMarker>");
@@ -45,7 +46,7 @@ public static class S3Xml
 
     public static IResult ListObjectsV2(ListObjectsResult page, Listing listing, string? continuationToken, string? startAfter, bool fetchOwner)
     {
-        var xml = Begin("ListBucketResult", listing);
+        var xml = Begin("ListBucketResult", listing, encodePrefix: true);
         xml.AppendLine($"  <KeyCount>{page.Objects.Count() + page.CommonPrefixes.Count()}</KeyCount>");
         xml.AppendLine($"  <IsTruncated>{Bool(page.IsTruncated)}</IsTruncated>");
         if (continuationToken is not null)
@@ -60,7 +61,7 @@ public static class S3Xml
 
     public static IResult ListObjectVersions(ListObjectsResult page, Listing listing, string? keyMarker)
     {
-        var xml = Begin("ListVersionsResult", listing);
+        var xml = Begin("ListVersionsResult", listing, encodePrefix: true);
         xml.AppendLine($"  <KeyMarker>{Value(keyMarker, listing)}</KeyMarker>");
         xml.AppendLine("  <VersionIdMarker></VersionIdMarker>");
         if (page.IsTruncated)
@@ -73,13 +74,13 @@ public static class S3Xml
         return End(xml, "ListVersionsResult");
     }
 
-    private static StringBuilder Begin(string root, Listing listing)
+    private static StringBuilder Begin(string root, Listing listing, bool encodePrefix)
     {
         var xml = new StringBuilder();
         xml.AppendLine("<?xml version=\"1.0\" encoding=\"UTF-8\"?>");
         xml.AppendLine($"<{root} xmlns=\"http://s3.amazonaws.com/doc/2006-03-01/\">");
         xml.AppendLine($"  <Name>{Escape(listing.Bucket)}</Name>");
-        xml.AppendLine($"  <Prefix>{Value(listing.Prefix, listing)}</Prefix>");
+        xml.AppendLine($"  <Prefix>{(encodePrefix ? Value(listing.Prefix, listing) : Escape(listing.Prefix))}</Prefix>");
         if (!string.IsNullOrEmpty(listing.Delimiter))
             xml.AppendLine($"  <Delimiter>{Value(listing.Delimiter, listing)}</Delimiter>");
         xml.AppendLine($"  <MaxKeys>{listing.MaxKeys}</MaxKeys>");
