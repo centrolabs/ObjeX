@@ -106,7 +106,7 @@ public static class DownloadEndpoints
                     try
                     {
                         await using var fileStream = await storage.RetrieveAsync(bucketName, obj.Key);
-                        var entry = zip.CreateEntry(obj.Key, CompressionLevel.Fastest);
+                        var entry = zip.CreateEntry(ZipEntryName(obj.Key), CompressionLevel.Fastest);
                         using var entryStream = entry.Open();
                         await fileStream.CopyToAsync(entryStream, ctx.RequestAborted);
                     }
@@ -120,4 +120,8 @@ public static class DownloadEndpoints
             await ctx.Response.Body.FlushAsync(ctx.RequestAborted);
         }).RequireAuthorization();
     }
+
+    // A key may contain ".." or "\"; unzip tools would resolve those against the extraction folder.
+    private static string ZipEntryName(string key) =>
+        string.Join('/', key.Split('/', '\\').Where(s => s is not ("" or "." or "..")));
 }
