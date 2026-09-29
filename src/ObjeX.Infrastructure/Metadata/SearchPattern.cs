@@ -1,3 +1,5 @@
+using System.Text;
+
 namespace ObjeX.Infrastructure.Metadata;
 
 /// <summary>
@@ -18,4 +20,11 @@ internal static class SearchPattern
             .Replace('?', '_');
         return hasWildcard ? $"%{pattern}" : $"%{pattern}%";
     }
+
+    /// <summary>
+    /// Keys are stored byte for byte, as S3 does, so "é" may be one code point (NFC) or "e" plus a combining
+    /// accent (NFD, common from macOS). Matching the term in both forms finds either spelling.
+    /// </summary>
+    public static (string Composed, string Decomposed) FromTermInBothForms(string term) =>
+        (FromTerm(term.Normalize(NormalizationForm.FormC)), FromTerm(term.Normalize(NormalizationForm.FormD)));
 }

@@ -42,4 +42,12 @@ public class SearchPatternTests
     {
         Assert.Equal("%%", SearchPattern.FromTerm(""));
     }
+
+    [Fact]
+    public void BothForms_AreTheSameWhateverFormTheTermArrivesIn()
+    {
+        Assert.Equal(("%caf\u00e9%", "%cafe\u0301%"), SearchPattern.FromTermInBothForms("caf\u00e9"));
+        Assert.Equal(("%caf\u00e9%", "%cafe\u0301%"), SearchPattern.FromTermInBothForms("cafe\u0301"));
+        Assert.Equal(("%report%", "%report%"), SearchPattern.FromTermInBothForms("report"));
+    }
 }
