@@ -155,8 +155,9 @@ public static class S3PostObjectEndpoint
             body = buffered;
         }
 
+        // PreserveWhitespace keeps whitespace-only keys such as " ", which S3 accepts.
         XDocument doc;
-        try { doc = await XDocument.LoadAsync(body, LoadOptions.None, ctx.RequestAborted); }
+        try { doc = await XDocument.LoadAsync(body, LoadOptions.PreserveWhitespace, ctx.RequestAborted); }
         catch { return S3Xml.Error(S3Errors.MalformedXML, "The XML you provided was not well-formed."); }
 
         var keys = doc.Descendants()
