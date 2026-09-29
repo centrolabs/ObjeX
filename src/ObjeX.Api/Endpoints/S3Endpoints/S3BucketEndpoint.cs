@@ -30,8 +30,11 @@ public static class S3BucketEndpoint
             return b is not null ? Results.Ok() : Results.NotFound();
         });
 
-        s3.MapPut("/{bucket}", async (string bucket, HttpContext ctx, IMetadataService metadata) =>
+        s3.MapPut("/{bucket}", async (string bucket, HttpRequest request, HttpContext ctx, IMetadataService metadata) =>
         {
+            if (S3Subresources.IsUnsupportedOnBucket(request))
+                return S3Subresources.NotImplemented();
+
             try
             {
                 await metadata.CreateBucketAsync(new Core.Models.Bucket { Name = bucket, OwnerId = GetCallerId(ctx) }, GetCallerId(ctx));
@@ -47,9 +50,12 @@ public static class S3BucketEndpoint
             }
         });
 
-        s3.MapDelete("/{bucket}", async (string bucket, HttpContext ctx, IMetadataService metadata,
+        s3.MapDelete("/{bucket}", async (string bucket, HttpRequest request, HttpContext ctx, IMetadataService metadata,
             IObjectStorageService storage, ILogger<IObjectStorageService> logger) =>
         {
+            if (S3Subresources.IsUnsupportedOnBucket(request))
+                return S3Subresources.NotImplemented();
+
             var callerId = GetCallerId(ctx);
             var privileged = IsPrivileged(ctx);
 
@@ -90,9 +96,8 @@ public static class S3BucketEndpoint
                 return S3Xml.ListMultipartUploads(bucket, uploads);
             }
 
-            string[] unsupported = ["versioning", "lifecycle", "policy", "cors", "encryption", "tagging", "acl"];
-            if (unsupported.Any(q => request.Query.ContainsKey(q)))
-                return S3Xml.Error(S3Errors.NotImplemented, "This operation is not yet supported.", 501);
+            if (S3Subresources.IsUnsupportedOnBucket(request))
+                return S3Subresources.NotImplemented();
 
             var result = await metadata.ListObjectsAsync(bucket, prefix, delimiter);
 
