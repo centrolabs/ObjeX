@@ -103,4 +103,31 @@ public class S3ConformanceTests(ObjeXFactory factory) : IClassFixture<ObjeXFacto
 
         Assert.Contains("<Key>asdf/</Key>", xml);
     }
+
+    [Fact]
+    public async Task ListObjectVersions_ListsEachObjectAsItsNullVersion()
+    {
+        var bucket = await NewBucketAsync();
+        await SendAsync(HttpMethod.Put, $"/{bucket}/foo", "bar");
+
+        var response = await SendAsync(HttpMethod.Get, $"/{bucket}?versions");
+        var xml = await response.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains("<ListVersionsResult", xml);
+        Assert.Contains("<Key>foo</Key>", xml);
+        Assert.Contains("<VersionId>null</VersionId>", xml);
+        Assert.Contains("<IsLatest>true</IsLatest>", xml);
+    }
+
+    [Fact]
+    public async Task GetBucketVersioning_ReportsNeverVersioned()
+    {
+        var bucket = await NewBucketAsync();
+
+        var response = await SendAsync(HttpMethod.Get, $"/{bucket}?versioning");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains("<VersioningConfiguration", await response.Content.ReadAsStringAsync());
+    }
 }

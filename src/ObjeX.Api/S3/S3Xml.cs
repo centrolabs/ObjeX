@@ -94,6 +94,42 @@ public static class S3Xml
         return Results.Content(xml.ToString(), "application/xml", Encoding.UTF8);
     }
 
+    public static IResult ListObjectVersions(string bucket, IEnumerable<BlobObject> objects, IEnumerable<string> commonPrefixes, string? prefix, string? delimiter)
+    {
+        var xml = new StringBuilder();
+        xml.AppendLine("<?xml version=\"1.0\" encoding=\"UTF-8\"?>");
+        xml.AppendLine("<ListVersionsResult xmlns=\"http://s3.amazonaws.com/doc/2006-03-01/\">");
+        xml.AppendLine($"  <Name>{Escape(bucket)}</Name>");
+        xml.AppendLine($"  <Prefix>{Escape(prefix)}</Prefix>");
+        if (delimiter is not null)
+            xml.AppendLine($"  <Delimiter>{Escape(delimiter)}</Delimiter>");
+        xml.AppendLine("  <IsTruncated>false</IsTruncated>");
+        foreach (var obj in objects)
+        {
+            xml.AppendLine("  <Version>");
+            xml.AppendLine($"    <Key>{Escape(obj.Key)}</Key>");
+            xml.AppendLine("    <VersionId>null</VersionId>");
+            xml.AppendLine("    <IsLatest>true</IsLatest>");
+            xml.AppendLine($"    <LastModified>{obj.UpdatedAt:yyyy-MM-ddTHH:mm:ss.fffZ}</LastModified>");
+            xml.AppendLine($"    <ETag>&quot;{Escape(obj.ETag)}&quot;</ETag>");
+            xml.AppendLine($"    <Size>{obj.Size}</Size>");
+            xml.AppendLine("    <StorageClass>STANDARD</StorageClass>");
+            xml.AppendLine("  </Version>");
+        }
+        foreach (var cp in commonPrefixes)
+        {
+            xml.AppendLine("  <CommonPrefixes>");
+            xml.AppendLine($"    <Prefix>{Escape(cp)}</Prefix>");
+            xml.AppendLine("  </CommonPrefixes>");
+        }
+        xml.AppendLine("</ListVersionsResult>");
+        return Results.Content(xml.ToString(), "application/xml", Encoding.UTF8);
+    }
+
+    public static IResult VersioningConfiguration() =>
+        Results.Content("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<VersioningConfiguration xmlns=\"http://s3.amazonaws.com/doc/2006-03-01/\"/>",
+            "application/xml", Encoding.UTF8);
+
     public static IResult Error(string code, string message, int statusCode = 400)
         => Results.Content(ErrorDocument(code, message), "application/xml", Encoding.UTF8, statusCode);
 

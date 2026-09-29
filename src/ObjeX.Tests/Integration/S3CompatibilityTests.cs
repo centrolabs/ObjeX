@@ -7,7 +7,6 @@ public class S3CompatibilityTests(ObjeXFactory factory) : IClassFixture<ObjeXFac
     private readonly HttpClient _client = factory.CreateS3Client();
 
     [Theory]
-    [InlineData("versioning")]
     [InlineData("lifecycle")]
     [InlineData("policy")]
     [InlineData("cors")]
