@@ -68,6 +68,7 @@ public static class ServiceCollectionExtensions
             sp.GetRequiredService<IHashService>(),
             sp.GetRequiredService<ILogger<FileSystemStorageService>>()));
         services.AddSingleton<IObjectStorageService>(sp => sp.GetRequiredService<FileSystemStorageService>());
+        services.AddScoped<LegacyKeyPathMigration>();
 
         services.AddHealthChecks()
             .AddDbContextCheck<ObjeXDbContext>(tags: ["ready"])
