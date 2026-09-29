@@ -364,7 +364,7 @@ public interface IHashService
 | `Seed:S3Credential:SecretAccessKey` | `Seed__S3Credential__SecretAccessKey` | User-chosen secret key |
 | `Seed:S3Credential:Name` | `Seed__S3Credential__Name` | Display name (default: `seed-credential`) |
 
-Empty or unset values are no-ops. Invalid bucket names are logged and skipped. See `docker-compose.yml` for usage example.
+Empty or unset values are no-ops. Invalid bucket names are logged and skipped. See `deploy/docker-compose.yml` for usage example.
 
 ---
 
@@ -587,7 +587,7 @@ Invalid provider or mismatched connection string → fail-fast at startup with c
 
 Hangfire storage follows the same switch: `Hangfire.Storage.SQLite` for SQLite, `Hangfire.PostgreSql` for PostgreSQL. SQLite PRAGMAs (WAL, busy_timeout) only run on SQLite.
 
-**Docker Compose with Postgres:** `docker compose -f docker-compose.postgres.yml up`
+**Docker Compose with Postgres:** `docker compose -f deploy/docker-compose.postgres.yml up`
 
 ## EF Migrations
 
