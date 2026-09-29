@@ -150,6 +150,27 @@ public class S3PaginationTests(ObjeXFactory factory) : IClassFixture<ObjeXFactor
     }
 
     [Fact]
+    public async Task EncodingTypeUrl_EncodesTheTopLevelPrefixOnlyInV2()
+    {
+        // botocore decodes Prefix for ListObjectsV2 but not for ListObjects, so V1 must send it as is.
+        var bucket = await BucketWithAsync("a b/c");
+
+        Assert.Equal("a b", Value(await ListAsync(bucket, "prefix=a%20b&encoding-type=url"), "Prefix"));
+        Assert.Equal("a%20b", Value(await ListAsync(bucket, "list-type=2&prefix=a%20b&encoding-type=url"), "Prefix"));
+    }
+
+    [Fact]
+    public async Task EmptyContinuationToken_ListsFromTheStart()
+    {
+        var bucket = await BucketWithAsync("a", "b");
+
+        var root = await ListAsync(bucket, "list-type=2&continuation-token=");
+
+        Assert.Equal(["a", "b"], Keys(root));
+        Assert.Equal("", Value(root, "ContinuationToken"));
+    }
+
+    [Fact]
     public async Task EmptyDelimiter_IsNotEchoed()
     {
         var bucket = await BucketWithAsync("a");
