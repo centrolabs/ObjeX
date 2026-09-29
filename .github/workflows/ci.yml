@@ -18,10 +18,29 @@ concurrency:
 
 jobs:
   build:
+    name: build (${{ matrix.database }})
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
       contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        database: [sqlite, postgresql]
+
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: objex
+          POSTGRES_PASSWORD: objex
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U objex"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
 
     steps:
       - uses: actions/checkout@v7
@@ -41,3 +60,5 @@ jobs:
 
       - name: Test
         run: dotnet test ObjeX.slnx --no-build --configuration Release --verbosity normal
+        env:
+          OBJEX_TEST_POSTGRES: ${{ matrix.database == 'postgresql' && 'Host=localhost;Port=5432;Username=objex;Password=objex' || '' }}

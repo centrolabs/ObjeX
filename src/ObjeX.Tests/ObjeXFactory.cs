@@ -15,6 +15,13 @@ public class ObjeXFactory : WebApplicationFactory<ApiAssemblyMarker>
 {
     private readonly string _tempDir = Path.Combine(Path.GetTempPath(), $"objex-test-{Guid.NewGuid():N}");
 
+    /// <summary>A PostgreSQL connection string without Database=; when set, the suite runs on PostgreSQL, one database per factory.</summary>
+    public const string PostgresVariable = "OBJEX_TEST_POSTGRES";
+
+    private readonly string? _postgres = Environment.GetEnvironmentVariable(PostgresVariable) is { Length: > 0 } server
+        ? $"{server};Database=objex_test_{Guid.NewGuid():N}"
+        : null;
+
     /// <summary>Test-only header that stands in for the TCP port a request arrived on.</summary>
     public const string PortHeader = "X-ObjeX-Test-Port";
     public const int UiPort = 9001;
@@ -35,9 +42,9 @@ public class ObjeXFactory : WebApplicationFactory<ApiAssemblyMarker>
         // assets (_framework/*, _content/*) are invisible to TestServer.
         builder.UseStaticWebAssets();
 
-        builder.UseSetting("ConnectionStrings:DefaultConnection", $"Data Source={dbPath}");
+        builder.UseSetting("ConnectionStrings:DefaultConnection", _postgres ?? $"Data Source={dbPath}");
         builder.UseSetting("Storage:BasePath", BlobBasePath);
-        builder.UseSetting("Database:Provider", "sqlite");
+        builder.UseSetting("Database:Provider", _postgres is null ? "sqlite" : "postgresql");
         builder.UseSetting("Server:UiPort", UiPort.ToString());
         builder.UseSetting("Server:S3Port", S3Port.ToString());
         builder.UseSetting("Metrics:Enabled", "false");
@@ -65,8 +72,14 @@ public class ObjeXFactory : WebApplicationFactory<ApiAssemblyMarker>
             services.RemoveAll<DbContextOptions>();
             services.AddDbContextFactory<ObjeXDbContext>(options =>
             {
-                options.UseSqlite($"Data Source={Path.Combine(_tempDir, "test.db")}",
-                    o => o.CommandTimeout(30));
+                if (_postgres is null)
+                    options.UseSqlite($"Data Source={dbPath}", o => o.CommandTimeout(30));
+                else
+                    options.UseNpgsql(_postgres, o =>
+                    {
+                        o.CommandTimeout(30);
+                        o.MigrationsAssembly("ObjeX.Migrations.PostgreSql");
+                    });
                 options.UseSnakeCaseNamingConvention();
                 options.ConfigureWarnings(w =>
                     w.Ignore(RelationalEventId.PendingModelChangesWarning));
