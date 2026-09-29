@@ -1,5 +1,11 @@
+using System.IO.Compression;
 using System.Net;
 using System.Net.Http.Headers;
+
+using Microsoft.Extensions.DependencyInjection;
+
+using ObjeX.Core.Interfaces;
+using ObjeX.Core.Models;
 
 namespace ObjeX.Tests.Integration;
 
@@ -52,6 +58,35 @@ public class ObjectDownloadTests(ObjeXFactory factory) : IClassFixture<ObjeXFact
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Equal("application/octet-stream", response.Content.Headers.ContentType?.MediaType);
         Assert.StartsWith("attachment", response.Content.Headers.ContentDisposition?.ToString());
+    }
+
+    [Fact]
+    public async Task Zip_EntryNames_NeverTraverse()
+    {
+        var id = Guid.NewGuid().ToString("N");
+        string[] keys = [$"{id}/../../evil.txt", $"{id}\\..\\other.txt"];
+        using (var scope = factory.CreateScope())
+        {
+            var storage = scope.ServiceProvider.GetRequiredService<IObjectStorageService>();
+            var metadata = scope.ServiceProvider.GetRequiredService<IMetadataService>();
+            foreach (var key in keys)
+            {
+                var path = await storage.StoreAsync("test-bucket", key, new MemoryStream("payload"u8.ToArray()));
+                await metadata.SaveObjectAsync(new BlobObject
+                {
+                    BucketName = "test-bucket", Key = key, ETag = "e", Size = 7,
+                    ContentType = "text/plain", StoragePath = path
+                });
+            }
+        }
+        var client = await CreateLoggedInUiClientAsync();
+
+        var query = string.Join("&", keys.Select(k => $"keys={Uri.EscapeDataString(k)}"));
+        var response = await client.GetAsync($"/api/objects/test-bucket/download?{query}");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        using var zip = new ZipArchive(await response.Content.ReadAsStreamAsync());
+        Assert.Equal([$"{id}/evil.txt", $"{id}/other.txt"], zip.Entries.Select(e => e.FullName).Order());
     }
 
     private async Task<string> UploadAsync(string contentType, string body)
