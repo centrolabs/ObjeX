@@ -52,6 +52,9 @@ public static class S3ObjectEndpoint
             FileSystemStorageService fs,
             Infrastructure.Data.ObjeXDbContext db) =>
         {
+            if (S3Subresources.IsUnsupportedOnObject(request))
+                return S3Subresources.NotImplemented();
+
             // Multipart UploadPart: PUT /{bucket}/{*key}?partNumber=N&uploadId=X
             if (request.Query.TryGetValue("partNumber", out var pnStr) &&
                 request.Query.TryGetValue("uploadId", out var uIdStr))
@@ -227,6 +230,9 @@ public static class S3ObjectEndpoint
             IObjectStorageService storage,
             Infrastructure.Data.ObjeXDbContext db) =>
         {
+            if (S3Subresources.IsUnsupportedOnObject(request))
+                return S3Subresources.NotImplemented();
+
             // ListParts: GET /{bucket}/{*key}?uploadId=X
             if (request.Query.TryGetValue("uploadId", out var listPartsUploadId))
                 return await S3MultipartEndpoint.HandleListParts(bucket, key, listPartsUploadId!, db, ctx);
@@ -311,6 +317,9 @@ public static class S3ObjectEndpoint
             FileSystemStorageService fs,
             Infrastructure.Data.ObjeXDbContext db) =>
         {
+            if (S3Subresources.IsUnsupportedOnObject(request))
+                return S3Subresources.NotImplemented();
+
             if (await metadata.GetBucketAsync(bucket, IsPrivileged(ctx) ? null : GetCallerId(ctx)) is null)
                 return Results.StatusCode(204); // S3 spec: DELETE is idempotent, non-owned = treat as non-existent
 
