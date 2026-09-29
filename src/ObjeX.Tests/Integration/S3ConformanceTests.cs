@@ -142,4 +142,28 @@ public class S3ConformanceTests(ObjeXFactory factory) : IClassFixture<ObjeXFacto
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Equal(HttpStatusCode.NotFound, (await SendAsync(HttpMethod.Head, $"/{bucket}/%20")).StatusCode);
     }
+
+    [Fact]
+    public async Task FailedPrecondition_CarriesPreconditionFailedCode()
+    {
+        var bucket = await NewBucketAsync();
+        await SendAsync(HttpMethod.Put, $"/{bucket}/foo", "bar");
+
+        var response = await SendAsync(HttpMethod.Get, $"/{bucket}/foo", configure: r => r.Headers.TryAddWithoutValidation("If-Match", "\"ABCORZ\""));
+
+        Assert.Equal(HttpStatusCode.PreconditionFailed, response.StatusCode);
+        Assert.Contains("<Code>PreconditionFailed</Code>", await response.Content.ReadAsStringAsync());
+    }
+
+    [Fact]
+    public async Task UnsatisfiableRange_CarriesInvalidRangeCode()
+    {
+        var bucket = await NewBucketAsync();
+        await SendAsync(HttpMethod.Put, $"/{bucket}/foo", "bar");
+
+        var response = await SendAsync(HttpMethod.Get, $"/{bucket}/foo", configure: r => r.Headers.TryAddWithoutValidation("Range", "bytes=40-50"));
+
+        Assert.Equal(HttpStatusCode.RequestedRangeNotSatisfiable, response.StatusCode);
+        Assert.Contains("<Code>InvalidRange</Code>", await response.Content.ReadAsStringAsync());
+    }
 }

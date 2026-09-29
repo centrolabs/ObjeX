@@ -31,6 +31,27 @@ public static class S3Pipeline
 
         s3.UseCors("S3");
         s3.UseMiddleware<SigV4AuthMiddleware>();
+
+        // Results.File answers a failed precondition or an unsatisfiable range with a bare status code.
+        s3.Use(async (ctx, next) =>
+        {
+            await next(ctx);
+            if (ctx.Response.HasStarted || HttpMethods.IsHead(ctx.Request.Method))
+                return;
+
+            var (code, message) = ctx.Response.StatusCode switch
+            {
+                StatusCodes.Status412PreconditionFailed => (S3Errors.PreconditionFailed, "At least one of the preconditions you specified did not hold."),
+                StatusCodes.Status416RangeNotSatisfiable => (S3Errors.InvalidRange, "The requested range is not satisfiable."),
+                _ => (null, null),
+            };
+            if (code is null)
+                return;
+
+            ctx.Response.ContentLength = null;
+            await S3Xml.WriteErrorAsync(ctx, code, message!, ctx.Response.StatusCode);
+        });
+
         s3.UseRouting();
         s3.UseAuthorization();
         s3.UseEndpoints(endpoints =>
