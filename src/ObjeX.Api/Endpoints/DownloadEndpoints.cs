@@ -80,8 +80,11 @@ public static class DownloadEndpoints
 
             if (keys is { Length: > 0 })
             {
-                var objects = await Task.WhenAll(keys.Select(k => metadata.GetObjectAsync(bucketName, k)));
-                files = objects.Where(o => o is not null && !o.Key.EndsWith("/")).Select(o => o!).ToList();
+                // One at a time: the scoped DbContext does not allow concurrent queries, which Npgsql would run.
+                files = [];
+                foreach (var k in keys)
+                    if (await metadata.GetObjectAsync(bucketName, k) is { } o && !o.Key.EndsWith('/'))
+                        files.Add(o);
                 zipName = "selection.zip";
             }
             else
