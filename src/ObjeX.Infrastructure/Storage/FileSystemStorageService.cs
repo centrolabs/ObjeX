@@ -209,12 +209,9 @@ public class FileSystemStorageService : IObjectStorageService
     {
         // Hash the logical address (bucket + key) for a deterministic, flat physical path.
         // 2-level nesting (L1/L2) spreads files across 256×256 = 65,536 directories.
-        var hash = _hashService.ComputeHash($"{bucketName}/{SanitizeKey(key)}");
+        var hash = _hashService.ComputeHash($"{bucketName}/{key}");
         var l1 = hash[..2];
         var l2 = hash[2..4];
         return Path.Combine(BasePath, bucketName, l1, l2, $"{hash}.blob");
     }
-
-    private static string SanitizeKey(string key) =>
-        key.Replace("..", "").Replace("\\", "/");
 }

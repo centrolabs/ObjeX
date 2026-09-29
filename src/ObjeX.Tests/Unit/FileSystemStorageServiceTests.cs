@@ -55,4 +55,19 @@ public class FileSystemStorageServiceTests : IDisposable
         Assert.True(await _storage.ExistsAsync(Bucket, Key));
         Assert.Equal(content, await File.ReadAllBytesAsync(path));
     }
+
+    [Theory]
+    [InlineData("protected..txt", "protectedtxt")]
+    [InlineData("a..b/c", "ab/c")]
+    [InlineData("dir\\file", "dir/file")]
+    public async Task DistinctKeys_NeverShareABlob(string keyA, string keyB)
+    {
+        await _storage.StoreAsync(Bucket, keyB, new MemoryStream("victim"u8.ToArray()));
+        await _storage.StoreAsync(Bucket, keyA, new MemoryStream("attacker"u8.ToArray()));
+
+        await using var victim = await _storage.RetrieveAsync(Bucket, keyB);
+        using var reader = new StreamReader(victim);
+        Assert.Equal("victim", await reader.ReadToEndAsync());
+        Assert.Equal(2, Count("*.blob"));
+    }
 }
