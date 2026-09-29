@@ -609,20 +609,3 @@ dotnet ef database update
 ```
 
 When adding a new model or changing an existing one, generate a migration for **both** providers.
-
----
-
-## Roadmap (Priority Order)
-
-1. ~~**Dockerize**~~ ✅ — multi-stage Dockerfile, docker-compose, volume mounts, multi-arch
-2. ~~**Object listing with prefix/delimiter**~~ ✅ — virtual folder nav, New Folder, ZIP download, folder delete
-3. ~~**S3 Compatibility**~~ ✅ — `/{bucket}/{key}` routes, XML responses, AWS Sig V4, S3 error codes
-4. ~~**Multipart Upload**~~ ✅ — Initiate/UploadPart/Complete/Abort, part storage, multipart ETag, Range support, abandoned upload cleanup
-5. ~~**Presigned URLs**~~ ✅ — GET presigned URLs, configurable expiry, copy-link UI with duration picker
-6. ~~**Enhanced Blazor UI**~~ ✅ — folder nav, dark mode (system preference + cookie persistence)
-7. **Object Tags** — key-value tags, tag-based search, lifecycle/retention policies
-8. ~~**User Management UI**~~ ✅ — Admin/Manager roles, user list, create/deactivate/delete/reset pw/unlock, forced password change on first login
-9. ~~**Bucket Permissions**~~ ✅ (ownership) — buckets owned by creator; Admin/Manager see all; User sees own only; enforced at API, S3, and Blazor layers. Full ACL (per-bucket read/write/delete grants) still pending.
-10. **Teams/Orgs** — multi-tenant, org workspaces, team roles, storage quotas
-11. **Storage backends** — swap `FileSystemStorageService` for cloud or chunked storage
-12. ~~**PostgreSQL support**~~ ✅ — opt-in via `Database:Provider=postgresql`, separate migration assembly, Hangfire on PostgreSQL
