@@ -298,7 +298,7 @@ public interface IMetadataService
 // ObjeX.Core/Models/ListObjectsResult.cs
 public record ListObjectsResult(IEnumerable<BlobObject> Objects, IEnumerable<string> CommonPrefixes);
 // Objects = files at current level; CommonPrefixes = virtual folder paths (e.g. "photos/2024/")
-// Placeholder objects (key ends with "/", ContentType "application/x-directory") are filtered from UI
+// Placeholder objects (key ends with "/", ContentType "application/x-directory") are filtered from UI; S3 listings return every key, so clients can delete them
 
 // ObjeX.Core/Interfaces/IStorageQuotaService.cs
 public record StorageQuotaStatus(long UsedBytes, long? QuotaBytes); // HasQuota, UsedPercent
@@ -492,10 +492,13 @@ GET    /                        → list all buckets (S3 ListAllMyBuckets XML)
 HEAD   /{bucket}                → bucket exists check (200/404)
 GET    /{bucket}?location       → GetBucketLocation (S3Conventions.Region, us-east-1)
 GET    /{bucket}?uploads        → ListMultipartUploads XML
-GET    /{bucket}?versioning|lifecycle|policy|cors|encryption|tagging|acl → 501 NotImplemented
+GET    /{bucket}?versions       → ListObjectVersions; each object is its own "null" version (buckets are never versioned)
+GET    /{bucket}?versioning     → empty VersioningConfiguration (never versioned)
+GET|PUT|DELETE /{bucket}?acl|policy|cors|lifecycle|tagging|… → 501 NotImplemented (S3Subresources, ObjeX.Api/S3/); never falls through to create or delete
 PUT    /{bucket}                → create bucket (S3 XML response)
 DELETE /{bucket}                → delete bucket
-PUT    /{bucket}/{*key}         → upload object (returns ETag header); x-amz-copy-source → CopyObject; x-amz-meta-* captured
+PUT    /{bucket}/{*key}         → upload object (returns ETag header); x-amz-copy-source → CopyObject (onto itself only with x-amz-metadata-directive: REPLACE, which takes Content-Type and x-amz-meta-* from the request); x-amz-meta-* captured
+GET|PUT|DELETE /{bucket}/{*key}?acl|tagging|attributes|retention|… → 501 NotImplemented; never touches the object
 PUT    /{bucket}/{*key}?partNumber=N&uploadId=X → UploadPart; upserts part, returns ETag header
 GET    /{bucket}/{*key}         → download object; ?download=true forces application/octet-stream attachment; Range requests supported; x-amz-meta-* returned; x-objex-verify-integrity header triggers ETag re-hash (500 on mismatch; multipart objects are served without the check)
 GET    /{bucket}/{*key}?uploadId=X → ListParts XML
@@ -519,6 +522,7 @@ POST   /                        → S3 POST Object (bucketEndpoint mode); bucket
 #   The policy must carry a parsable expiration, otherwise 403 — it is the only time limit on a leaked signature. Malformed policy JSON is a 403 too, never a 500.
 # - S3RequestBody (ObjeX.Api/S3/) — unwraps aws-chunked bodies (Content-Encoding: aws-chunked or x-amz-content-sha256: STREAMING-*) for PUT and UploadPart; SDKs send that framing whenever they stream with a trailing checksum, the CLI does so over HTTPS. AwsChunkedStream copies chunk data straight into the caller's buffer; only header lines use a fixed 1 KB scratch buffer, so a declared chunk size never sizes an allocation. A chunk size that is not hex, wider than 8 hex digits or above 1 GiB, and a body that ends before its terminating chunk, throw InvalidDataException (S3 XML 500). Chunk signatures and trailer checksums are not verified.
 # - ObjectDeletion (ObjeX.Api/S3/) — shared row-then-blob delete for the S3 endpoints; DeleteManyAsync backs DeleteObjects: all rows in one DeleteObjectsAsync call, then one blob delete per key, so a metadata failure yields an <Error> for every key of the batch
+# - 412 and 416 from Results.File get an S3 error document (PreconditionFailed, InvalidRange) from a small middleware in S3Pipeline
 # - ContentMd5 (ObjeX.Api/S3/) — verifies the optional Content-MD5 header on PUT object, UploadPart and DeleteObjects. Decoded before the body is read: 400 InvalidDigest unless base64 of 16 bytes. Compared after: 400 BadDigest, the blob or part file is deleted, no row is written. CopyObject, POST Object and CompleteMultipartUpload do not check it; for aws-chunked bodies the digest covers the decoded payload.
 # - S3MultipartEndpoint (ObjeX.Api/Endpoints/S3Endpoints/) — Initiate + Complete (single MapPost dispatch on ?uploads vs ?uploadId)
 # - Parts stored at {BasePath}/_multipart/{uploadId}/{partNumber}.part; cleaned up after Complete or Abort
