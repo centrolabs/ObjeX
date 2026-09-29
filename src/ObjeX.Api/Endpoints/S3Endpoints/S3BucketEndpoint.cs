@@ -96,10 +96,17 @@ public static class S3BucketEndpoint
                 return S3Xml.ListMultipartUploads(bucket, uploads);
             }
 
+            // ObjeX buckets are never versioned: each object is its own "null" version, as on AWS.
+            if (request.Query.ContainsKey("versioning"))
+                return S3Xml.VersioningConfiguration();
+
             if (S3Subresources.IsUnsupportedOnBucket(request))
                 return S3Subresources.NotImplemented();
 
             var result = await metadata.ListObjectsAsync(bucket, prefix, delimiter);
+
+            if (request.Query.ContainsKey("versions"))
+                return S3Xml.ListObjectVersions(bucket, result.Objects, result.CommonPrefixes, prefix, delimiter);
 
             if (request.Query["list-type"] == "2")
             {
