@@ -14,11 +14,15 @@ public class ObjectKeyValidatorTests
         Assert.Null(ObjectKeyValidator.GetValidationError(key));
     }
 
-    [Fact]
-    public void Traversal_Key_Passes_Validation_Because_Sanitized_Non_Empty()
+    [Theory]
+    [InlineData("../../../etc/passwd")]
+    [InlineData("..")]
+    [InlineData("....")]
+    [InlineData("..\\..\\..")]
+    [InlineData("..\\..\\windows\\system32")]
+    public void Dot_And_Backslash_Keys_Are_Valid(string key)
     {
-        // "../../../etc/passwd" → Replace("..", "") → "///etc/passwd" → Trim('/') → "etc/passwd" (non-empty)
-        Assert.Null(ObjectKeyValidator.GetValidationError("../../../etc/passwd"));
+        Assert.Null(ObjectKeyValidator.GetValidationError(key));
     }
 
     [Fact]
@@ -60,26 +64,5 @@ public class ObjectKeyValidatorTests
     public void Control_Characters_Return_Error(string key)
     {
         Assert.NotNull(ObjectKeyValidator.GetValidationError(key));
-    }
-
-    [Fact]
-    public void All_Dots_Sanitizes_To_Empty_Returns_Error()
-    {
-        // "...." → Replace("..", "") → "" → empty after Trim
-        Assert.NotNull(ObjectKeyValidator.GetValidationError("...."));
-    }
-
-    [Fact]
-    public void Backslash_Traversal_Sanitizes_To_Empty_Returns_Error()
-    {
-        // "..\\..\\.." → Replace("..", "") → "\\\\" → Replace("\\", "/") → "//" → Trim('/') → ""
-        Assert.NotNull(ObjectKeyValidator.GetValidationError("..\\..\\.."));
-    }
-
-    [Fact]
-    public void Mixed_Traversal_With_Content_Passes()
-    {
-        // "..\\..\\windows\\system32" → Replace("..", "") → "\\\\windows\\system32" → Replace("\\", "/") → "//windows/system32" → Trim('/') → "windows/system32"
-        Assert.Null(ObjectKeyValidator.GetValidationError("..\\..\\windows\\system32"));
     }
 }
