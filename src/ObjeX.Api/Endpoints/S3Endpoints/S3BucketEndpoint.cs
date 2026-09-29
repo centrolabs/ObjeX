@@ -62,7 +62,7 @@ public static class S3BucketEndpoint
             if (await metadata.GetBucketAsync(bucket, privileged ? null : callerId) is null)
                 return S3Xml.Error(S3Errors.NoSuchBucket, "The specified bucket does not exist.", 404);
 
-            var objects = await metadata.ListObjectsAsync(bucket);
+            var objects = await metadata.ListObjectsAsync(bucket, maxKeys: 1);
             if (objects.Objects.Any())
                 return S3Xml.Error(S3Errors.BucketNotEmpty, "The bucket you tried to delete is not empty.", 409);
 
@@ -103,19 +103,44 @@ public static class S3BucketEndpoint
             if (S3Subresources.IsUnsupportedOnBucket(request))
                 return S3Subresources.NotImplemented();
 
-            var result = await metadata.ListObjectsAsync(bucket, prefix, delimiter);
+            var query = request.Query;
+            var maxKeysRaw = query["max-keys"].FirstOrDefault();
+            var maxKeys = MaxKeys;
+            if (maxKeysRaw is not null && (!int.TryParse(maxKeysRaw, out maxKeys) || maxKeys < 0))
+                return S3Xml.Error(S3Errors.InvalidArgument, "Provided max-keys not an integer or within integer range.");
+            maxKeys = Math.Min(maxKeys, MaxKeys);
 
-            if (request.Query.ContainsKey("versions"))
-                return S3Xml.ListObjectVersions(bucket, result.Objects, result.CommonPrefixes, prefix, delimiter);
+            var encodingType = query["encoding-type"].FirstOrDefault();
+            if (encodingType is not null && encodingType != "url")
+                return S3Xml.Error(S3Errors.InvalidArgument, "Invalid Encoding Method specified in Request.");
 
-            if (request.Query["list-type"] == "2")
+            var listing = new S3Xml.Listing(bucket, prefix, delimiter, maxKeys, encodingType == "url", b.OwnerId, b.Owner?.UserName ?? b.OwnerId);
+
+            if (query.ContainsKey("versions"))
             {
-                var continuationToken = request.Query["continuation-token"].FirstOrDefault();
-                var startAfter = request.Query["start-after"].FirstOrDefault();
-                return S3Xml.ListObjectsV2(bucket, result.Objects, result.CommonPrefixes, prefix, delimiter, continuationToken, startAfter);
+                var keyMarker = query["key-marker"].FirstOrDefault();
+                var versions = await metadata.ListObjectsAsync(bucket, prefix, delimiter, keyMarker, maxKeys);
+                return S3Xml.ListObjectVersions(versions, listing, keyMarker);
             }
 
-            return S3Xml.ListObjects(bucket, result.Objects, result.CommonPrefixes, prefix, delimiter);
+            if (query["list-type"] == "2")
+            {
+                var continuationToken = query["continuation-token"].FirstOrDefault();
+                var startAfter = query["start-after"].FirstOrDefault();
+                var after = startAfter;
+                if (continuationToken is not null && !ContinuationToken.TryDecode(continuationToken, out after))
+                    return S3Xml.Error(S3Errors.InvalidArgument, "The continuation token provided is incorrect.");
+
+                var pageV2 = await metadata.ListObjectsAsync(bucket, prefix, delimiter, after, maxKeys);
+                return S3Xml.ListObjectsV2(pageV2, listing, continuationToken, startAfter, query["fetch-owner"] == "true");
+            }
+
+            var marker = query["marker"].FirstOrDefault();
+            var page = await metadata.ListObjectsAsync(bucket, prefix, delimiter, marker, maxKeys);
+            return S3Xml.ListObjects(page, listing, marker);
         });
     }
+
+    /// <summary>The S3 page size cap; larger max-keys values are lowered to it, as on AWS.</summary>
+    private const int MaxKeys = 1000;
 }

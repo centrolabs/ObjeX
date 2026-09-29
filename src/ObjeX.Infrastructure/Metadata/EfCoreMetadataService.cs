@@ -100,33 +100,93 @@ public class EfCoreMetadataService(ObjeXDbContext ctx) : IMetadataService
             .FirstOrDefaultAsync(o => o.BucketName == bucketName && o.Key == key, ctk);
     }
 
-    public async Task<ListObjectsResult> ListObjectsAsync(string bucketName, string? prefix = null, string? delimiter = null, CancellationToken ctk = default)
+    public async Task<ListObjectsResult> ListObjectsAsync(string bucketName, string? prefix = null, string? delimiter = null,
+        string? startAfter = null, int? maxKeys = null, CancellationToken ctk = default)
     {
-        var query = ctx.BlobObjects.AsNoTracking().Where(o => o.BucketName == bucketName);
-        if (!string.IsNullOrEmpty(prefix))
-            query = query.Where(o => o.Key.StartsWith(prefix));
-
-        var allMatching = await OrderByKey(query).ToListAsync(ctk);
-
-        if (string.IsNullOrEmpty(delimiter))
-            return new ListObjectsResult(allMatching, []);
-
+        const int batchSize = 1000;
+        var limit = maxKeys ?? int.MaxValue;
         var objects = new List<BlobObject>();
-        // Ordinal sorts UTF-16 code units, which differs from UTF-8 byte order only for supplementary characters.
-        var commonPrefixes = new SortedSet<string>(StringComparer.Ordinal);
+        var commonPrefixes = new List<string>();
+        if (limit == 0)
+            return new ListObjectsResult(objects, commonPrefixes);
 
-        foreach (var obj in allMatching)
+        var bound = startAfter;
+        var inclusive = false;
+        string? skip = null;
+        string? last = null;
+
+        while (true)
         {
-            var suffix = string.IsNullOrEmpty(prefix) ? obj.Key : obj.Key[prefix.Length..];
-            var delimIdx = suffix.IndexOf(delimiter, StringComparison.Ordinal);
-            if (delimIdx < 0)
-                objects.Add(obj);
-            else
-                commonPrefixes.Add((prefix ?? string.Empty) + suffix[..(delimIdx + delimiter.Length)]);
-        }
+            var query = ctx.BlobObjects.AsNoTracking().Where(o => o.BucketName == bucketName);
+            if (!string.IsNullOrEmpty(prefix))
+                query = query.Where(o => o.Key.StartsWith(prefix));
+            if (!string.IsNullOrEmpty(bound))
+                query = KeysFrom(query, bound, inclusive);
+            var page = await OrderByKey(query).Take(batchSize).ToListAsync(ctk);
 
-        return new ListObjectsResult(objects, commonPrefixes);
+            // Ordinal compares UTF-16 code units, which differs from UTF-8 byte order only for supplementary characters.
+            foreach (var obj in page)
+            {
+                if (skip is not null && obj.Key.StartsWith(skip, StringComparison.Ordinal))
+                    continue;
+
+                var commonPrefix = CommonPrefixOf(obj.Key, prefix, delimiter);
+                if (commonPrefix is not null && startAfter is not null && string.CompareOrdinal(commonPrefix, startAfter) <= 0)
+                {
+                    skip = commonPrefix;
+                    continue;
+                }
+
+                if (objects.Count + commonPrefixes.Count == limit)
+                    return new ListObjectsResult(objects, commonPrefixes, IsTruncated: true, NextMarker: last);
+
+                if (commonPrefix is null)
+                {
+                    objects.Add(obj);
+                    last = obj.Key;
+                }
+                else
+                {
+                    commonPrefixes.Add(commonPrefix);
+                    last = skip = commonPrefix;
+                }
+            }
+
+            if (page.Count < batchSize)
+                return new ListObjectsResult(objects, commonPrefixes);
+
+            // Jump past every key under the prefix the page ended in instead of reading them all.
+            (bound, inclusive) = skip is not null && page[^1].Key.StartsWith(skip, StringComparison.Ordinal) && Successor(skip) is { } next
+                ? (next, true)
+                : (page[^1].Key, false);
+        }
     }
+
+    private static string? CommonPrefixOf(string key, string? prefix, string? delimiter)
+    {
+        if (string.IsNullOrEmpty(delimiter))
+            return null;
+        var start = prefix?.Length ?? 0;
+        var idx = key.IndexOf(delimiter, start, StringComparison.Ordinal);
+        return idx < 0 ? null : key[..(idx + delimiter.Length)];
+    }
+
+    // The smallest string above every string that starts with s; null where a surrogate makes that unsafe.
+    private static string? Successor(string s)
+    {
+        var next = s[^1] + 1;
+        return char.IsSurrogate(s[^1]) || next > char.MaxValue || char.IsSurrogate((char)next)
+            ? null
+            : s[..^1] + (char)next;
+    }
+
+    private IQueryable<BlobObject> KeysFrom(IQueryable<BlobObject> query, string bound, bool inclusive) => (IsPostgreSql, inclusive) switch
+    {
+        (true, true) => query.Where(o => string.Compare(EF.Functions.Collate(o.Key, "C"), bound) >= 0),
+        (true, false) => query.Where(o => string.Compare(EF.Functions.Collate(o.Key, "C"), bound) > 0),
+        (false, true) => query.Where(o => string.Compare(o.Key, bound) >= 0),
+        (false, false) => query.Where(o => string.Compare(o.Key, bound) > 0),
+    };
 
     public async Task<IReadOnlyList<BlobObject>> SearchObjectsAsync(string bucketName, string? prefix, string term, int limit, CancellationToken ctk = default)
     {
