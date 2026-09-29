@@ -166,4 +166,35 @@ public class S3ConformanceTests(ObjeXFactory factory) : IClassFixture<ObjeXFacto
         Assert.Equal(HttpStatusCode.RequestedRangeNotSatisfiable, response.StatusCode);
         Assert.Contains("<Code>InvalidRange</Code>", await response.Content.ReadAsStringAsync());
     }
+
+    [Fact]
+    public async Task CopyOntoItself_WithoutReplace_IsRejected()
+    {
+        var bucket = await NewBucketAsync();
+        await SendAsync(HttpMethod.Put, $"/{bucket}/foo", "bar");
+
+        var response = await SendAsync(HttpMethod.Put, $"/{bucket}/foo", configure: r => r.Headers.Add("x-amz-copy-source", $"{bucket}/foo"));
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Contains("<Code>InvalidRequest</Code>", await response.Content.ReadAsStringAsync());
+    }
+
+    [Fact]
+    public async Task CopyOntoItself_WithReplace_StoresTheNewMetadata()
+    {
+        var bucket = await NewBucketAsync();
+        await SendAsync(HttpMethod.Put, $"/{bucket}/foo", "bar");
+
+        var response = await SendAsync(HttpMethod.Put, $"/{bucket}/foo", configure: r =>
+        {
+            r.Headers.Add("x-amz-copy-source", $"{bucket}/foo");
+            r.Headers.Add("x-amz-metadata-directive", "REPLACE");
+            r.Headers.Add("x-amz-meta-foo", "bar");
+        });
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var head = await SendAsync(HttpMethod.Head, $"/{bucket}/foo");
+        Assert.Equal("bar", head.Headers.GetValues("x-amz-meta-foo").Single());
+        Assert.Equal("bar", await (await SendAsync(HttpMethod.Get, $"/{bucket}/foo")).Content.ReadAsStringAsync());
+    }
 }
