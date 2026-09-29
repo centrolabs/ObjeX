@@ -31,7 +31,7 @@ public static class S3Xml
 
     public static IResult ListObjectsV2(string bucket, IEnumerable<BlobObject> objects, IEnumerable<string> commonPrefixes, string? prefix, string? delimiter, string? continuationToken, string? startAfter)
     {
-        var objList = objects.Where(o => !o.Key.EndsWith('/')).ToList();
+        var objList = objects.ToList();
         var xml = new StringBuilder();
         xml.AppendLine("<?xml version=\"1.0\" encoding=\"UTF-8\"?>");
         xml.AppendLine("<ListBucketResult xmlns=\"http://s3.amazonaws.com/doc/2006-03-01/\">");
@@ -74,7 +74,7 @@ public static class S3Xml
         xml.AppendLine($"  <Prefix>{Escape(prefix)}</Prefix>");
         xml.AppendLine($"  <Delimiter>{Escape(delimiter)}</Delimiter>");
         xml.AppendLine("  <IsTruncated>false</IsTruncated>");
-        foreach (var obj in objects.Where(o => !o.Key.EndsWith('/')))
+        foreach (var obj in objects)
         {
             xml.AppendLine("  <Contents>");
             xml.AppendLine($"    <Key>{Escape(obj.Key)}</Key>");

@@ -90,4 +90,17 @@ public class S3ConformanceTests(ObjeXFactory factory) : IClassFixture<ObjeXFacto
         Assert.Equal(HttpStatusCode.NotImplemented, (await SendAsync(HttpMethod.Delete, $"/{bucket}?policy")).StatusCode);
         Assert.Equal(HttpStatusCode.OK, (await SendAsync(HttpMethod.Head, $"/{bucket}")).StatusCode);
     }
+
+    [Theory]
+    [InlineData("?list-type=2")]
+    [InlineData("")]
+    public async Task KeysEndingInSlash_AreListed(string query)
+    {
+        var bucket = await NewBucketAsync();
+        await SendAsync(HttpMethod.Put, $"/{bucket}/asdf/", "bar");
+
+        var xml = await (await SendAsync(HttpMethod.Get, $"/{bucket}{query}")).Content.ReadAsStringAsync();
+
+        Assert.Contains("<Key>asdf/</Key>", xml);
+    }
 }
