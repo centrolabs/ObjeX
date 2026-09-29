@@ -1,6 +1,6 @@
 image:
   repository: ghcr.io/centrolabs/objex
-  tag: latest
+  tag: ""
   pullPolicy: IfNotPresent
 
 replicaCount: 1

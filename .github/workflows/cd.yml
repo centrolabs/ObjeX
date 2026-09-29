@@ -80,6 +80,12 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+      - name: Publish Helm chart
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | helm registry login ghcr.io -u "${{ github.actor }}" --password-stdin
+          helm package deploy/helm/objex --version "${{ steps.version.outputs.version }}" --app-version "${{ github.ref_name }}"
+          helm push "objex-${{ steps.version.outputs.version }}.tgz" oci://ghcr.io/centrolabs/charts
+
   release:
     name: Create GitHub Release
     runs-on: ubuntu-latest
