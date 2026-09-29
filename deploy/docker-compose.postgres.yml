@@ -1,6 +1,6 @@
 services:
   objex:
-    build: .
+    image: ghcr.io/centrolabs/objex:latest
     ports:
       - "9001:9001"
       - "9000:9000"
