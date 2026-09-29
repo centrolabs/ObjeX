@@ -15,7 +15,7 @@ UI at http://localhost:9001 (admin / admin), S3 API at http://localhost:9000.
 ## Development
 
 - **.NET 10** — check `global.json` for exact version
-- **EF Migrations** — generate for both SQLite and PostgreSQL when changing models (see [CLAUDE.md](CLAUDE.md#ef-migrations))
+- **EF Migrations** — generate for both SQLite and PostgreSQL when changing models (see [CLAUDE.md](../CLAUDE.md#ef-migrations))
 - **Tests** — xUnit, run with `dotnet test`. Add tests for new features; don't break existing ones.
 
 ## Pull Requests
@@ -34,4 +34,4 @@ Use [GitHub Issues](https://github.com/centrolabs/ObjeX/issues). Include:
 
 ## License
 
-By contributing, you agree your code is licensed under the [MIT License](LICENSE).
+By contributing, you agree your code is licensed under the [MIT License](../LICENSE).

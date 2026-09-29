@@ -1,4 +1,4 @@
-<!-- Keep PRs focused: one feature or fix per PR. See CONTRIBUTING.md. -->
+<!-- Keep PRs focused: one feature or fix per PR. See .github/CONTRIBUTING.md. -->
 
 ## What
 
