@@ -141,7 +141,7 @@ public class ObjectDeleteOrderTests(ObjectDeleteOrderTests.Factory factory) : IC
         public Task<bool> ExistsBucketAsync(string bucketName, CancellationToken ctk = default) => inner.ExistsBucketAsync(bucketName, ctk);
         public Task<BlobObject> SaveObjectAsync(BlobObject blobObject, string? auditUserId = null, CancellationToken ctk = default) => inner.SaveObjectAsync(blobObject, auditUserId, ctk);
         public Task<BlobObject?> GetObjectAsync(string bucketName, string key, CancellationToken ctk = default) => inner.GetObjectAsync(bucketName, key, ctk);
-        public Task<ListObjectsResult> ListObjectsAsync(string bucketName, string? prefix = null, string? delimiter = null, CancellationToken ctk = default) => inner.ListObjectsAsync(bucketName, prefix, delimiter, ctk);
+        public Task<ListObjectsResult> ListObjectsAsync(string bucketName, string? prefix = null, string? delimiter = null, string? startAfter = null, int? maxKeys = null, CancellationToken ctk = default) => inner.ListObjectsAsync(bucketName, prefix, delimiter, startAfter, maxKeys, ctk);
         public Task<IReadOnlyList<BlobObject>> SearchObjectsAsync(string bucketName, string? prefix, string term, int limit, CancellationToken ctk = default) => inner.SearchObjectsAsync(bucketName, prefix, term, limit, ctk);
         public Task<IReadOnlyList<BlobObject>> SearchAllObjectsAsync(string? ownerFilter, string term, int limit, CancellationToken ctk = default) => inner.SearchAllObjectsAsync(ownerFilter, term, limit, ctk);
         public Task<IEnumerable<BlobObject>> ListAllObjectsAsync(CancellationToken ctk = default) => inner.ListAllObjectsAsync(ctk);
