@@ -132,6 +132,11 @@ public static class S3ObjectEndpoint
 
                 var srcBucket = decoded[..slashIdx];
                 var srcKey = decoded[(slashIdx + 1)..];
+                var replaceMetadata = string.Equals(request.Headers["x-amz-metadata-directive"], "REPLACE", StringComparison.OrdinalIgnoreCase);
+
+                if (srcBucket == bucket && srcKey == key && !replaceMetadata)
+                    return S3Xml.Error(S3Errors.InvalidRequest,
+                        "This copy request is illegal because it is trying to copy an object to itself without changing the object's metadata.");
 
                 if (await metadata.GetBucketAsync(srcBucket, IsPrivileged(ctx) ? null : GetCallerId(ctx)) is null)
                     return S3Xml.Error(S3Errors.NoSuchBucket, $"Source bucket '{srcBucket}' does not exist.", 404);
@@ -157,10 +162,10 @@ public static class S3ObjectEndpoint
                     BucketName = bucket,
                     Key = key,
                     Size = destSize,
-                    ContentType = srcObj.ContentType,
+                    ContentType = replaceMetadata ? request.ContentType ?? "application/octet-stream" : srcObj.ContentType,
                     ETag = destEtag,
                     StoragePath = destPath,
-                    CustomMetadata = srcObj.CustomMetadata
+                    CustomMetadata = replaceMetadata ? ExtractCustomMetadata(request.Headers) : srcObj.CustomMetadata
                 }, GetCallerId(ctx));
 
                 return S3Xml.CopyObjectResult(destEtag, DateTime.UtcNow);
