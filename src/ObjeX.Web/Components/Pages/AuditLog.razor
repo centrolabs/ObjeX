@@ -14,17 +14,17 @@
                 AllowSorting="true" AllowAlternatingRows="false" AllowPaging="true" PageSize="20" PagerAlwaysVisible="true"
                 LoadData="@LoadData" EmptyText="No entries yet.">
     <Columns>
-        <RadzenDataGridColumn TItem="AuditEntry" Property="Timestamp" Title="Time" Width="@OxSizes.TypeColumn"
+        <RadzenDataGridColumn TItem="AuditEntry" Property="Timestamp" Title="Time" Width="@OxSizes.TimestampColumn"
                               SortOrder="SortOrder.Descending" CssClass="ox-col-muted">
             <Template Context="e">@Tz.FormatSeconds(e.Timestamp)</Template>
         </RadzenDataGridColumn>
-        <RadzenDataGridColumn TItem="AuditEntry" Property="UserId" Title="User" Width="@OxSizes.DateColumn">
+        <RadzenDataGridColumn TItem="AuditEntry" Property="UserId" Title="User" Width="@OxSizes.ShortColumn">
             <Template Context="e">@(_userNames.GetValueOrDefault(e.UserId, Truncate(e.UserId, 8)))</Template>
         </RadzenDataGridColumn>
-        <RadzenDataGridColumn TItem="AuditEntry" Property="Action" Title="Action" Width="@OxSizes.DateColumn" />
-        <RadzenDataGridColumn TItem="AuditEntry" Property="BucketName" Title="Bucket" Width="@OxSizes.DateColumn" />
+        <RadzenDataGridColumn TItem="AuditEntry" Property="Action" Title="Action" Width="@OxSizes.ShortColumn" />
+        <RadzenDataGridColumn TItem="AuditEntry" Property="BucketName" Title="Bucket" Width="@OxSizes.ShortColumn" />
         <RadzenDataGridColumn TItem="AuditEntry" Property="Key" Title="Key" />
-        <RadzenDataGridColumn TItem="AuditEntry" Property="Details" Title="Details" Width="@OxSizes.NameColumn" CssClass="ox-col-muted" />
+        <RadzenDataGridColumn TItem="AuditEntry" Property="Details" Title="Details" CssClass="ox-col-muted" />
     </Columns>
 </RadzenDataGrid>
 

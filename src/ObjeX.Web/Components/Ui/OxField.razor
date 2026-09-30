@@ -6,13 +6,17 @@
         </label>
         @Actions
     </div>
-    @if (Hint is not null && Error is null)
+    @if (Error is not null)
+    {
+        <span class="ox-field-error" role="alert">@Error</span>
+    }
+    else if (Hint is not null)
     {
         <span class="ox-field-hint">@Hint</span>
     }
-    @if (Error is not null || ReserveError)
+    else if (ReserveError)
     {
-        <span class="ox-field-error" role="alert">@(Error ?? " ")</span>
+        <span class="ox-field-hint" aria-hidden="true">&nbsp;</span>
     }
 </div>
 

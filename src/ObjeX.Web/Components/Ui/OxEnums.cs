@@ -27,12 +27,15 @@ public static class OxSizes
 {
     public const string CheckColumn = "40px";
     public const string ActionsColumn = "112px";
+    /// <summary>For a row whose only control is the menu.</summary>
+    public const string MenuColumn = "56px";
     public const string TypeColumn = "180px";
     public const string SizeColumn = "110px";
     public const string DateColumn = "170px";
+    public const string TimestampColumn = "200px";
+    public const string ShortColumn = "140px";
     public const string NumberColumn = "110px";
     public const string NameColumn = "240px";
-    public const string ChartHeight = "100%";
     /// <summary>Row class for a selected grid row. RowRender replaces the class attribute, so Radzen's own row class is repeated.</summary>
     public const string SelectedRowClass = "rz-data-row ox-row-selected";
     public const string DialogSmall = "440px";

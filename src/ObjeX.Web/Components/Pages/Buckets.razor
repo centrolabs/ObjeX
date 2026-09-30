@@ -47,7 +47,7 @@
             <RadzenDataGridColumn TItem="BlobObject" Property="UpdatedAt" Title="Modified" Width="@OxSizes.DateColumn" CssClass="ox-col-muted">
                 <Template Context="obj">@Tz.Format(obj.UpdatedAt)</Template>
             </RadzenDataGridColumn>
-            <RadzenDataGridColumn TItem="BlobObject" Title="" Width="@OxSizes.ActionsColumn" Sortable="false" CssClass="ox-col-actions">
+            <RadzenDataGridColumn TItem="BlobObject" Title="" Width="@OxSizes.MenuColumn" Sortable="false" CssClass="ox-col-actions">
                 <Template Context="obj">
                     <OxRowActions>
                         <OxIconButton Icon="download" Label="Download" Href="@FileHelper.ObjectUrl(obj.BucketName, obj.Key, download: true)"
@@ -82,7 +82,7 @@ else
             <RadzenDataGridColumn TItem="Bucket" Property="CreatedAt" Title="Created" Width="@OxSizes.DateColumn" CssClass="ox-col-muted">
                 <Template Context="bucket">@Tz.Format(bucket.CreatedAt)</Template>
             </RadzenDataGridColumn>
-            <RadzenDataGridColumn TItem="Bucket" Title="" Width="@OxSizes.ActionsColumn" Sortable="false" CssClass="ox-col-actions">
+            <RadzenDataGridColumn TItem="Bucket" Title="" Width="@OxSizes.MenuColumn" Sortable="false" CssClass="ox-col-actions">
                 <Template Context="bucket">
                     <OxRowActions>
                         <OxMenuButton Label="@($"More actions for {bucket.Name}")">
