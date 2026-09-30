@@ -62,7 +62,7 @@ public class HangfireDashboardDevelopmentTests(HangfireDashboardDevelopmentTests
 
         var response = await client.GetAsync("/hangfire");
 
-        // The dashboard answers 401; the status code pages turn it into the redirect every browser path gets.
+        // Not authorized for the dashboard; the status code pages turn the refusal into the redirect every browser path gets.
         Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
         Assert.Equal("/not-found", response.Headers.Location?.OriginalString);
     }
