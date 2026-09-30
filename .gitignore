@@ -20,6 +20,9 @@ data/
 # Local publish output
 /out/
 
+# S3 conformance harness: clone, virtualenv, logs
+/tests/s3-conformance/.work/
+
 # dotenv files
 .env
 

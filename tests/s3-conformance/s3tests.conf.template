@@ -1,0 +1,54 @@
+[DEFAULT]
+host = 127.0.0.1
+port = @S3_PORT@
+is_secure = False
+ssl_verify = False
+
+[fixtures]
+bucket prefix = objex-{random}-
+iam name prefix = s3-tests-
+iam path prefix = /s3-tests/
+
+[s3 main]
+display_name = main
+user_id = main
+email = main@objex.local
+api_name = default
+access_key = @ACCESS_KEY@
+secret_key = @SECRET_KEY@
+
+[s3 alt]
+display_name = alt
+user_id = alt
+email = alt@objex.local
+access_key = @ACCESS_KEY@
+secret_key = @SECRET_KEY@
+
+[s3 tenant]
+display_name = tenant
+user_id = tenant
+email = tenant@objex.local
+access_key = @ACCESS_KEY@
+secret_key = @SECRET_KEY@
+tenant = testx
+
+[iam]
+display_name = iam
+user_id = iam
+email = iam@objex.local
+access_key = @ACCESS_KEY@
+secret_key = @SECRET_KEY@
+
+[iam root]
+access_key = @ACCESS_KEY@
+secret_key = @SECRET_KEY@
+account_id = RGW11111111111111111
+user_id = RGW11111111111111111
+email = root@objex.local
+
+[iam alt root]
+access_key = @ACCESS_KEY@
+secret_key = @SECRET_KEY@
+account_id = RGW22222222222222222
+user_id = RGW22222222222222222
+email = altroot@objex.local

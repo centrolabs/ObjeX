@@ -70,6 +70,7 @@ All settings: [docs/configuration.md](docs/configuration.md).
 - [Configuration](docs/configuration.md)
 - [API](docs/api.md)
 - [Architecture](docs/architecture.md)
+- [S3 conformance](tests/s3-conformance/README.md)
 - [Contributing](.github/CONTRIBUTING.md)
 - [Security policy](.github/SECURITY.md)
 
