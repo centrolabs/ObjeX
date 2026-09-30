@@ -4,7 +4,9 @@ using Hangfire.PostgreSql;
 using Hangfire.PostgreSql.Factories;
 using Hangfire.Storage;
 using Hangfire.Storage.SQLite;
+using ObjeX.Api.Jobs;
 using ObjeX.Api.Options;
+using ObjeX.Core.Interfaces;
 using ObjeX.Infrastructure.Jobs;
 
 namespace ObjeX.Api.Startup;
@@ -34,6 +36,7 @@ public static class BackgroundJobs
             .UseRecommendedSerializerSettings()
             .UseStorage(provider.GetRequiredService<JobStorage>()));
         services.AddHangfireServer();
+        services.AddSingleton<IJobMonitor, HangfireJobMonitor>();
 
         services.AddScoped<CleanupOrphanedBlobsJob>();
         services.AddScoped<VerifyBlobIntegrityJob>();
