@@ -1,0 +1,5 @@
+.ox-file-name { display: flex; align-items: center; gap: var(--ox-space-5); min-width: 0; font-weight: var(--ox-fw-medium); }
+.ox-file-name span, .ox-file-name a { overflow: hidden; text-overflow: ellipsis; }
+.ox-file-name a { border-radius: var(--ox-radius-sm); color: var(--ox-text); text-decoration: none; }
+.ox-file-name a:hover { color: var(--ox-accent-text); text-decoration: underline; }
+.ox-file-name a:focus-visible { outline: var(--ox-ring) solid var(--ox-accent-text); outline-offset: calc(-1 * var(--ox-ring)); }

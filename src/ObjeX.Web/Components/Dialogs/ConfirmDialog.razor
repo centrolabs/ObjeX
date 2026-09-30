@@ -1,0 +1,21 @@
+@inject DialogService DialogService
+
+<OxStack Gap="8">
+    <OxText>@Message</OxText>
+    <OxStack Row="true" Justify="OxJustify.End" Gap="4">
+        <OxButton OnClick="@(() => DialogService.Close(false))">Cancel</OxButton>
+        <OxButton Variant="@(Danger ? OxButtonVariant.Danger : OxButtonVariant.Primary)" OnClick="@(() => DialogService.Close(true))" autofocus>@ConfirmText</OxButton>
+    </OxStack>
+</OxStack>
+
+@code {
+    [Parameter] public string Message { get; set; } = string.Empty;
+    [Parameter] public string ConfirmText { get; set; } = "OK";
+    [Parameter] public bool Danger { get; set; }
+
+    /// <summary>Asks a yes-or-no question. True only when the user confirms; closing the dialog any other way is a no.</summary>
+    public static async Task<bool> AskAsync(DialogService dialogs, string title, string message, string confirmText, bool danger = false) =>
+        await dialogs.OpenAsync<ConfirmDialog>(title,
+            new Dictionary<string, object?> { { nameof(Message), message }, { nameof(ConfirmText), confirmText }, { nameof(Danger), danger } },
+            new DialogOptions { Width = OxSizes.DialogSmall, CloseDialogOnOverlayClick = true }) is true;
+}
