@@ -12,7 +12,7 @@ public enum OxJustify { Start, Center, End, Between }
 public enum OxTextVariant { Body, Muted, Small, Label, Title, Heading, Figure, Mono }
 
 /// <summary>Fixed widths for a control inside <see cref="OxBox"/>: a number, a unit, a search field, a form.</summary>
-public enum OxWidth { Auto, Xs, Sm, Md, Lg, Fill }
+public enum OxWidth { Auto, Xs, Sm, Md, Lg, Page, Fill }
 
 public enum OxPreviewKind { Image, Video, Audio, Pdf, Text }
 

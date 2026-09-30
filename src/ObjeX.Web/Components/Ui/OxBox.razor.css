@@ -4,4 +4,5 @@
 .ox-box--sm { flex: none; width: var(--ox-size-field-sm); }
 .ox-box--md { flex: none; width: var(--ox-size-search); max-width: 100%; }
 .ox-box--lg { width: var(--ox-size-form); max-width: 100%; }
+.ox-box--page { display: flex; flex-direction: column; gap: var(--ox-space-8); width: 100%; max-width: var(--ox-size-page); }
 .ox-box--fill { flex: 1; }

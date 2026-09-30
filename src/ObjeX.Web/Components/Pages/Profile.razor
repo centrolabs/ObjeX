@@ -8,81 +8,46 @@
 
 <PageTitle>Profile — ObjeX</PageTitle>
 
-<RadzenStack Gap="1.5rem">
-    <RadzenText TextStyle="TextStyle.H4">Profile</RadzenText>
+<OxPageHeader Title="Profile" />
 
+<OxBox Width="OxWidth.Page">
+    <OxCard Title="Account">
+        <OxField Label="Username" Hint="Also used to log in." Error="@_usernameError" ReserveError="true">
+            <ChildContent>
+                <OxTextInput Value="@_newUsername" ValueChanged="OnUsernameInput" Invalid="@(_usernameError is not null)" autocomplete="username" />
+            </ChildContent>
+            <Actions>
+                <OxButton Variant="OxButtonVariant.Primary" OnClick="OnSaveUsername"
+                          Disabled="@(string.IsNullOrWhiteSpace(_newUsername) || _newUsername == _currentUsername || _usernameError is not null)">Save</OxButton>
+            </Actions>
+        </OxField>
+        <OxField Label="Email" Hint="For account recovery." Error="@_emailError" ReserveError="true">
+            <ChildContent>
+                <OxTextInput Type="email" Value="@_newEmail" ValueChanged="OnEmailInput" Invalid="@(_emailError is not null)" autocomplete="email" />
+            </ChildContent>
+            <Actions>
+                <OxButton Variant="OxButtonVariant.Primary" OnClick="OnSaveEmail"
+                          Disabled="@(string.IsNullOrWhiteSpace(_newEmail) || _newEmail == _currentEmail || _emailError is not null)">Save</OxButton>
+            </Actions>
+        </OxField>
+    </OxCard>
 
-    <RadzenCard>
-        <RadzenStack Gap="1.25rem">
-            <RadzenText TextStyle="TextStyle.H6">Account</RadzenText>
-
-            <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Start"
-                         JustifyContent="JustifyContent.SpaceBetween" Gap="1rem" Style="flex-wrap:wrap">
-                <RadzenStack Gap="0.1rem" Style="min-width:120px;padding-top:0.25rem">
-                    <RadzenText>Username</RadzenText>
-                    <RadzenText TextStyle="TextStyle.Caption" Style="color:var(--rz-text-secondary-color)">Also used to log in</RadzenText>
-                </RadzenStack>
-                <RadzenStack Gap="0.25rem" Style="flex:1;min-width:200px">
-                    <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem">
-                        <input class="rz-textbox" style="flex:1;min-width:0"
-                               value="@_newUsername" @oninput="OnUsernameInput" />
-                        <RadzenButton Text="Save" ButtonStyle="ButtonStyle.Primary"
-                                      Disabled="@(string.IsNullOrWhiteSpace(_newUsername) || _newUsername == _currentUsername || _usernameError is not null)"
-                                      Click="@OnSaveUsername" />
-                    </RadzenStack>
-                    <span style="font-size:0.75rem;color:var(--rz-danger);visibility:@(_usernameError is not null ? "visible" : "hidden")">
-                        @(_usernameError ?? "\u00a0")
-                    </span>
-                </RadzenStack>
-            </RadzenStack>
-
-            <hr style="border:none;border-top:1px solid var(--rz-border-disabled-color);margin:0" />
-
-            <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Start"
-                         JustifyContent="JustifyContent.SpaceBetween" Gap="1rem" Style="flex-wrap:wrap">
-                <RadzenStack Gap="0.1rem" Style="min-width:120px;max-width:120px;padding-top:0.25rem">
-                    <RadzenText>Email</RadzenText>
-                    <RadzenText TextStyle="TextStyle.Caption" Style="color:var(--rz-text-secondary-color)">For account recovery</RadzenText>
-                </RadzenStack>
-                <RadzenStack Gap="0.25rem" Style="flex:1;min-width:200px">
-                    <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem">
-                        <input class="rz-textbox" style="flex:1;min-width:0" type="email"
-                           value="@_newEmail" @oninput="OnEmailInput" />
-                        <RadzenButton Text="Save" ButtonStyle="ButtonStyle.Primary"
-                                      Disabled="@(string.IsNullOrWhiteSpace(_newEmail) || _newEmail == _currentEmail || _emailError is not null)"
-                                      Click="@OnSaveEmail" />
-                    </RadzenStack>
-                    <span style="font-size:0.75rem;color:var(--rz-danger);visibility:@(_emailError is not null ? "visible" : "hidden")">
-                        @(_emailError ?? "\u00a0")
-                    </span>
-                </RadzenStack>
-            </RadzenStack>
-
-            <hr style="border:none;border-top:1px solid var(--rz-border-disabled-color);margin:0" />
-
-            <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Start"
-                         JustifyContent="JustifyContent.SpaceBetween" Gap="1rem" Style="flex-wrap:wrap">
-                <RadzenStack Gap="0.1rem" Style="min-width:120px">
-                    <RadzenText>Password</RadzenText>
-                </RadzenStack>
-                <RadzenStack Gap="0.5rem" Style="flex:1;min-width:200px">
-                    <input class="rz-textbox" style="width:100%" type="password"
-                           placeholder="Current password" @bind="_currentPassword" @bind:event="oninput" />
-                    <input class="rz-textbox" style="width:100%" type="password"
-                           placeholder="New password" @bind="_newPassword" @bind:event="oninput" />
-                    <input class="rz-textbox" style="width:100%" type="password"
-                           placeholder="Confirm new password" @bind="_confirmPassword" @bind:event="oninput" />
-                    <span style="font-size:0.75rem;color:var(--rz-danger);visibility:@(_passwordError is not null ? "visible" : "hidden")">
-                        @(_passwordError ?? "\u00a0")
-                    </span>
-                    <RadzenButton Text="Change Password" ButtonStyle="ButtonStyle.Primary"
-                                  Disabled="@(!CanChangePassword)" Click="@OnChangePassword" />
-                </RadzenStack>
-            </RadzenStack>
-
-        </RadzenStack>
-    </RadzenCard>
-</RadzenStack>
+    <OxCard Title="Password">
+        <OxField Label="Current password">
+            <OxTextInput Type="password" @bind-Value="_currentPassword" autocomplete="current-password" />
+        </OxField>
+        <OxField Label="New password">
+            <OxTextInput Type="password" @bind-Value="_newPassword" autocomplete="new-password" />
+        </OxField>
+        <OxField Label="Confirm new password" Error="@_passwordError" ReserveError="true">
+            <OxTextInput Type="password" @bind-Value="_confirmPassword" Invalid="@(_passwordError is not null)" autocomplete="new-password" />
+        </OxField>
+        <OxStack Row="true" Justify="OxJustify.Between" Align="OxAlign.Center" Gap="6" Wrap="true">
+            <OxText Variant="OxTextVariant.Small">You are signed out after the change.</OxText>
+            <OxButton Variant="OxButtonVariant.Primary" Disabled="@(!CanChangePassword)" OnClick="OnChangePassword">Change password</OxButton>
+        </OxStack>
+    </OxCard>
+</OxBox>
 
 @code {
     User? _user;
@@ -113,9 +78,9 @@
         _newEmail = _currentEmail;
     }
 
-    void OnUsernameInput(ChangeEventArgs e)
+    void OnUsernameInput(string value)
     {
-        _newUsername = e.Value?.ToString() ?? string.Empty;
+        _newUsername = value;
         if (string.IsNullOrWhiteSpace(_newUsername))
             _usernameError = "Username cannot be empty.";
         else if (!_newUsername.All(c => char.IsLetterOrDigit(c) || c == '_' || c == '-'))
@@ -140,9 +105,9 @@
         }
     }
 
-    void OnEmailInput(ChangeEventArgs e)
+    void OnEmailInput(string value)
     {
-        _newEmail = e.Value?.ToString() ?? string.Empty;
+        _newEmail = value;
         try { _ = new System.Net.Mail.MailAddress(_newEmail); _emailError = null; }
         catch { _emailError = "Enter a valid email address."; }
     }

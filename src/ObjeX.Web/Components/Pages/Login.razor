@@ -10,44 +10,32 @@
 
 <PageTitle>Login — ObjeX</PageTitle>
 
-<div style="display:flex; align-items:center; justify-content:center; min-height:100vh; background:var(--rz-base-background-color)">
-    <RadzenCard Style="width:400px">
-        <RadzenStack Gap="1.5rem">
-            <RadzenStack Gap="0.25rem">
-                <RadzenText TextStyle="TextStyle.H5" style="margin:0">ObjeX</RadzenText>
-                <RadzenText TextStyle="TextStyle.Caption" style="color:var(--rz-text-secondary-color)">Self-hosted blob storage</RadzenText>
-            </RadzenStack>
+<OxContainer Narrow="true">
+    <OxStack Gap="2">
+        <OxBrand />
+        <OxText Variant="OxTextVariant.Muted">Self-hosted blob storage</OxText>
+    </OxStack>
 
-            <form method="post" action="/account/login">
-                <RadzenStack Gap="0.75rem">
-                    <input type="hidden" name="returnUrl" value="@ReturnUrl" />
+    <OxCard>
+        <form method="post" action="/account/login">
+            <OxStack Gap="7">
+                <input type="hidden" name="returnUrl" value="@ReturnUrl" />
 
-                    <RadzenStack Gap="0.25rem">
-                        <RadzenLabel Text="Email or username" />
-                        <input class="rz-textbox" style="width:100%" type="text"
-                               name="login" value="@LoginValue" placeholder="admin@objex.local" autocomplete="username" />
-                    </RadzenStack>
+                <OxField Label="Email or username">
+                    <OxTextInput name="login" Value="@LoginValue" Placeholder="admin@objex.local" autocomplete="username" AutoFocus="true" />
+                </OxField>
 
-                    <RadzenStack Gap="0.25rem">
-                        <RadzenLabel Text="Password" />
-                        <input class="rz-textbox" style="width:100%" type="password"
-                               name="password" autocomplete="current-password" />
-                    </RadzenStack>
+                <OxField Label="Password">
+                    <OxTextInput Type="password" name="password" autocomplete="current-password" />
+                </OxField>
 
-                    <label style="display:flex; align-items:center; gap:0.5rem; font-size:0.875rem; cursor:pointer">
-                        <input type="checkbox" name="rememberMe" value="true" checked="@_remember" />
-                        Stay signed in
-                    </label>
+                <OxCheckbox name="rememberMe" value="true" Checked="@_remember" CheckedChanged="@(v => _remember = v)">Stay signed in</OxCheckbox>
 
-                    <button type="submit" class="rz-button rz-button-md rz-primary" style="width:100%">
-                        Sign in
-                    </button>
-                </RadzenStack>
-            </form>
-
-        </RadzenStack>
-    </RadzenCard>
-</div>
+                <OxButton Type="submit" Variant="OxButtonVariant.Primary" Block="true">Sign in</OxButton>
+            </OxStack>
+        </form>
+    </OxCard>
+</OxContainer>
 
 @code {
     [SupplyParameterFromQuery] public string? ReturnUrl { get; set; }

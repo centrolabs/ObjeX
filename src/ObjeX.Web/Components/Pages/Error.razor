@@ -1,15 +1,9 @@
 @page "/Error"
 @layout MainLayout
 
-<PageTitle>Error</PageTitle>
+<PageTitle>Error — ObjeX</PageTitle>
 
-<RadzenStack AlignItems="AlignItems.Center" JustifyContent="JustifyContent.Center" Gap="1rem" Style="height: 60vh">
-    <RadzenText TextStyle="TextStyle.H1" Style="font-size:6rem; font-weight:700; opacity:0.15">500</RadzenText>
-    <RadzenText TextStyle="TextStyle.H4">Something went wrong</RadzenText>
-    <RadzenText TextStyle="TextStyle.Body1">An unexpected error occurred. Please try again.</RadzenText>
-    <RadzenButton Text="Go to Dashboard" Icon="home" ButtonStyle="ButtonStyle.Primary" Click="@(() => Navigation.NavigateTo("/"))" />
-</RadzenStack>
-
-@code {
-    [Inject] NavigationManager Navigation { get; set; } = default!;
-}
+<OxEmptyState Icon="error" Title="Something went wrong">
+    <ChildContent>An unexpected error occurred. Please try again.</ChildContent>
+    <Action><OxButton Variant="OxButtonVariant.Primary" Icon="home" Href="/">Go to Dashboard</OxButton></Action>
+</OxEmptyState>
