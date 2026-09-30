@@ -13,7 +13,7 @@ src/
 │   │   └── S3Endpoints/ # S3BucketEndpoint, S3ObjectEndpoint, S3MultipartEndpoint, S3PostObjectEndpoint
 │   ├── Middleware/      # SigV4AuthMiddleware, SecurityHeadersMiddleware
 │   ├── Auth/            # HangfireAuthorizationFilter
-│   ├── Jobs/            # HangfireJobMonitor (IJobMonitor: recurring jobs, recent runs, run now, results in words)
+│   ├── Jobs/            # HangfireJobMonitor (IJobMonitor: recurring jobs, recent runs, run details, run now, retry, delete, results in words)
 │   ├── Options/         # ServerOptions (ports), ReverseProxyOptions, AuthOptions (lockout, RememberMeDays), DatabaseOptions, StorageOptions (blob root, upload cap, min free disk), SeedOptions
 │   ├── Startup/         # ServiceCollectionExtensions (AddObjeX* per concern), DatabaseInitializer (migrate, pragmas, legacy blob paths, roles, admin, seeding), BackgroundJobs (Hangfire wiring, recurring schedule, stale-job prune)
 │   ├── Components/      # App.razor (host document), _Imports.razor
@@ -106,7 +106,7 @@ UI pipeline (everything else)
   UseAuthentication        ← Identity cookie handler, sets context.User for cookie sessions
   UseAuthorization         ← enforces policies on the already-resolved context.User
   UseAntiforgery
-  UseHangfireDashboard     ← Development only
+  UseHangfireDashboard     ← Admin only (HangfireAuthorizationFilter), "Back to site" → /jobs
   health, metrics, Blazor, /api/*, /account/*
 ```
 
@@ -150,7 +150,7 @@ No named policies are defined. S3 endpoints use `.RequireAuthorization()` on the
 - `ObjeXDbContext` extends `IdentityDbContext<User>`
 - Roles: `Admin`, `Manager`, `User` — all three seeded on every startup (idempotent). See role table below.
 - Role hierarchy: Admin (1, permanent singleton) → Manager (0–N, promoted by Admin) → User (default)
-  - **Admin**: full access, user management, role promotion, Settings incl. presigned URLs + storage quotas, Jobs page, all buckets, unlimited storage by default
+  - **Admin**: full access, user management, role promotion, Settings incl. presigned URLs + storage quotas, Jobs page and Hangfire dashboard, all buckets, unlimited storage by default
   - **Manager**: Users page, Settings incl. presigned URLs + storage quotas, all buckets — cannot promote/demote roles, no Jobs page, unlimited storage by default
   - **User**: S3 credentials, dark mode, own buckets only, subject to global storage quota (configurable in Settings)
 - Password requirements relaxed for MVP (min 4 chars, no complexity rules)
@@ -212,7 +212,7 @@ EF Core `.ValueGeneratedNever()` on `Id`. Unique index on `AccessKeyId`.
 
 ### Hangfire Dashboard Auth
 
-The Hangfire dashboard is mapped at `/hangfire` in Development only (`Program.cs`). Outside Development `/hangfire` is an unknown path: the status code pages redirect it to `/not-found`, for the admin too. Admins use the Jobs page (`/jobs`) instead; in Development its header has a "Hangfire dashboard" button, and the dashboard's "Back to site" returns to `/jobs` (`AppPath`). `HangfireAuthorizationFilter` (`ObjeX.Api/Auth/`) requires `IsInRole("Admin")` on the cookie-authenticated user; there is no localhost bypass. Covered by `HangfireDashboardTests`.
+The Hangfire dashboard is mapped at `/hangfire` in every environment (`Program.cs`) for what the Jobs page does not cover (queues, servers, bulk actions). The Jobs page header links to it, a run's details page links to the run in it, and the dashboard's "Back to site" returns to `/jobs` (`AppPath`). An anonymous or non-admin request is refused, and the status code pages turn that into the `/not-found` redirect. `HangfireAuthorizationFilter` (`ObjeX.Api/Auth/`) requires `IsInRole("Admin")` on the cookie-authenticated user; there is no localhost bypass. Covered by `HangfireDashboardTests`.
 
 ---
 
@@ -228,7 +228,7 @@ Hangfire is wired in `ObjeX.Api` only. Job classes live in `ObjeX.Infrastructure
 
 **Retention:** `WithJobExpirationTimeout(BackgroundJobs.RunRetention)` in `AddObjeXBackgroundJobs` keeps succeeded and deleted runs 30 days instead of Hangfire's one day, so the Jobs page still shows the last run of a weekly job. Failed runs never expire.
 
-**Jobs page:** `/jobs` (`Pages/Jobs.razor`, Admin only) replaces the dashboard. It reads `IJobMonitor` (`ObjeX.Core/Interfaces`, plain records), implemented by `HangfireJobMonitor` (`ObjeX.Api/Jobs/`, singleton from `AddObjeXBackgroundJobs`), because `ObjeX.Web` cannot reference Hangfire or `ObjeX.Api`. The monitor lists the recurring jobs via `GetRecurringJobs()`, collects run ids from `IMonitoringApi` (`ProcessingJobs`, `SucceededJobs`, `FailedJobs`) and reads every run from `JobDetails(id).History`, whose data the Hangfire state classes write themselves (the `StateData` of the list DTOs is null on SQLite). The job result is deserialized with `SerializationHelper` into its record and put in words (`HangfireJobMonitor.Describe`); a new job needs a name in `HangfireJobMonitor.Known` and a case in `Describe`. "Run now" calls `IRecurringJobManager.Trigger`. A failed attempt that `AutomaticRetry` (default 10 attempts) reschedules shows as Retrying with the retry reason. The page reloads every 3 s while a run is queued or running. Covered by `JobMonitorTests`.
+**Jobs page:** `/jobs` (`Pages/Jobs.razor`, Admin only) replaces the dashboard. It reads `IJobMonitor` (`ObjeX.Core/Interfaces`, plain records), implemented by `HangfireJobMonitor` (`ObjeX.Api/Jobs/`, singleton from `AddObjeXBackgroundJobs`), because `ObjeX.Web` cannot reference Hangfire or `ObjeX.Api`. The monitor lists the recurring jobs via `GetRecurringJobs()`, collects run ids from `IMonitoringApi` (`ProcessingJobs`, `SucceededJobs`, `FailedJobs`) and reads every run from `JobDetails(id).History`, whose data the Hangfire state classes write themselves (the `StateData` of the list DTOs is null on SQLite). The job result is deserialized with `SerializationHelper` into its record and put in words (`HangfireJobMonitor.Describe`); a new job needs a name in `HangfireJobMonitor.Known` and a case in `Describe`. "Run now" calls `IRecurringJobManager.Trigger`. Every run links to `/jobs/runs/{id}` (`Pages/JobRunDetailsPage.razor`, `IJobMonitor.GetRun`): summary (created from the oldest history entry, started, finished, duration, server, method), the result in words plus its JSON without Hangfire's `$type`, the exception type, message and stack trace, and the full state history. Failed and retrying runs have Retry (`IBackgroundJobClient.Requeue`); runs that are not running have Delete (`IBackgroundJobClient.Delete`). The recent runs list also holds retrying runs (`ScheduledJobs`). Display rules live in `Helpers/JobRunText`. A failed attempt that `AutomaticRetry` (default 10 attempts) reschedules shows as Retrying with the retry reason. The page reloads every 3 s while a run is queued or running. Covered by `JobMonitorTests`.
 
 **DI registration:** `FileSystemStorageService` is registered as a singleton under its **concrete type first**, then aliased as `IObjectStorageService` (`ServiceCollectionExtensions.AddObjeXStorage`). This lets the job inject the concrete type directly (no cast) while the rest of the app uses the interface:
 ```csharp
@@ -504,8 +504,9 @@ GET    /health            → liveness (200 if process is up, no checks); also a
 GET    /health/ready      → readiness (checks DB connectivity + blob storage writability)
 GET    /metrics           → Prometheus metrics (HTTP request stats + per-bucket storage gauges, synced every 30s, deleted buckets dropped); open unless Metrics:Token is set (Bearer)
 GET    /audit             → Audit log (Admin only); server-side paginated table of bucket/object operations
-GET    /jobs              → Jobs page (Admin only); recurring jobs, recent runs, run now
-GET    /hangfire          → Hangfire dashboard (Development only, Admin role); elsewhere redirected to /not-found like any unknown path
+GET    /jobs              → Jobs page (Admin only); recurring jobs, recent runs, run now, retry, delete
+GET    /jobs/runs/{id}    → one run: summary, result, error with stack trace, state history
+GET    /hangfire          → Hangfire dashboard (Admin role); anonymous and other roles are redirected to /not-found
 GET    /styleguide        → Ui library styleguide (Development only, 404 otherwise)
 
 # S3-Compatible API — Server:S3Port, default 9000 (AWS Signature V4 required)
@@ -610,7 +611,7 @@ cd src/ObjeX.Api
 dotnet run
 # → http://localhost:9001  (login: admin / admin, forced password change on first login)
 # → http://localhost:9001/jobs       (background jobs, Admin)
-# → http://localhost:9001/hangfire   (Hangfire dashboard, Development only)
+# → http://localhost:9001/jobs       (Jobs page; the Hangfire dashboard is at /hangfire)
 # → http://localhost:9001/health
 ```
 
