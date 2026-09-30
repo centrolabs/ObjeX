@@ -26,18 +26,18 @@
             <RadzenDataGridColumn TItem="RecurringJobStatus" Property="NextRun" Title="Next run" Width="@OxSizes.DateColumn" CssClass="ox-col-muted">
                 <Template Context="job">@Tz.Format(job.NextRun)</Template>
             </RadzenDataGridColumn>
-            <RadzenDataGridColumn TItem="RecurringJobStatus" Property="LastRun" Title="Last run" Width="@OxSizes.DateColumn" CssClass="ox-col-muted">
-                <Template Context="job">@Tz.Format(job.LastRun)</Template>
-            </RadzenDataGridColumn>
-            <RadzenDataGridColumn TItem="RecurringJobStatus" Title="Status" Width="@OxSizes.NumberColumn">
+            <RadzenDataGridColumn TItem="RecurringJobStatus" Property="LastRun" Title="Last run" Width="@OxSizes.DateColumn">
                 <Template Context="job">
                     @if (job.LastJob is { } last)
                     {
-                        <OxBadge Tone="@ToneOf(last.State)">@LabelOf(last.State)</OxBadge>
+                        <OxStack Gap="1" Align="OxAlign.Start">
+                            <OxBadge Tone="@ToneOf(last.State)">@LabelOf(last.State)</OxBadge>
+                            <OxText Variant="OxTextVariant.Small">@Tz.Format(job.LastRun)</OxText>
+                        </OxStack>
                     }
                     else
                     {
-                        <OxText Variant="OxTextVariant.Muted">@(job.LastRun is null ? "Never run" : "—")</OxText>
+                        <OxText Variant="OxTextVariant.Muted">@(job.LastRun is null ? "Never run" : Tz.Format(job.LastRun))</OxText>
                     }
                 </Template>
             </RadzenDataGridColumn>
