@@ -12,7 +12,7 @@ namespace ObjeX.Api.Jobs;
 /// history, whose data the Hangfire state classes write themselves; the StateData of the list DTOs depends on
 /// the storage (null on SQLite).
 /// </summary>
-public class HangfireJobMonitor(JobStorage storage, IRecurringJobManager manager) : IJobMonitor
+public class HangfireJobMonitor(JobStorage storage, IRecurringJobManager manager, IBackgroundJobClient client) : IJobMonitor
 {
     // In the order the page lists them: the order of their schedule.
     private static readonly (Type Type, string Name)[] Known =
@@ -47,8 +47,10 @@ public class HangfireJobMonitor(JobStorage storage, IRecurringJobManager manager
         var processing = monitor.ProcessingJobs(0, count).Where(j => j.Value is { InProcessingState: true }).Select(j => (j.Key, At: j.Value!.StartedAt));
         var succeeded = monitor.SucceededJobs(0, count).Where(j => j.Value is { InSucceededState: true }).Select(j => (j.Key, At: j.Value!.SucceededAt));
         var failed = monitor.FailedJobs(0, count).Where(j => j.Value is { InFailedState: true }).Select(j => (j.Key, At: j.Value!.FailedAt));
+        // AutomaticRetry parks a failed attempt in Scheduled; without these the run would vanish until its last attempt.
+        var retrying = monitor.ScheduledJobs(0, count).Where(j => j.Value is { InScheduledState: true }).Select(j => (j.Key, At: j.Value!.ScheduledAt));
 
-        return processing.Concat(succeeded).Concat(failed)
+        return processing.Concat(succeeded).Concat(failed).Concat(retrying)
             .OrderByDescending(j => j.At ?? DateTime.MinValue)
             .Take(count)
             .Select(j => ReadRun(monitor, j.Key))
@@ -58,6 +60,35 @@ public class HangfireJobMonitor(JobStorage storage, IRecurringJobManager manager
     }
 
     public void Trigger(string recurringJobId) => manager.Trigger(recurringJobId);
+
+    public JobRunDetails? GetRun(string jobId)
+    {
+        var monitor = storage.GetMonitoringApi();
+        if (ReadRun(monitor, jobId) is not { } run || monitor.JobDetails(jobId) is not { } details)
+            return null;
+
+        var history = details.History; // newest first
+        var failed = history.FirstOrDefault(h => h.StateName == "Failed");
+        var finished = history.FirstOrDefault(h => h.StateName is "Succeeded" or "Failed");
+        return new JobRunDetails(
+            run,
+            details.Job is { } job ? $"{job.Type.Name}.{job.Method.Name}" : null,
+            // The first state is when the run was created; the DTO's CreatedAt is not reliable on every storage.
+            history.Count > 0 ? DateTime.SpecifyKind(history[^1].CreatedAt, DateTimeKind.Utc) : null,
+            finished is null ? null : TimeOf(finished, finished.StateName == "Succeeded" ? "SucceededAt" : "FailedAt"),
+            history.Select(h => Get(h, "ServerId")).FirstOrDefault(server => server is not null),
+            history.Where(h => h.StateName == "Succeeded").Select(h => Get(h, "Result")).FirstOrDefault(),
+            failed is null ? null : Get(failed, "ExceptionType"),
+            failed is null ? null : Get(failed, "ExceptionDetails"),
+            history
+                .Select(h => new JobStateChange(h.StateName, DateTime.SpecifyKind(h.CreatedAt, DateTimeKind.Utc), h.Reason,
+                    (IReadOnlyDictionary<string, string>?)h.Data ?? new Dictionary<string, string>()))
+                .ToList());
+    }
+
+    public bool Retry(string jobId) => client.Requeue(jobId);
+
+    public bool Delete(string jobId) => client.Delete(jobId);
 
     private static JobRun? ReadRun(IMonitoringApi monitor, string jobId)
     {

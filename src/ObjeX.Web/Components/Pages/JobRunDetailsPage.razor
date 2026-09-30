@@ -1,0 +1,196 @@
+@page "/jobs/runs/{JobId}"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Admin")]
+@implements IDisposable
+@using ObjeX.Core.Interfaces
+@using ObjeX.Web.Components.Dialogs
+@inject IJobMonitor Monitor
+@inject DialogService DialogService
+@inject NotificationService NotificationService
+@inject BrowserTimeZone Tz
+
+<PageTitle>Run @JobId — ObjeX</PageTitle>
+
+<OxPageHeader Meta="@(_details is null ? null : $"Run #{JobId}")">
+    <Heading><OxBreadcrumbs Items="@Crumbs" /></Heading>
+    <ChildContent>
+        @if (_details is { } d)
+        {
+            @if (JobRunText.CanRetry(d.Run.State))
+            {
+                <OxButton Variant="OxButtonVariant.Primary" Icon="replay" OnClick="Retry">Retry</OxButton>
+            }
+            @if (JobRunText.CanDelete(d.Run.State))
+            {
+                <OxButton Variant="OxButtonVariant.Danger" Icon="delete" OnClick="Delete">Delete</OxButton>
+            }
+        }
+        <OxButton Icon="open_in_new" Href="@($"/hangfire/jobs/details/{Uri.EscapeDataString(JobId)}")" target="_top">Open in Hangfire</OxButton>
+    </ChildContent>
+</OxPageHeader>
+
+@if (_details is not { } details)
+{
+    <OxCard>
+        <OxEmptyState Icon="search_off" Title="Run not found">
+            <ChildContent>It expired or never existed. Succeeded runs are kept for 30 days.</ChildContent>
+            <Action><OxButton Icon="arrow_back" Href="/jobs">Back to Jobs</OxButton></Action>
+        </OxEmptyState>
+    </OxCard>
+}
+else
+{
+    var run = details.Run;
+    <OxStack Row="true" Wrap="true" Gap="7" Align="OxAlign.Start">
+        <OxStack Grow="true">
+            <OxCard Title="Summary">
+                <OxPropertyList>
+                    <OxProperty Label="Job">@run.Name</OxProperty>
+                    <OxProperty Label="Status"><OxBadge Tone="@JobRunText.ToneOf(run.State)">@JobRunText.LabelOf(run.State)</OxBadge></OxProperty>
+                    <OxProperty Label="Created">@(details.CreatedAt is { } created ? Tz.FormatSeconds(created) : "—")</OxProperty>
+                    <OxProperty Label="Started">@(run.StartedAt is { } started ? Tz.FormatSeconds(started) : "—")</OxProperty>
+                    <OxProperty Label="Finished">@(details.FinishedAt is { } finished ? Tz.FormatSeconds(finished) : "—")</OxProperty>
+                    <OxProperty Label="Duration">@(run.Duration is { } duration ? JobRunText.FormatDuration(duration) : "—")</OxProperty>
+                    <OxProperty Label="Server" Mono="true">@(details.Server ?? "—")</OxProperty>
+                    <OxProperty Label="Method" Mono="true">@(details.Method ?? "—")</OxProperty>
+                </OxPropertyList>
+            </OxCard>
+        </OxStack>
+        <OxStack Grow="true" Gap="7">
+            @if (run.Error is not null || details.ExceptionDetails is not null)
+            {
+                <OxCard Title="Error">
+                    <OxAlert Tone="OxTone.Danger">@(details.ExceptionType is null ? run.Error : $"{details.ExceptionType}: {run.Error}")</OxAlert>
+                    @if (details.ExceptionDetails is { } stack)
+                    {
+                        <OxCode Text="@stack" Block="true" Copyable="true" />
+                    }
+                </OxCard>
+            }
+            @if (run.Result is not null || details.RawResult is not null)
+            {
+                <OxCard Title="Result">
+                    @if (run.Result is not null)
+                    {
+                        <OxText>@run.Result</OxText>
+                    }
+                    @if (details.RawResult is { } raw)
+                    {
+                        <OxCode Text="@JobRunText.Indented(raw)" Block="true" Copyable="true" />
+                    }
+                </OxCard>
+            }
+            @if (run.Error is null && run.Result is null && details.RawResult is null)
+            {
+                <OxCard Title="Result">
+                    <OxText Variant="OxTextVariant.Muted">@(JobRunText.IsActive(run.State) ? "The run is not finished yet." : "No result recorded.")</OxText>
+                </OxCard>
+            }
+        </OxStack>
+    </OxStack>
+
+    <OxCard Title="History" Flush="true">
+        <RadzenDataGrid class="@OxSizes.RoomyGridClass" Data="details.History" TItem="JobStateChange" AllowSorting="false" AllowAlternatingRows="false">
+            <Columns>
+                <RadzenDataGridColumn TItem="JobStateChange" Title="Time" Width="@OxSizes.TimestampColumn" CssClass="ox-col-muted">
+                    <Template Context="change">@Tz.FormatSeconds(change.At)</Template>
+                </RadzenDataGridColumn>
+                <RadzenDataGridColumn TItem="JobStateChange" Title="State" Width="@OxSizes.ShortColumn">
+                    <Template Context="change"><OxBadge Tone="@ToneOfState(change.State)">@change.State</OxBadge></Template>
+                </RadzenDataGridColumn>
+                <RadzenDataGridColumn TItem="JobStateChange" Title="Details">
+                    <Template Context="change">
+                        <OxStack Gap="1">
+                            @if (!string.IsNullOrEmpty(change.Reason))
+                            {
+                                <OxText>@change.Reason</OxText>
+                            }
+                            <OxText Variant="OxTextVariant.Small">@JobRunText.StateDetails(change)</OxText>
+                        </OxStack>
+                    </Template>
+                </RadzenDataGridColumn>
+            </Columns>
+        </RadzenDataGrid>
+    </OxCard>
+}
+
+@code {
+    static readonly TimeSpan PollInterval = TimeSpan.FromSeconds(3);
+
+    [Parameter] public string JobId { get; set; } = string.Empty;
+
+    JobRunDetails? _details;
+    readonly CancellationTokenSource _disposed = new();
+    bool _polling;
+
+    IReadOnlyList<OxCrumb> Crumbs => [new("Jobs", "/jobs"), new(_details?.Run.Name ?? "Run")];
+
+    protected override void OnParametersSet() => _details = Monitor.GetRun(JobId);
+
+    protected override void OnAfterRender(bool firstRender)
+    {
+        if (firstRender)
+            _ = PollWhileActiveAsync();
+    }
+
+    async Task Retry()
+    {
+        if (!Monitor.Retry(JobId))
+        {
+            NotificationService.Notify(NotificationSeverity.Error, "Retry failed", "The run no longer exists.");
+            return;
+        }
+        _details = Monitor.GetRun(JobId);
+        NotificationService.Notify(NotificationSeverity.Success, "Queued", $"\"{_details?.Run.Name}\" runs again.");
+        await PollWhileActiveAsync();
+    }
+
+    async Task Delete()
+    {
+        if (!await ConfirmDialog.AskAsync(DialogService, "Delete run", $"Delete run #{JobId}? A queued or retrying run will not run.", "Delete", danger: true)) return;
+
+        if (!Monitor.Delete(JobId))
+            NotificationService.Notify(NotificationSeverity.Error, "Delete failed", "The run no longer exists.");
+        _details = Monitor.GetRun(JobId);
+    }
+
+    // Reloads while the run is queued or running, so the page follows it to its result.
+    async Task PollWhileActiveAsync()
+    {
+        if (_polling || !JobRunText.IsActive(_details?.Run.State))
+            return;
+
+        _polling = true;
+        try
+        {
+            using var timer = new PeriodicTimer(PollInterval);
+            while (await timer.WaitForNextTickAsync(_disposed.Token))
+            {
+                await InvokeAsync(() =>
+                {
+                    _details = Monitor.GetRun(JobId);
+                    StateHasChanged();
+                });
+                if (!JobRunText.IsActive(_details?.Run.State))
+                    break;
+            }
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        finally
+        {
+            _polling = false;
+        }
+    }
+
+    static OxTone ToneOfState(string state) => state switch
+    {
+        "Succeeded" => OxTone.Accent,
+        "Failed" => OxTone.Danger,
+        "Scheduled" => OxTone.Warning,
+        "Deleted" => OxTone.Muted,
+        _ => OxTone.Default,
+    };
+
+    public void Dispose() => _disposed.Cancel();
+}
