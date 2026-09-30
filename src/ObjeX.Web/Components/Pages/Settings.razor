@@ -261,9 +261,12 @@
         return ((int)(bytes / (1024L * 1024)), "MB");
     }
 
+    // An empty field is the unlimited quota its placeholder shows.
     void OnQuotaValueInput(string value)
     {
-        if (int.TryParse(value, out var v) && v >= 0)
+        if (string.IsNullOrWhiteSpace(value))
+            _quotaValue = 0;
+        else if (int.TryParse(value, out var v) && v >= 0)
             _quotaValue = v;
     }
 
