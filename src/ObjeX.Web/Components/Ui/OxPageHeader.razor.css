@@ -7,7 +7,13 @@
     min-height: var(--ox-size-ctl);
 }
 
-.ox-page-head-title { display: flex; align-items: baseline; gap: var(--ox-space-7); min-width: 0; }
+.ox-page-head-title { display: flex; align-items: baseline; gap: var(--ox-space-7); min-width: 0; overflow: hidden; }
+
+/* On a wide screen the header stays one line: a long title gives way instead of pushing the page down. */
+@media (min-width: 900px) {
+    .ox-page-head { flex-wrap: nowrap; }
+    .ox-page-head-actions { flex: none; }
+}
 
 .ox-page-head-title h1 { margin: 0; font-size: var(--ox-fs-xl); font-weight: var(--ox-fw-semibold); }
 .ox-page-head-title h1:focus { outline: none; }
