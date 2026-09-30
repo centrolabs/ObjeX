@@ -25,16 +25,27 @@
     <OxPageHeader Meta="@(_bucket is null ? null : HeaderCaption)">
         <Heading><OxBreadcrumbs Items="@Crumbs" /></Heading>
         <ChildContent>
-            @if (_bucketExists && _bucket is { ObjectCount: > 0 })
+            @* A selection swaps the create actions for the selection actions on the same line, so the table never moves. *@
+            @if (_selected.Count > 0)
             {
-                <OxSearch Value="@_searchTerm" ValueChanged="OnSearchInput" OnClear="ClearSearch" Title="* matches any text, ? one character" />
+                <OxSelectionBar Count="@_selected.Count" OnClear="@(() => _selected.Clear())">
+                    <OxButton Icon="download" OnClick="BulkDownload">Download ZIP</OxButton>
+                    <OxButton Variant="OxButtonVariant.Danger" Icon="delete" OnClick="BulkDelete">Delete</OxButton>
+                </OxSelectionBar>
             }
-            @if (_uploading)
+            else
             {
-                <OxButton Icon="close" OnClick="@(() => _uploadCts?.Cancel())">Cancel</OxButton>
+                @if (_bucketExists && _bucket is { ObjectCount: > 0 })
+                {
+                    <OxSearch Value="@_searchTerm" ValueChanged="OnSearchInput" OnClear="ClearSearch" Title="* matches any text, ? one character" />
+                }
+                @if (_uploading)
+                {
+                    <OxButton Icon="close" OnClick="@(() => _uploadCts?.Cancel())">Cancel</OxButton>
+                }
+                <OxButton Icon="create_new_folder" Disabled="@(!_bucketExists)" OnClick="OnNewFolderClick">New folder</OxButton>
+                <OxButton Variant="OxButtonVariant.Primary" Icon="upload" Disabled="@(_uploading || !_bucketExists)" OnClick="OnUploadClick">@(_uploadStatus ?? "Upload")</OxButton>
             }
-            <OxButton Icon="create_new_folder" Disabled="@(!_bucketExists)" OnClick="OnNewFolderClick">New folder</OxButton>
-            <OxButton Variant="OxButtonVariant.Primary" Icon="upload" Disabled="@(_uploading || !_bucketExists)" OnClick="OnUploadClick">@(_uploadStatus ?? "Upload")</OxButton>
         </ChildContent>
     </OxPageHeader>
 
@@ -42,11 +53,6 @@
     {
         <OxMeter Value="@_uploadProgress" Label="Upload progress" />
     }
-
-    <OxSelectionBar Count="@_selected.Count" OnClear="@(() => _selected.Clear())">
-        <OxButton Icon="download" OnClick="BulkDownload">Download ZIP</OxButton>
-        <OxButton Variant="OxButtonVariant.Danger" Icon="delete" OnClick="BulkDelete">Delete</OxButton>
-    </OxSelectionBar>
 
     <RadzenDataGrid Data="@_rows" TItem="ListRow" AllowSorting="true" AllowAlternatingRows="false" RowRender="OnRowRender"
                     EmptyText="@(_searchApplied ? "No matches." : "No objects yet. Drag files here or click Upload.")">

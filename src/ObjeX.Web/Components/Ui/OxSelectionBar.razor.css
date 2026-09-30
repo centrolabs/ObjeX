@@ -1,12 +1,12 @@
-.ox-bulk {
-    display: flex;
-    flex-wrap: wrap;
+.ox-bulk { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ox-space-4); min-height: var(--ox-size-ctl); }
+
+.ox-bulk-count {
+    display: inline-flex;
     align-items: center;
-    gap: var(--ox-space-4);
-    padding: var(--ox-space-3) var(--ox-space-3) var(--ox-space-3) var(--ox-space-6);
+    height: var(--ox-size-ctl);
+    padding: 0 var(--ox-space-6);
     border-radius: var(--ox-radius-md);
     background: var(--ox-surface-selected);
+    font-weight: var(--ox-fw-semibold);
+    white-space: nowrap;
 }
-
-.ox-bulk b { margin-right: var(--ox-space-3); font-weight: var(--ox-fw-semibold); }
-.ox-bulk-grow { flex: 1; }

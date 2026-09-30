@@ -1,15 +1,14 @@
 @if (Count > 0)
 {
     <div class="ox-bulk" role="toolbar" aria-label="Selection">
-        <b>@Count selected</b>
+        <span class="ox-bulk-count">@Count selected</span>
         @ChildContent
-        <span class="ox-bulk-grow"></span>
         <OxIconButton Icon="close" Label="Clear selection" OnClick="@(() => OnClear.InvokeAsync())" />
     </div>
 }
 
 @code {
-    /// <summary>The bar exists only while at least one row is selected.</summary>
+    /// <summary>The actions for the selected rows, in place of the page actions while at least one row is selected.</summary>
     [Parameter] public int Count { get; set; }
     [Parameter] public EventCallback OnClear { get; set; }
     [Parameter] public RenderFragment? ChildContent { get; set; }

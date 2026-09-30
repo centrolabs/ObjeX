@@ -183,10 +183,15 @@
                 <OxButton Variant="OxButtonVariant.Primary" Icon="upload">Upload</OxButton>
             </ChildContent>
         </OxPageHeader>
-        <OxSelectionBar Count="@_selected.Count" OnClear="@(() => _selected.Clear())">
-            <OxButton Icon="download">Download ZIP</OxButton>
-            <OxButton Variant="OxButtonVariant.Danger" Icon="delete">Delete</OxButton>
-        </OxSelectionBar>
+        <OxPageHeader Meta="12 objects · 6.4 MB">
+            <Heading><OxBreadcrumbs Items="@Crumbs" /></Heading>
+            <ChildContent>
+                <OxSelectionBar Count="@Math.Max(_selected.Count, 1)">
+                    <OxButton Icon="download">Download ZIP</OxButton>
+                    <OxButton Variant="OxButtonVariant.Danger" Icon="delete">Delete</OxButton>
+                </OxSelectionBar>
+            </ChildContent>
+        </OxPageHeader>
         <RadzenDataGrid Data="@Rows" TItem="SampleRow" AllowSorting="true" AllowAlternatingRows="false" RowRender="OnRowRender">
             <Columns>
                 <RadzenDataGridColumn TItem="SampleRow" Width="@OxSizes.CheckColumn" Sortable="false" CssClass="ox-col-check">
