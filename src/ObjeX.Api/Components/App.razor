@@ -14,7 +14,7 @@
     <link rel="apple-touch-icon" href="apple-touch-icon.png" />
     <link rel="manifest" href="site.webmanifest" />
     <HeadOutlet @rendermode="InteractiveServer" />
-    <script>if (!document.cookie.includes('objex-theme=')) { var d = matchMedia('(prefers-color-scheme: dark)').matches; document.cookie = 'objex-theme=' + (d ? '@ThemeMode.Dark' : '@ThemeMode.Light') + '; path=/; max-age=31536000'; if (d) location.reload(); }
+    <script>if (!document.cookie.includes('objex-theme=')) { var d = matchMedia('(prefers-color-scheme: dark)').matches; document.cookie = 'objex-theme=' + (d ? '@ThemeMode.Dark' : '@ThemeMode.Light') + '; path=/; max-age=31536000'; if (d && document.cookie.includes('objex-theme=')) location.reload(); }
         document.cookie = 'objex-tz=' + encodeURIComponent(Intl.DateTimeFormat().resolvedOptions().timeZone) + '; path=/; max-age=31536000; SameSite=Lax';</script>
     <RadzenTheme Theme="@ThemeMode.Radzen(ThemeCookie)" />
     <link rel="stylesheet" href="@Assets["tokens.css"]" />
