@@ -77,7 +77,7 @@ ObjeX can create buckets and one S3 credential on startup, owned by the default 
 
 | Role | Access |
 |---|---|
-| Admin | Everything: users, roles, all buckets, Jobs page, settings |
+| Admin | Everything: users, roles, all buckets, Jobs page and Hangfire dashboard, settings |
 | Manager | Users page, settings, all buckets; cannot change roles |
 | User | Own buckets and S3 credentials |
 
