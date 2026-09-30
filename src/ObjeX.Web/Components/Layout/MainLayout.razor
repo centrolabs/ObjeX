@@ -2,8 +2,8 @@
 @implements IDisposable
 @inject NavigationManager Navigation
 @inject AuthenticationStateProvider AuthStateProvider
-@inject UserManager<ObjeX.Core.Models.User> UserManager
-@using Microsoft.AspNetCore.Identity
+@inject IDbContextFactory<ObjeX.Infrastructure.Data.ObjeXDbContext> DbFactory
+@using Microsoft.EntityFrameworkCore
 
 <AuthorizeView>
     <Authorized>
@@ -43,7 +43,11 @@
         var userId = auth.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
         if (userId is null) return;
 
-        var user = await UserManager.FindByIdAsync(userId);
+        // Its own short context: this runs on every navigation, interleaved with the new page's own queries.
+        await using var db = await DbFactory.CreateDbContextAsync();
+        var user = await db.Users.Where(u => u.Id == userId)
+            .Select(u => new { u.IsDeactivated, u.MustChangePassword })
+            .FirstOrDefaultAsync();
         if (user?.IsDeactivated == true)
             Navigation.NavigateTo("/account/logout", forceLoad: true);
         else if (user?.MustChangePassword == true && !Navigation.Uri.Contains("/change-password"))
