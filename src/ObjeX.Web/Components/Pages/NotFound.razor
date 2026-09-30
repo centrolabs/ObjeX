@@ -1,15 +1,9 @@
 @page "/not-found"
 @layout MainLayout
 
-<PageTitle>Not Found — ObjeX</PageTitle>
+<PageTitle>Not found — ObjeX</PageTitle>
 
-<RadzenStack AlignItems="AlignItems.Center" JustifyContent="JustifyContent.Center" Gap="1rem" Style="height: 60vh">
-    <RadzenText TextStyle="TextStyle.H1" Style="font-size:6rem; font-weight:700; opacity:0.15">404</RadzenText>
-    <RadzenText TextStyle="TextStyle.H4">Page not found</RadzenText>
-    <RadzenText TextStyle="TextStyle.Body1">The page you're looking for doesn't exist.</RadzenText>
-    <RadzenButton Text="Go to Dashboard" Icon="home" ButtonStyle="ButtonStyle.Primary" Click="@(() => Navigation.NavigateTo("/"))" />
-</RadzenStack>
-
-@code {
-    [Inject] NavigationManager Navigation { get; set; } = default!;
-}
+<OxEmptyState Icon="travel_explore" Title="Page not found">
+    <ChildContent>The page you are looking for does not exist.</ChildContent>
+    <Action><OxButton Variant="OxButtonVariant.Primary" Icon="home" Href="/">Go to Dashboard</OxButton></Action>
+</OxEmptyState>

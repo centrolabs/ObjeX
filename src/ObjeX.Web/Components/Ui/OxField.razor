@@ -1,8 +1,11 @@
 <div class="ox-field">
-    <label class="ox-field-label">
-        <span>@Label</span>
-        @ChildContent
-    </label>
+    <div class="ox-field-row">
+        <label class="ox-field-label">
+            <span>@Label</span>
+            @ChildContent
+        </label>
+        @Actions
+    </div>
     @if (Hint is not null && Error is null)
     {
         <span class="ox-field-hint">@Hint</span>
@@ -20,4 +23,6 @@
     /// <summary>Keeps the line of the error message while there is none, so the form does not jump.</summary>
     [Parameter] public bool ReserveError { get; set; }
     [Parameter] public RenderFragment? ChildContent { get; set; }
+    /// <summary>A button on the line of the control, for a field that saves on its own.</summary>
+    [Parameter] public RenderFragment? Actions { get; set; }
 }

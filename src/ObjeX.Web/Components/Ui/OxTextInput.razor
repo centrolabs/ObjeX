@@ -1,12 +1,11 @@
 <input @ref="_input" class="ox-input @(Invalid ? "is-invalid" : null) @(Mono ? "ox-input--mono" : null) @(AlignEnd ? "ox-input--end" : null)" type="@Type" value="@Value"
-       placeholder="@Placeholder" disabled="@Disabled" readonly="@ReadOnly" aria-invalid="@(Invalid ? "true" : null)"
-       @oninput="@(e => ValueChanged.InvokeAsync(e.Value?.ToString() ?? string.Empty))" @onkeydown="OnKeyDown" @attributes="Attributes" />
+       placeholder="@Placeholder" disabled="@Disabled" readonly="@ReadOnly" aria-invalid="@(Invalid ? "true" : null)" @attributes="InputAttributes" />
 
 @code {
     ElementReference _input;
 
     [Parameter] public string? Value { get; set; }
-    /// <summary>Fires on every keystroke.</summary>
+    /// <summary>Fires on every keystroke. Without a handler the input is a plain form field: nothing it holds is sent before the form is.</summary>
     [Parameter] public EventCallback<string> ValueChanged { get; set; }
     [Parameter] public string Type { get; set; } = "text";
     [Parameter] public string? Placeholder { get; set; }
@@ -24,6 +23,21 @@
     [Parameter(CaptureUnmatchedValues = true)] public Dictionary<string, object>? Attributes { get; set; }
 
     public ValueTask FocusAsync() => _input.FocusAsync();
+
+    // Handlers are attached only when someone listens. An input with a handler that ignores the event
+    // would be reset to its rendered value after each keystroke.
+    Dictionary<string, object> InputAttributes
+    {
+        get
+        {
+            var attributes = Attributes is null ? new Dictionary<string, object>() : new Dictionary<string, object>(Attributes);
+            if (ValueChanged.HasDelegate)
+                attributes["oninput"] = EventCallback.Factory.Create<ChangeEventArgs>(this, e => ValueChanged.InvokeAsync(e.Value?.ToString() ?? string.Empty));
+            if (OnEnter.HasDelegate || OnEscape.HasDelegate)
+                attributes["onkeydown"] = EventCallback.Factory.Create<KeyboardEventArgs>(this, OnKeyDown);
+            return attributes;
+        }
+    }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
