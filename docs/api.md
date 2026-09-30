@@ -6,17 +6,17 @@ Auth is AWS Signature Version 4. Create credentials in the web UI under **Settin
 
 | Method | Path | Description |
 |---|---|---|
-| `GET` | `/` | List buckets |
+| `GET` | `/` | List buckets; `prefix`, `max-buckets`, `continuation-token` |
 | `GET` | `/{bucket}` | List objects; `prefix`, `delimiter`, `max-keys` (≤ 1000), `marker`, `encoding-type=url` |
 | `GET` | `/{bucket}?list-type=2` | List objects V2; `continuation-token`, `start-after`, `fetch-owner` |
 | `HEAD` | `/{bucket}` | Bucket exists |
 | `GET` | `/{bucket}?location` | Bucket location (`us-east-1`) |
 | `GET` | `/{bucket}?uploads` | List multipart uploads |
-| `PUT` | `/{bucket}` | Create bucket |
+| `PUT` | `/{bucket}` | Create bucket; repeating it for your own bucket is a no-op |
 | `DELETE` | `/{bucket}` | Delete bucket |
-| `PUT` | `/{bucket}/{key}` | Upload object; `x-amz-copy-source` copies (onto itself only with `x-amz-metadata-directive: REPLACE`), `x-amz-meta-*` is stored |
-| `PUT` | `/{bucket}/{key}?partNumber=N&uploadId=X` | Upload part |
-| `GET` | `/{bucket}/{key}` | Download object; range requests; `?download=true` forces attachment |
+| `PUT` | `/{bucket}/{key}` | Upload object; `x-amz-copy-source` copies (onto itself only with `x-amz-metadata-directive: REPLACE`); `x-amz-meta-*`, `Cache-Control`, `Content-Disposition`, `Content-Encoding`, `Content-Language` and `Expires` are stored; `If-Match` / `If-None-Match: *` make it conditional |
+| `PUT` | `/{bucket}/{key}?partNumber=N&uploadId=X` | Upload part; with `x-amz-copy-source` (and `x-amz-copy-source-range`) copy it from an object |
+| `GET` | `/{bucket}/{key}` | Download object; range requests; `?download=true` forces attachment; `response-content-type` and the other `response-*` parameters override the stored headers |
 | `GET` | `/{bucket}/{key}?uploadId=X` | List parts |
 | `HEAD` | `/{bucket}/{key}` | Object metadata |
 | `DELETE` | `/{bucket}/{key}` | Delete object |
