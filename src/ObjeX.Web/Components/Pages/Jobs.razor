@@ -1,0 +1,181 @@
+@page "/jobs"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Admin")]
+@implements IDisposable
+@using ObjeX.Core.Interfaces
+@using ObjeX.Web.Components.Dialogs
+@inject IJobMonitor Monitor
+@inject DialogService DialogService
+@inject NotificationService NotificationService
+@inject BrowserTimeZone Tz
+
+<PageTitle>Jobs — ObjeX</PageTitle>
+
+<OxPageHeader Title="Jobs" />
+
+<OxCard Title="Recurring jobs" Flush="true">
+    <RadzenDataGrid Data="_jobs" TItem="RecurringJobStatus" AllowSorting="false" AllowAlternatingRows="false" EmptyText="No recurring jobs.">
+        <Columns>
+            <RadzenDataGridColumn TItem="RecurringJobStatus" Property="Name" Title="Job" Width="@OxSizes.NameColumn">
+                <Template Context="job">
+                    <OxStack Gap="1">
+                        <OxText Truncate="true"><strong>@job.Name</strong></OxText>
+                        <OxText Variant="OxTextVariant.Small" Truncate="true" title="@($"{job.Cron} (UTC)")">@(CronText.Describe(job.Cron, job.NextRun, Tz) ?? $"{job.Cron} (UTC)")</OxText>
+                    </OxStack>
+                </Template>
+            </RadzenDataGridColumn>
+            <RadzenDataGridColumn TItem="RecurringJobStatus" Property="NextRun" Title="Next run" Width="@OxSizes.DateColumn" CssClass="ox-col-muted">
+                <Template Context="job">@Tz.Format(job.NextRun)</Template>
+            </RadzenDataGridColumn>
+            <RadzenDataGridColumn TItem="RecurringJobStatus" Property="LastRun" Title="Last run" Width="@OxSizes.DateColumn" CssClass="ox-col-muted">
+                <Template Context="job">@Tz.Format(job.LastRun)</Template>
+            </RadzenDataGridColumn>
+            <RadzenDataGridColumn TItem="RecurringJobStatus" Title="Status" Width="@OxSizes.NumberColumn">
+                <Template Context="job">
+                    @if (job.LastJob is { } last)
+                    {
+                        <OxBadge Tone="@ToneOf(last.State)">@LabelOf(last.State)</OxBadge>
+                    }
+                    else
+                    {
+                        <OxText Variant="OxTextVariant.Muted">@(job.LastRun is null ? "Never run" : "—")</OxText>
+                    }
+                </Template>
+            </RadzenDataGridColumn>
+            <RadzenDataGridColumn TItem="RecurringJobStatus" Title="Last result" CssClass="ox-col-muted">
+                <Template Context="job">
+                    @if (job.LastJob is { } last)
+                    {
+                        <OxText Truncate="true" Tone="@(last.Error is null ? OxTone.Default : OxTone.Danger)" title="@(last.Error ?? last.Result)">@(last.Error ?? last.Result)</OxText>
+                    }
+                </Template>
+            </RadzenDataGridColumn>
+            <RadzenDataGridColumn TItem="RecurringJobStatus" Title="" Width="@OxSizes.ButtonColumn" CssClass="ox-col-actions">
+                <Template Context="job">
+                    <OxButton Icon="play_arrow" Disabled="@IsActive(job.LastJob)" OnClick="@(() => RunNow(job))">Run now</OxButton>
+                </Template>
+            </RadzenDataGridColumn>
+        </Columns>
+    </RadzenDataGrid>
+</OxCard>
+
+<OxCard Title="Recent runs" Flush="true">
+    @if (_runs.Count == 0)
+    {
+        <OxEmptyState Icon="schedule" Title="No runs yet">Runs appear here once a job has run on its schedule or through Run now.</OxEmptyState>
+    }
+    else
+    {
+        <RadzenDataGrid Data="_runs" TItem="JobRun" AllowSorting="false" AllowAlternatingRows="false" AllowPaging="true" PageSize="20">
+            <Columns>
+                <RadzenDataGridColumn TItem="JobRun" Property="StartedAt" Title="Started" Width="@OxSizes.TimestampColumn" CssClass="ox-col-muted">
+                    <Template Context="run">@(run.StartedAt is { } started ? Tz.FormatSeconds(started) : "—")</Template>
+                </RadzenDataGridColumn>
+                <RadzenDataGridColumn TItem="JobRun" Property="Name" Title="Job" Width="@OxSizes.NameColumn">
+                    <Template Context="run"><OxText Truncate="true">@run.Name</OxText></Template>
+                </RadzenDataGridColumn>
+                <RadzenDataGridColumn TItem="JobRun" Title="Status" Width="@OxSizes.NumberColumn">
+                    <Template Context="run"><OxBadge Tone="@ToneOf(run.State)">@LabelOf(run.State)</OxBadge></Template>
+                </RadzenDataGridColumn>
+                <RadzenDataGridColumn TItem="JobRun" Title="Duration" Width="@OxSizes.NumberColumn" TextAlign="TextAlign.End" CssClass="ox-col-muted">
+                    <Template Context="run">@(run.Duration is { } duration ? FormatDuration(duration) : "—")</Template>
+                </RadzenDataGridColumn>
+                <RadzenDataGridColumn TItem="JobRun" Title="Result" CssClass="ox-col-muted">
+                    <Template Context="run">
+                        <OxText Truncate="true" Tone="@(run.Error is null ? OxTone.Default : OxTone.Danger)" title="@(run.Error ?? run.Result)">@(run.Error ?? run.Result)</OxText>
+                    </Template>
+                </RadzenDataGridColumn>
+            </Columns>
+        </RadzenDataGrid>
+    }
+</OxCard>
+
+@code {
+    const int HistorySize = 50;
+    static readonly TimeSpan PollInterval = TimeSpan.FromSeconds(3);
+
+    IReadOnlyList<RecurringJobStatus> _jobs = [];
+    IReadOnlyList<JobRun> _runs = [];
+    readonly CancellationTokenSource _disposed = new();
+    bool _polling;
+
+    protected override void OnInitialized() => Load();
+
+    protected override void OnAfterRender(bool firstRender)
+    {
+        if (firstRender)
+            _ = PollWhileActiveAsync();
+    }
+
+    void Load()
+    {
+        _jobs = Monitor.GetRecurringJobs();
+        _runs = Monitor.GetRecentRuns(HistorySize);
+    }
+
+    async Task RunNow(RecurringJobStatus job)
+    {
+        if (!await ConfirmDialog.AskAsync(DialogService, "Run now", $"Run \"{job.Name}\" now? Its schedule stays as it is.", "Run now")) return;
+
+        Monitor.Trigger(job.Id);
+        Load();
+        NotificationService.Notify(NotificationSeverity.Success, "Queued", $"\"{job.Name}\" is queued.");
+        _ = PollWhileActiveAsync();
+    }
+
+    // Reloads while a run is queued or running, so its result shows up without a page reload.
+    async Task PollWhileActiveAsync()
+    {
+        if (_polling || !_jobs.Any(j => IsActive(j.LastJob)))
+            return;
+
+        _polling = true;
+        try
+        {
+            using var timer = new PeriodicTimer(PollInterval);
+            while (await timer.WaitForNextTickAsync(_disposed.Token))
+            {
+                await InvokeAsync(() =>
+                {
+                    Load();
+                    StateHasChanged();
+                });
+                if (!_jobs.Any(j => IsActive(j.LastJob)))
+                    break;
+            }
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        finally
+        {
+            _polling = false;
+        }
+    }
+
+    static bool IsActive(JobRun? run) => run?.State is JobRunState.Queued or JobRunState.Processing;
+
+    static OxTone ToneOf(JobRunState state) => state switch
+    {
+        JobRunState.Succeeded => OxTone.Accent,
+        JobRunState.Failed => OxTone.Danger,
+        JobRunState.Retrying => OxTone.Warning,
+        JobRunState.Other => OxTone.Muted,
+        _ => OxTone.Default,
+    };
+
+    static string LabelOf(JobRunState state) => state switch
+    {
+        JobRunState.Processing => "Running",
+        _ => state.ToString(),
+    };
+
+    static string FormatDuration(TimeSpan d) => d.TotalSeconds switch
+    {
+        < 1 => $"{d.TotalMilliseconds:0} ms",
+        < 60 => $"{d.TotalSeconds:0.0} s",
+        < 3600 => $"{(int)d.TotalMinutes} min {d.Seconds} s",
+        _ => $"{(int)d.TotalHours} h {d.Minutes} min",
+    };
+
+    public void Dispose() => _disposed.Cancel();
+}

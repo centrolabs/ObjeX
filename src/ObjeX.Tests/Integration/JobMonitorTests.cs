@@ -78,6 +78,7 @@ public class JobMonitorTests(ObjeXFactory factory) : IClassFixture<ObjeXFactory>
     {
         { new CleanupResult(1, 0, 0, DateTime.UtcNow), "1 blob file checked, 0 orphans deleted" },
         { new IntegrityResult(7, 1, 2, 3, 0, DateTime.UtcNow), "7 blobs verified, 1 corrupted, 2 missing, 3 multipart skipped" },
+        { new IntegrityResult(3, 0, 0, 0, 0, DateTime.UtcNow), "3 blobs verified, 0 corrupted, 0 missing" },
         { new AbandonedMultipartResult(2, 2, 0, DateTime.UtcNow), "2 abandoned uploads found, 2 deleted" },
     };
 }
