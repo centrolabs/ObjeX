@@ -10,6 +10,7 @@
 }
 
 .ox-card--flush { padding: 0; overflow: hidden; }
+.ox-card--dense { padding: var(--ox-space-5) var(--ox-space-6); }
 .ox-card--flush .ox-card-head { padding: var(--ox-space-7) var(--ox-space-8) 0; }
 
 .ox-card-head { display: flex; align-items: center; justify-content: space-between; gap: var(--ox-space-4); }

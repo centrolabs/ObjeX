@@ -1,0 +1,21 @@
+.ox-file-drop {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--ox-space-4);
+    min-height: var(--ox-size-drop);
+    padding: var(--ox-space-9);
+    border: var(--ox-ring) dashed var(--ox-line-strong);
+    border-radius: var(--ox-radius-md);
+    background: var(--ox-surface-hover);
+    color: var(--ox-text-muted);
+    text-align: center;
+}
+
+.ox-file-drop:hover, .ox-file-drop.is-dragging, .ox-file-drop:focus-within { border-color: var(--ox-accent-text); color: var(--ox-text); }
+
+.ox-file-drop ::deep .ox-icon { font-size: var(--ox-fs-2xl); color: var(--ox-accent-text); }
+
+.ox-file-drop ::deep input[type=file] { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }

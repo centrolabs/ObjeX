@@ -1,0 +1,7 @@
+.ox-box { min-width: 0; }
+.ox-box ::deep > * { width: 100%; }
+.ox-box--xs { flex: none; width: var(--ox-size-field-xs); }
+.ox-box--sm { flex: none; width: var(--ox-size-field-sm); }
+.ox-box--md { flex: none; width: var(--ox-size-search); max-width: 100%; }
+.ox-box--lg { width: var(--ox-size-form); max-width: 100%; }
+.ox-box--fill { flex: 1; }

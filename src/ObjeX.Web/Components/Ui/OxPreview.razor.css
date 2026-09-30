@@ -1,0 +1,22 @@
+.ox-preview { display: flex; justify-content: center; min-width: 0; }
+
+.ox-preview img, .ox-preview video { display: block; max-width: 100%; max-height: var(--ox-size-preview); border-radius: var(--ox-radius-sm); }
+
+.ox-preview audio { width: 100%; margin: var(--ox-space-9) 0; }
+
+.ox-preview iframe { width: 100%; height: var(--ox-size-preview); border: 0; border-radius: var(--ox-radius-sm); }
+
+.ox-preview pre {
+    width: 100%;
+    max-height: var(--ox-size-preview);
+    margin: 0;
+    padding: var(--ox-space-6);
+    overflow: auto;
+    border: var(--ox-border) solid var(--ox-line);
+    border-radius: var(--ox-radius-md);
+    background: var(--ox-surface-hover);
+    font-family: var(--ox-font-mono);
+    font-size: var(--ox-fs-sm);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}

@@ -1,0 +1,24 @@
+.ox-code {
+    display: flex;
+    align-items: center;
+    gap: var(--ox-space-2);
+    min-width: 0;
+    padding: var(--ox-space-1) var(--ox-space-2) var(--ox-space-1) var(--ox-space-4);
+    border: var(--ox-border) solid var(--ox-line);
+    border-radius: var(--ox-radius-md);
+    background: var(--ox-surface-hover);
+}
+
+.ox-code code, .ox-code pre {
+    flex: 1;
+    min-width: 0;
+    margin: 0;
+    padding: var(--ox-space-2) 0;
+    font-family: var(--ox-font-mono);
+    font-size: var(--ox-fs-sm);
+    color: var(--ox-text);
+}
+
+.ox-code code { overflow-wrap: anywhere; }
+.ox-code pre { overflow-x: auto; }
+.ox-code--block { align-items: flex-start; padding: var(--ox-space-4) var(--ox-space-3) var(--ox-space-4) var(--ox-space-6); }

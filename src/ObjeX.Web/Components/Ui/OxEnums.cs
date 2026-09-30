@@ -11,6 +11,11 @@ public enum OxJustify { Start, Center, End, Between }
 
 public enum OxTextVariant { Body, Muted, Small, Label, Title, Heading, Figure, Mono }
 
+/// <summary>Fixed widths for a control inside <see cref="OxBox"/>: a number, a unit, a search field, a form.</summary>
+public enum OxWidth { Auto, Xs, Sm, Md, Lg, Fill }
+
+public enum OxPreviewKind { Image, Video, Audio, Pdf, Text }
+
 /// <summary>What a file row shows: decides the icon and, for folders, images and videos, its colour.</summary>
 public enum OxFileKind { File, Folder, Image, Video, Audio, Text, Pdf, Archive }
 
@@ -25,6 +30,9 @@ public static class OxSizes
     public const string TypeColumn = "180px";
     public const string SizeColumn = "110px";
     public const string DateColumn = "170px";
+    public const string NumberColumn = "110px";
+    public const string NameColumn = "240px";
+    public const string ChartHeight = "100%";
     /// <summary>Row class for a selected grid row. RowRender replaces the class attribute, so Radzen's own row class is repeated.</summary>
     public const string SelectedRowClass = "rz-data-row ox-row-selected";
     public const string DialogSmall = "440px";

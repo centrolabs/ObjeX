@@ -9,5 +9,7 @@
     color: var(--ox-text);
 }
 
+.ox-field ::deep .rz-dropdown, .ox-field ::deep .rz-numeric { width: 100%; }
+
 .ox-field-hint { font-size: var(--ox-fs-sm); color: var(--ox-text-muted); }
 .ox-field-error { font-size: var(--ox-fs-sm); color: var(--ox-danger); }

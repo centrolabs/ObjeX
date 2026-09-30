@@ -1,0 +1,2 @@
+.ox-chart { height: var(--ox-size-chart); min-width: 0; }
+.ox-chart ::deep .rz-chart { width: 100%; height: 100%; }
