@@ -1,12 +1,12 @@
 @inject DialogService DialogService
 
-<RadzenStack Gap="1rem" Style="padding:1rem" @onkeydown="OnKeyDown" tabindex="-1">
+<OxStack Gap="8" @onkeydown="OnKeyDown" tabindex="-1">
     <S3ConnectSnippets Endpoint="@Endpoint" AccessKeyId="@AccessKeyId" />
 
-    <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.End">
-        <RadzenButton Text="Done" ButtonStyle="ButtonStyle.Primary" Click="@(() => DialogService.Close(null))" />
-    </RadzenStack>
-</RadzenStack>
+    <OxStack Row="true" Justify="OxJustify.End">
+        <OxButton Variant="OxButtonVariant.Primary" OnClick="@(() => DialogService.Close(null))">Done</OxButton>
+    </OxStack>
+</OxStack>
 
 @code {
     [Parameter] public string AccessKeyId { get; set; } = string.Empty;

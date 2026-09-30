@@ -1,49 +1,33 @@
 @using ObjeX.Core.Validation
 @inject DialogService DialogService
 
-<RadzenStack Gap="1rem">
-    <RadzenFormField Text="Bucket Name">
-        <input @oninput="OnInput"
-               @onkeydown="OnKeyDown"
-               placeholder="my-bucket"
-               class="rz-textbox"
-               style="width: 100%" />
-    </RadzenFormField>
-
-    @if (_error is not null)
-    {
-        <RadzenText TextStyle="TextStyle.Caption" Style="color: var(--rz-danger)">@_error</RadzenText>
-    }
-    else
-    {
-        <RadzenText TextStyle="TextStyle.Caption">
-            3–63 characters, lowercase letters, numbers, hyphens and periods only.
-        </RadzenText>
-    }
-
-    <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.End" Gap="0.5rem">
-        <RadzenButton Text="Cancel" ButtonStyle="ButtonStyle.Light" Click="@(() => DialogService.Close(null))" />
-        <RadzenButton Text="Create" ButtonStyle="ButtonStyle.Primary" Click="@OnCreate" Disabled="@(_error is not null || string.IsNullOrWhiteSpace(_name))" />
-    </RadzenStack>
-</RadzenStack>
+<OxStack Gap="8">
+    <OxField Label="Bucket name" Hint="3–63 characters, lowercase letters, numbers, hyphens and periods only." Error="@_error">
+        <OxTextInput Value="@_name" ValueChanged="OnInput" Placeholder="my-bucket" AutoFocus="true" Invalid="@(_error is not null)"
+                     OnEnter="OnEnter" OnEscape="@(() => DialogService.Close(null))" />
+    </OxField>
+    <OxStack Row="true" Justify="OxJustify.End" Gap="4">
+        <OxButton OnClick="@(() => DialogService.Close(null))">Cancel</OxButton>
+        <OxButton Variant="OxButtonVariant.Primary" Disabled="@(!IsValid)" OnClick="OnCreate">Create</OxButton>
+    </OxStack>
+</OxStack>
 
 @code {
     string _name = string.Empty;
     string? _error;
 
-    void OnInput(ChangeEventArgs e)
+    bool IsValid => _error is null && !string.IsNullOrWhiteSpace(_name);
+
+    void OnInput(string value)
     {
-        _name = e.Value?.ToString() ?? string.Empty;
+        _name = value;
         _error = string.IsNullOrWhiteSpace(_name) ? null : BucketNameValidator.GetValidationError(_name);
     }
 
     void OnCreate() => DialogService.Close(_name.Trim());
 
-    void OnKeyDown(KeyboardEventArgs e)
+    void OnEnter()
     {
-        if (e.Key == "Enter" && _error is null && !string.IsNullOrWhiteSpace(_name))
-            OnCreate();
-        else if (e.Key == "Escape")
-            DialogService.Close(null);
+        if (IsValid) OnCreate();
     }
 }

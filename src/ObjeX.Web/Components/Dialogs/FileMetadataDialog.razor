@@ -1,72 +1,31 @@
-<RadzenStack Gap="0">
-    <div class="meta-row">
-        <span class="meta-label">Key</span>
-        <span class="meta-value" style="word-break:break-all">@Key</span>
-    </div>
-    <div class="meta-row">
-        <span class="meta-label">Content Type</span>
-        <span class="meta-value">@ContentType</span>
-    </div>
-    <div class="meta-row">
-        <span class="meta-label">Size</span>
-        <span class="meta-value">@FileHelper.FormatBytes(Size) <span style="color:var(--rz-text-secondary-color);font-size:0.8rem">(@Size.ToString("N0") bytes)</span></span>
-    </div>
-    <div class="meta-row">
-        <span class="meta-label">ETag</span>
-        <code class="meta-value" style="font-size:0.82rem">@ETag</code>
-    </div>
-    <div class="meta-row">
-        <span class="meta-label">Uploaded</span>
-        <span class="meta-value">@Tz.FormatSeconds(CreatedAt)</span>
-    </div>
-    <div class="meta-row">
-        <span class="meta-label">Last Modified</span>
-        <span class="meta-value">@Tz.FormatSeconds(UpdatedAt)</span>
-    </div>
+<OxStack Gap="7">
+    <OxPropertyList>
+        <OxProperty Label="Key" Mono="true">@Key</OxProperty>
+        <OxProperty Label="Content type">@ContentType</OxProperty>
+        <OxProperty Label="Size">@FileHelper.FormatBytes(Size) <OxText Variant="OxTextVariant.Small">(@Size.ToString("N0") bytes)</OxText></OxProperty>
+        <OxProperty Label="ETag" Mono="true">@ETag</OxProperty>
+        <OxProperty Label="Uploaded">@Tz.FormatSeconds(CreatedAt)</OxProperty>
+        <OxProperty Label="Last modified">@Tz.FormatSeconds(UpdatedAt)</OxProperty>
+    </OxPropertyList>
+
     @{ var custom = CustomMetadata.Parse(CustomMetadataJson); }
     @if (custom.Count > 0)
     {
-        <div class="meta-section">Custom metadata</div>
-        foreach (var entry in custom)
-        {
-            <div class="meta-row">
-                <span class="meta-label">@entry.Key</span>
-                <code class="meta-value" style="font-size:0.82rem;word-break:break-all">@entry.Value</code>
-            </div>
-        }
+        <OxStack Gap="2">
+            <OxText Variant="OxTextVariant.Label">Custom metadata</OxText>
+            <OxPropertyList>
+                @foreach (var entry in custom)
+                {
+                    <OxProperty Label="@entry.Key" Mono="true">@entry.Value</OxProperty>
+                }
+            </OxPropertyList>
+        </OxStack>
     }
-</RadzenStack>
 
-<RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.End" Style="margin-top:1.25rem">
-    <RadzenButton Text="Close" ButtonStyle="ButtonStyle.Primary" Size="ButtonSize.Small"
-                  Click="@(() => DialogService.Close())" />
-</RadzenStack>
-
-<style>
-    .meta-row {
-        display: flex;
-        align-items: baseline;
-        gap: 1rem;
-        padding: 0.55rem 0;
-        border-bottom: 1px solid var(--rz-border-disabled-color);
-    }
-    .meta-row:last-child { border-bottom: none; }
-    .meta-label {
-        flex: 0 0 110px;
-        font-size: 0.8rem;
-        color: var(--rz-text-secondary-color);
-        text-transform: uppercase;
-        letter-spacing: 0.04em;
-    }
-    .meta-value { flex: 1; }
-    .meta-section {
-        padding: 1rem 0 0.35rem;
-        font-size: 0.8rem;
-        color: var(--rz-text-secondary-color);
-        text-transform: uppercase;
-        letter-spacing: 0.04em;
-    }
-</style>
+    <OxStack Row="true" Justify="OxJustify.End">
+        <OxButton Variant="OxButtonVariant.Primary" OnClick="@(() => DialogService.Close())">Close</OxButton>
+    </OxStack>
+</OxStack>
 
 @code {
     [Parameter] public string Key         { get; set; } = string.Empty;

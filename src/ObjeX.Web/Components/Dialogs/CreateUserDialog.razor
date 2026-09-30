@@ -1,33 +1,22 @@
 @inject DialogService DialogService
 
-<RadzenStack Gap="1rem" Style="padding:1rem; min-width:340px">
-    <div>
-        <label style="display:block; margin-bottom:0.25rem; font-size:0.875rem">Username</label>
-        <input class="rz-textbox" style="width:100%" value="@_username"
-               @oninput="OnUsernameInput" @onkeydown="OnKeyDown" placeholder="e.g. jsmith" />
-        <span style="font-size:0.75rem; visibility:@(_usernameError is not null ? "visible" : "hidden"); color:var(--rz-danger)">
-            @(_usernameError ?? "placeholder")
-        </span>
-    </div>
-    <div>
-        <label style="display:block; margin-bottom:0.25rem; font-size:0.875rem">Email</label>
-        <input class="rz-textbox" style="width:100%" type="email" value="@_email"
-               @oninput="OnEmailInput" @onkeydown="OnKeyDown" placeholder="user@example.com" />
-        <span style="font-size:0.75rem; visibility:@(_emailError is not null ? "visible" : "hidden"); color:var(--rz-danger)">
-            @(_emailError ?? "placeholder")
-        </span>
-    </div>
-    <div>
-        <label style="display:block; margin-bottom:0.25rem; font-size:0.875rem">Role</label>
-        <RadzenDropDown @bind-Value="_role" Data="_roles" Style="width:100%" />
-    </div>
-    <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.End" Gap="0.5rem">
-        <RadzenButton Text="Cancel" ButtonStyle="ButtonStyle.Light" Click="@(() => DialogService.Close(null))" />
-        <RadzenButton Text="Create" ButtonStyle="ButtonStyle.Primary"
-                      Disabled="@(!IsValid)"
-                      Click="OnCreate" />
-    </RadzenStack>
-</RadzenStack>
+<OxStack Gap="6">
+    <OxField Label="Username" Error="@_usernameError" ReserveError="true">
+        <OxTextInput Value="@_username" ValueChanged="OnUsernameInput" Placeholder="e.g. jsmith" AutoFocus="true" Invalid="@(_usernameError is not null)"
+                     OnEnter="OnEnter" OnEscape="@(() => DialogService.Close(null))" />
+    </OxField>
+    <OxField Label="Email" Error="@_emailError" ReserveError="true">
+        <OxTextInput Type="email" Value="@_email" ValueChanged="OnEmailInput" Placeholder="user@example.com" Invalid="@(_emailError is not null)"
+                     OnEnter="OnEnter" OnEscape="@(() => DialogService.Close(null))" />
+    </OxField>
+    <OxField Label="Role">
+        <RadzenDropDown @bind-Value="_role" Data="_roles" />
+    </OxField>
+    <OxStack Row="true" Justify="OxJustify.End" Gap="4">
+        <OxButton OnClick="@(() => DialogService.Close(null))">Cancel</OxButton>
+        <OxButton Variant="OxButtonVariant.Primary" Disabled="@(!IsValid)" OnClick="OnCreate">Create</OxButton>
+    </OxStack>
+</OxStack>
 
 @code {
     string _username = string.Empty;
@@ -43,9 +32,9 @@
     bool IsValid => _usernameError is null && _emailError is null
         && !string.IsNullOrWhiteSpace(_username) && !string.IsNullOrWhiteSpace(_email);
 
-    void OnUsernameInput(ChangeEventArgs e)
+    void OnUsernameInput(string value)
     {
-        _username = e.Value?.ToString() ?? string.Empty;
+        _username = value;
         if (string.IsNullOrWhiteSpace(_username))
             _usernameError = "Username is required.";
         else if (!_username.All(c => char.IsLetterOrDigit(c) || c == '_' || c == '-'))
@@ -54,17 +43,16 @@
             _usernameError = null;
     }
 
-    void OnEmailInput(ChangeEventArgs e)
+    void OnEmailInput(string value)
     {
-        _email = e.Value?.ToString() ?? string.Empty;
+        _email = value;
         try { _ = new System.Net.Mail.MailAddress(_email); _emailError = null; }
         catch { _emailError = "Enter a valid email address."; }
     }
 
-    void OnKeyDown(KeyboardEventArgs e)
+    void OnEnter()
     {
-        if (e.Key == "Enter" && IsValid) OnCreate();
-        else if (e.Key == "Escape") DialogService.Close(null);
+        if (IsValid) OnCreate();
     }
 
     void OnCreate() => DialogService.Close(new Result(_username.Trim(), _email.Trim(), _role));
