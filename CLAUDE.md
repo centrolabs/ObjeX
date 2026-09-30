@@ -8,11 +8,12 @@ Self-hosted blob storage built with Clean Architecture in .NET 10.
 
 ```
 src/
-├── ObjeX.Api/           # ASP.NET Core host — Program.cs (composition only), Startup/, Endpoints/, Middleware/, Auth/
+├── ObjeX.Api/           # ASP.NET Core host — Program.cs (composition only), Startup/, Endpoints/, Middleware/, Auth/, Jobs/
 │   ├── Endpoints/       # AccountEndpoints, DownloadEndpoints, PresignEndpoints
 │   │   └── S3Endpoints/ # S3BucketEndpoint, S3ObjectEndpoint, S3MultipartEndpoint, S3PostObjectEndpoint
 │   ├── Middleware/      # SigV4AuthMiddleware, SecurityHeadersMiddleware
 │   ├── Auth/            # HangfireAuthorizationFilter
+│   ├── Jobs/            # HangfireJobMonitor (IJobMonitor: recurring jobs, recent runs, run now, results in words)
 │   ├── Options/         # ServerOptions (ports), ReverseProxyOptions, AuthOptions (lockout, RememberMeDays), DatabaseOptions, StorageOptions (blob root, upload cap, min free disk), SeedOptions
 │   ├── Startup/         # ServiceCollectionExtensions (AddObjeX* per concern), DatabaseInitializer (migrate, pragmas, legacy blob paths, roles, admin, seeding), BackgroundJobs (Hangfire wiring, recurring schedule, stale-job prune)
 │   ├── Components/      # App.razor (host document), _Imports.razor
@@ -20,7 +21,7 @@ src/
 │   ├── S3/              # S3Pipeline (the S3 port's request pipeline), SigV4Parser, SigV4Signer, S3Xml, S3Errors, S3Subresources (501 for unsupported ?acl, ?tagging, …), ObjectHeaders (stored x-amz-meta-* and system headers), Preconditions (conditional writes), ContinuationToken, CopySourceRange, LimitedStream (UploadPartCopy), S3RequestBody, AwsChunkedStream, ObjectDeletion, StorageQuota, ContentMd5
 │   └── Metrics/         # ObjeXMetrics, BucketMetricsSyncJob
 ├── ObjeX.Core/          # Domain — zero framework dependencies
-│   ├── Interfaces/      # IMetadataService, IObjectStorageService, IStorageQuotaService, IStorageSpaceService, IHashService, IHasTimestamps
+│   ├── Interfaces/      # IMetadataService, IObjectStorageService, IStorageQuotaService, IStorageSpaceService, IJobMonitor, IHashService, IHasTimestamps
 │   ├── Models/          # Bucket, BlobObject, S3Credential, User, AuditEntry, ListObjectsResult, MultipartUpload, MultipartUploadPart, SystemSettings
 │   ├── Utilities/       # HashingStream (MD5 passthrough for ETag computation during upload), PresignedUrlGenerator, S3Conventions (region, addressing style), InlineMediaTypes (download/preview allowlist), ETags (multipart ETag detection)
 │   └── Validation/      # BucketNameValidator (GetValidationError)
@@ -35,13 +36,13 @@ src/
 │   └── Storage/         # FileSystemStorageService, StorageSpaceService (free disk of the blob volume), LegacyKeyPathMigration (moves pre-1.2.5 alias blobs to their raw-key path at startup)
 ├── ObjeX.Migrations.PostgreSql/  # PostgreSQL-specific EF Core migrations
 ├── ObjeX.Tests/         # xUnit — unit (Core validators, hashing) + integration (WebApplicationFactory, real SQLite, or PostgreSQL with OBJEX_TEST_POSTGRES)
-│   ├── Unit/            # BucketNameValidator, ObjectKeyValidator, HashingStream, Sha256HashService, StorageSpaceStatus, ETags, CustomMetadata, InlineMediaTypes, S3ClientSnippets, TextPreview, BrowserTimeZone, SearchPattern, UiRules (design rules, reads the UI sources as text), ThemeMode
-│   └── Integration/     # S3 API round-trips, S3 conformance and pagination, auth, multipart, quotas, storage space, resilience, cookie auth, health, styleguide
+│   ├── Unit/            # BucketNameValidator, ObjectKeyValidator, HashingStream, Sha256HashService, StorageSpaceStatus, ETags, CustomMetadata, InlineMediaTypes, S3ClientSnippets, TextPreview, BrowserTimeZone, CronText, AppVersion, SearchPattern, UiRules (design rules, reads the UI sources as text), ThemeMode
+│   └── Integration/     # S3 API round-trips, S3 conformance and pagination, auth, multipart, quotas, storage space, resilience, cookie auth, health, styleguide, background jobs and the Hangfire dashboard
 └── ObjeX.Web/           # Razor class library: components, pages, dialogs, layout — no host, no wwwroot
-    ├── Helpers/         # FileHelper, AppVersion, S3ClientSnippets, TextPreview, CustomMetadata
+    ├── Helpers/         # FileHelper, AppVersion, S3ClientSnippets, TextPreview, CustomMetadata, CronText (cron in words)
     ├── Services/        # ThemeMode (objex-theme cookie → Radzen theme and token mode class), BrowserTimeZone (the circuit's browser zone, set by Routes from the objex-tz cookie)
     └── Components/      # Routes, RedirectToLogin, S3ConnectSnippets
-        ├── Pages/       # Dashboard, Buckets, Objects, Settings, Login, NotFound, Users, ChangePassword, AuditLog, Error, Profile, Styleguide (Development only)
+        ├── Pages/       # Dashboard, Buckets, Objects, Settings, Login, NotFound, Users, ChangePassword, AuditLog, Jobs, Error, Profile, Styleguide (Development only)
         ├── Dialogs/     # CreateBucketDialog, UploadObjectDialog, CreateS3CredentialDialog, ShowS3CredentialDialog, CreateFolderDialog, CreateUserDialog, ShowUserPasswordDialog, ChangeOwnerDialog, FilePreviewDialog, FileMetadataDialog, PresignedUrlDialog, S3ConnectDialog, ConfirmDialog, SetQuotaDialog
         ├── Layout/      # MainLayout, NavMenu, SidebarFooter, EmptyLayout, ReconnectModal
         └── Ui/          # the UI library: Ox* components with scoped CSS, OxEnums.cs (enums, OxSizes)
@@ -105,7 +106,8 @@ UI pipeline (everything else)
   UseAuthentication        ← Identity cookie handler, sets context.User for cookie sessions
   UseAuthorization         ← enforces policies on the already-resolved context.User
   UseAntiforgery
-  UseHangfireDashboard, health, metrics, Blazor, /api/*, /account/*
+  UseHangfireDashboard     ← Development only
+  health, metrics, Blazor, /api/*, /account/*
 ```
 
 The S3 pipeline is a fresh `ApplicationBuilder`, not an `app.MapWhen` branch: a branch of `app` shares the global endpoint route builder, and UI endpoints would match inside it. Integration tests select the pipeline with the `X-ObjeX-Test-Port` header (see `ObjeXFactory`), because TestServer has no sockets and `LocalPort` is always 0.
@@ -148,8 +150,8 @@ No named policies are defined. S3 endpoints use `.RequireAuthorization()` on the
 - `ObjeXDbContext` extends `IdentityDbContext<User>`
 - Roles: `Admin`, `Manager`, `User` — all three seeded on every startup (idempotent). See role table below.
 - Role hierarchy: Admin (1, permanent singleton) → Manager (0–N, promoted by Admin) → User (default)
-  - **Admin**: full access, user management, role promotion, Settings incl. presigned URLs + storage quotas, Hangfire, all buckets, unlimited storage by default
-  - **Manager**: Users page, Settings incl. presigned URLs + storage quotas, all buckets — cannot promote/demote roles, no Hangfire, unlimited storage by default
+  - **Admin**: full access, user management, role promotion, Settings incl. presigned URLs + storage quotas, Jobs page, all buckets, unlimited storage by default
+  - **Manager**: Users page, Settings incl. presigned URLs + storage quotas, all buckets — cannot promote/demote roles, no Jobs page, unlimited storage by default
   - **User**: S3 credentials, dark mode, own buckets only, subject to global storage quota (configurable in Settings)
 - Password requirements relaxed for MVP (min 4 chars, no complexity rules)
 - Account lockout: `Auth:Lockout:MaxFailedAttempts` (default 5) failed logins lock the account for `Auth:Lockout:DurationMinutes` (default 5). Per account, failures only, enforced by Identity via `lockoutOnFailure: true` in `AccountEndpoints`. No IP-based rate limiting by design — CGNAT and shared proxies put many users behind one IP. A locked account shows as `Locked` on the Users page with an **Unlock** button (Admin and Manager, any row including the admin's own) that clears `LockoutEnd` and resets the failed-attempt count. `Auth:RememberMeDays` (default 30) is the cookie lifetime for logins that tick "Stay signed in".
@@ -210,7 +212,7 @@ EF Core `.ValueGeneratedNever()` on `Id`. Unique index on `AccessKeyId`.
 
 ### Hangfire Dashboard Auth
 
-`HangfireAuthorizationFilter` (`ObjeX.Api/Auth/`) requires `IsInRole("Admin")` on the cookie-authenticated user; there is no localhost bypass. Dashboard is at `/hangfire`.
+The Hangfire dashboard is mapped at `/hangfire` in Development only (`Program.cs`). Outside Development `/hangfire` is an unknown path: the status code pages redirect it to `/not-found`, for the admin too. Admins use the Jobs page (`/jobs`) instead. `HangfireAuthorizationFilter` (`ObjeX.Api/Auth/`) requires `IsInRole("Admin")` on the cookie-authenticated user; there is no localhost bypass. Covered by `HangfireDashboardTests`.
 
 ---
 
@@ -223,6 +225,10 @@ Hangfire is wired in `ObjeX.Api` only. Job classes live in `ObjeX.Infrastructure
 **Storage:** Hangfire reuses the same `objex.db` SQLite file. Note: `Hangfire.Storage.SQLite` takes a **file path** (`/path/objex.db`), not an EF Core connection string (`Data Source=...`). `DatabaseOptions.SqliteFilePath` carries that absolute path; `BackgroundJobs.AddObjeXBackgroundJobs` (`Startup/`) passes it to `UseSQLiteStorage`, or uses `UsePostgreSqlStorage` for PostgreSQL.
 
 **Recurring schedule and pruning:** `BackgroundJobs.RegisterRecurringJobs(app.Services)` declares the three jobs below and then removes every recurring job Hangfire still holds in storage that this version does not declare. Without that, a removed or renamed job class stays in storage and fails to load on every scheduler tick. Covered by `BackgroundJobsTests`.
+
+**Retention:** `WithJobExpirationTimeout(BackgroundJobs.RunRetention)` in `AddObjeXBackgroundJobs` keeps succeeded and deleted runs 30 days instead of Hangfire's one day, so the Jobs page still shows the last run of a weekly job. Failed runs never expire.
+
+**Jobs page:** `/jobs` (`Pages/Jobs.razor`, Admin only) replaces the dashboard. It reads `IJobMonitor` (`ObjeX.Core/Interfaces`, plain records), implemented by `HangfireJobMonitor` (`ObjeX.Api/Jobs/`, singleton from `AddObjeXBackgroundJobs`), because `ObjeX.Web` cannot reference Hangfire or `ObjeX.Api`. The monitor lists the recurring jobs via `GetRecurringJobs()`, collects run ids from `IMonitoringApi` (`ProcessingJobs`, `SucceededJobs`, `FailedJobs`) and reads every run from `JobDetails(id).History`, whose data the Hangfire state classes write themselves (the `StateData` of the list DTOs is null on SQLite). The job result is deserialized with `SerializationHelper` into its record and put in words (`HangfireJobMonitor.Describe`); a new job needs a name in `HangfireJobMonitor.Known` and a case in `Describe`. "Run now" calls `IRecurringJobManager.Trigger`. A failed attempt that `AutomaticRetry` (default 10 attempts) reschedules shows as Retrying with the retry reason. The page reloads every 3 s while a run is queued or running. Covered by `JobMonitorTests`.
 
 **DI registration:** `FileSystemStorageService` is registered as a singleton under its **concrete type first**, then aliased as `IObjectStorageService` (`ServiceCollectionExtensions.AddObjeXStorage`). This lets the job inject the concrete type directly (no cast) while the rest of the app uses the interface:
 ```csharp
@@ -240,7 +246,7 @@ services.AddSingleton<IObjectStorageService>(sp => sp.GetRequiredService<FileSys
 
 `CleanupResult` (record, defined in same file): `FilesChecked`, `FilesDeleted`, `DurationSeconds`, `Timestamp`.
 `IntegrityResult` (record, defined in same file): `Checked`, `Corrupted`, `Missing`, `Skipped`, `DurationSeconds`, `Timestamp`.
-`AbandonedMultipartResult` (record, defined in same file): `UploadsChecked`, `UploadsDeleted`, `DurationSeconds`, `Timestamp`. Returning a value from the job method makes the result visible in the Hangfire dashboard job history.
+`AbandonedMultipartResult` (record, defined in same file): `UploadsChecked`, `UploadsDeleted`, `DurationSeconds`, `Timestamp`. Returning a value from the job method makes the result visible on the Jobs page.
 
 `FileSystemStorageService.BasePath` is `internal` — accessible to jobs in the same `ObjeX.Infrastructure` assembly, not visible outside.
 
@@ -429,7 +435,7 @@ External S3 clients → HTTP → ObjeX.Api endpoints → same services
 
 **Render mode:** Set globally on `<Routes @rendermode="InteractiveServer" />` in `ObjeX.Api/Components/App.razor`. Do NOT add `@rendermode` per-page — the global setting covers all pages.
 
-**Layout:** `MainLayout` renders `OxShell`: sidebar with `NavMenu` (Dashboard, Buckets, Audit Log, Users, Jobs, Settings; Jobs is the Hangfire dashboard and leaves the circuit with a full page load) and `SidebarFooter` (disk meter, user, sign out, version). Below 900 px the sidebar is a drawer. Page content starts with `OxPageHeader`; its title or `OxBreadcrumbs` is the `<h1>` that `FocusOnNavigate` targets.
+**Layout:** `MainLayout` renders `OxShell`: sidebar with `NavMenu` (Dashboard, Buckets, Audit Log, Users, Jobs, Settings; Audit Log and Jobs for the Admin only) and `SidebarFooter` (disk meter, user, sign out, version). Below 900 px the sidebar is a drawer. Page content starts with `OxPageHeader`; its title or `OxBreadcrumbs` is the `<h1>` that `FocusOnNavigate` targets.
 
 **UI library:** `ObjeX.Web/Components/Ui/`, style "Papier". Pages, dialogs and layout use only `Ox*` components plus the Radzen components that stay: `RadzenDataGrid`, charts, `RadzenComponents` (dialog, notification, context menu, tooltip), `RadzenDropDown`, `RadzenNumeric`. No `RadzenStack`, `RadzenText`, `RadzenButton`, `RadzenCard`, `RadzenLayout`, `RadzenSidebar`, `RadzenPanelMenu`, `RadzenBadge`, `RadzenFormField`. When a value or a component is missing, add it to the tokens or to `Ui/` first, then use it. Radzen is registered via `AddRadzenComponents()` in `Startup/ServiceCollectionExtensions.AddObjeXBlazor`. `<RadzenComponents />` in `MainLayout.razor` hosts dialog, notification, context menu, tooltip and chart tooltip. Do not add a separate `<RadzenDialog />`, `<RadzenNotification />` or `<RadzenContextMenu />` next to it — each host subscribes to the service unguarded, so a second one renders every popup twice. `EmptyLayout` (login, change password, styleguide) has its own `<RadzenDialog />` and `<RadzenNotification />`, because it never renders together with `MainLayout`.
 
@@ -498,7 +504,8 @@ GET    /health            → liveness (200 if process is up, no checks); also a
 GET    /health/ready      → readiness (checks DB connectivity + blob storage writability)
 GET    /metrics           → Prometheus metrics (HTTP request stats + per-bucket storage gauges, synced every 30s, deleted buckets dropped); open unless Metrics:Token is set (Bearer)
 GET    /audit             → Audit log (Admin only); server-side paginated table of bucket/object operations
-GET    /hangfire          → Hangfire dashboard (Admin role only)
+GET    /jobs              → Jobs page (Admin only); recurring jobs, recent runs, run now
+GET    /hangfire          → Hangfire dashboard (Development only, Admin role); elsewhere redirected to /not-found like any unknown path
 GET    /styleguide        → Ui library styleguide (Development only, 404 otherwise)
 
 # S3-Compatible API — Server:S3Port, default 9000 (AWS Signature V4 required)
@@ -588,7 +595,7 @@ POST   /                        → S3 POST Object (bucketEndpoint mode); bucket
 
 **`cd.yml`** — triggers only on a `v*` tag push, so `latest` is always the last release. Runs the tests, builds multi-arch image (amd64/arm64) via Buildx + QEMU and pushes to GitHub Container Registry (`ghcr.io/centrolabs/objex:latest` + `ghcr.io/centrolabs/objex:<tag>`), then packages `deploy/helm/objex` with chart version `X.Y.Z` and appVersion `vX.Y.Z` and pushes it to `oci://ghcr.io/centrolabs/charts`. The image tag in the chart defaults to its appVersion; the repo copy carries `0.0.0`/`latest` placeholders. The image carries BuildKit SBOM and provenance attestations, plus a Sigstore-signed provenance from `actions/attest-build-provenance`; verify with `gh attestation verify oci://ghcr.io/centrolabs/objex:<tag> --owner centrolabs`. The `scan` job builds an SPDX SBOM of the pushed image with Syft (`anchore/sbom-action`), scans it with Grype and uploads the SARIF to Code Scanning; the scan never fails the release, because the image is already public by then. The release job attaches `objex-<tag>.spdx.json`. Uses `GITHUB_TOKEN` (automatic, no manual secrets needed).
 
-**Release** — tag a commit on `main` as `vX.Y.Z` and push the tag; no release commit. Optional hand-written notes go in `.github/release-notes/vX.Y.Z.md`; CD puts them above the generated release notes. CD strips the `v` and passes the rest as the `VERSION` build arg (`-p:Version`), builds and pushes the image and creates the GitHub release. `Directory.Build.props` keeps `<Version>0.0.0</Version>`, so local builds show 0.0.0 and the lock files never change on a release. The nav footer shows `ObjeX <version> (<sha>)`; the sha comes from the SDK locally and from the `SOURCE_REVISION` build arg in Docker. The same arg sets the image labels `org.opencontainers.image.revision` and `org.opencontainers.image.source`.
+**Release** — tag a commit on `main` as `vX.Y.Z` and push the tag; no release commit. Optional hand-written notes go in `.github/release-notes/vX.Y.Z.md`; CD puts them above the generated release notes. CD strips the `v` and passes the rest as the `VERSION` build arg (`-p:Version`), builds and pushes the image and creates the GitHub release. `Directory.Build.props` keeps `<Version>0.0.0</Version>`, so the lock files never change on a release. The nav footer shows `ObjeX <version> (<sha>)`, and `ObjeX dev (<sha>)` for a local build, whose version is 0.0.0 (`AppVersion.Display`); the sha comes from the SDK locally and from the `SOURCE_REVISION` build arg in Docker. The same arg sets the image labels `org.opencontainers.image.revision` and `org.opencontainers.image.source`.
 
 **`.github/dependabot.yml`** — weekly Monday PRs: one `nuget` group for all minor and patch updates (major updates come as single PRs, max 5 open) and one `github-actions` group.
 
@@ -602,7 +609,8 @@ POST   /                        → S3 POST Object (bucketEndpoint mode); bucket
 cd src/ObjeX.Api
 dotnet run
 # → http://localhost:9001  (login: admin / admin, forced password change on first login)
-# → http://localhost:9001/hangfire   (job dashboard)
+# → http://localhost:9001/jobs       (background jobs, Admin)
+# → http://localhost:9001/hangfire   (Hangfire dashboard, Development only)
 # → http://localhost:9001/health
 ```
 
