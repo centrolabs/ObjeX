@@ -33,12 +33,13 @@ public class LastUsedThrottleTests(ObjeXFactory factory) : IClassFixture<ObjeXFa
     [Fact]
     public async Task RecentValue_IsNotRewritten()
     {
-        var recent = DateTime.UtcNow.AddSeconds(-20);
-        await SetLastUsedAsync(recent);
+        await SetLastUsedAsync(DateTime.UtcNow.AddSeconds(-20));
+        // Read back what the database kept: PostgreSQL stores microseconds, DateTime carries 100 ns ticks.
+        var stored = await GetLastUsedAsync();
 
         await SendSignedRequestAsync();
 
-        Assert.Equal(recent, await GetLastUsedAsync());
+        Assert.Equal(stored, await GetLastUsedAsync());
     }
 
     [Fact]
