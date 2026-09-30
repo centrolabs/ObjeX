@@ -26,4 +26,5 @@ public static class S3Errors
     public const string PreconditionFailed = "PreconditionFailed";
     public const string InvalidRange = "InvalidRange";
     public const string InvalidRequest = "InvalidRequest";
+    public const string IncompleteBody = "IncompleteBody";
 }

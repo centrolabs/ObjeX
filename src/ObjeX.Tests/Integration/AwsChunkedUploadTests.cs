@@ -72,6 +72,19 @@ public class AwsChunkedUploadTests(ObjeXFactory factory) : IClassFixture<ObjeXFa
     }
 
     [Fact]
+    public async Task Put_TruncatedAwsChunkedBody_Returns400()
+    {
+        var body = "5\r\nab"u8.ToArray();
+        var request = new HttpRequestMessage(HttpMethod.Put, "/test-bucket/chunked/truncated.txt") { Content = new ByteArrayContent(body) };
+        S3RequestSigner.SignRequest(request, factory.AccessKeyId, factory.SecretAccessKey, body, contentSha256: "STREAMING-UNSIGNED-PAYLOAD-TRAILER");
+
+        var response = await _s3.SendAsync(request);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Contains("<Code>IncompleteBody</Code>", await response.Content.ReadAsStringAsync());
+    }
+
+    [Fact]
     public async Task UploadPart_AwsChunked_StoresTheDecodedBytes()
     {
         const string key = "chunked/multipart.bin";

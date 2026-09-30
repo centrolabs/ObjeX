@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Diagnostics;
 using ObjeX.Api.Endpoints.S3Endpoints;
 using ObjeX.Api.Middleware;
 
@@ -26,8 +27,11 @@ public static class S3Pipeline
         var s3 = new ApplicationBuilder(app.Services, ((IApplicationBuilder)app).ServerFeatures);
 
         s3.UseExceptionHandler(errors => errors.Run(ctx =>
-            S3Xml.WriteErrorAsync(ctx, S3Errors.InternalError,
-                "We encountered an internal error. Please try again.", StatusCodes.Status500InternalServerError)));
+            ctx.Features.Get<IExceptionHandlerFeature>()?.Error is InvalidDataException
+                ? S3Xml.WriteErrorAsync(ctx, S3Errors.IncompleteBody,
+                    "The request body is not a complete aws-chunked stream.", StatusCodes.Status400BadRequest)
+                : S3Xml.WriteErrorAsync(ctx, S3Errors.InternalError,
+                    "We encountered an internal error. Please try again.", StatusCodes.Status500InternalServerError)));
 
         s3.Use((ctx, next) =>
         {
