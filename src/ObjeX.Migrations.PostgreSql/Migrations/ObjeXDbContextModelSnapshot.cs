@@ -17,7 +17,7 @@ namespace ObjeX.Migrations.PostgreSql.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "10.0.5")
+                .HasAnnotation("ProductVersion", "10.0.12")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
@@ -362,6 +362,10 @@ namespace ObjeX.Migrations.PostgreSql.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
+
+                    b.Property<string>("CustomMetadata")
+                        .HasColumnType("text")
+                        .HasColumnName("custom_metadata");
 
                     b.Property<string>("InitiatedByUserId")
                         .IsRequired()
