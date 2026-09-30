@@ -216,14 +216,18 @@ public static class S3Xml
         return Results.Content(xml.ToString(), "application/xml", Encoding.UTF8);
     }
 
-    public static IResult CopyObjectResult(string etag, DateTime lastModified)
+    public static IResult CopyObjectResult(string etag, DateTime lastModified) => CopyResult("CopyObjectResult", etag, lastModified);
+
+    public static IResult CopyPartResult(string etag, DateTime lastModified) => CopyResult("CopyPartResult", etag, lastModified);
+
+    private static IResult CopyResult(string root, string etag, DateTime lastModified)
     {
         var xml = new StringBuilder();
         xml.AppendLine("<?xml version=\"1.0\" encoding=\"UTF-8\"?>");
-        xml.AppendLine("<CopyObjectResult xmlns=\"http://s3.amazonaws.com/doc/2006-03-01/\">");
+        xml.AppendLine($"<{root} xmlns=\"http://s3.amazonaws.com/doc/2006-03-01/\">");
         xml.AppendLine($"  <ETag>&quot;{Escape(etag)}&quot;</ETag>");
         xml.AppendLine($"  <LastModified>{lastModified:yyyy-MM-ddTHH:mm:ss.fffZ}</LastModified>");
-        xml.AppendLine("</CopyObjectResult>");
+        xml.AppendLine($"</{root}>");
         return Results.Content(xml.ToString(), "application/xml", Encoding.UTF8);
     }
 
