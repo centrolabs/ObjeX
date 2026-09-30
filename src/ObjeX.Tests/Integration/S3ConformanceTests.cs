@@ -259,6 +259,64 @@ public class S3ConformanceTests(ObjeXFactory factory) : IClassFixture<ObjeXFacto
         Assert.Equal(await first.Content.ReadAsStringAsync(), await second.Content.ReadAsStringAsync());
     }
 
+    private async Task<string> PutAsync(string bucket, string key, string body) =>
+        (await SendAsync(HttpMethod.Put, $"/{bucket}/{key}", body)).Headers.ETag!.Tag;
+
+    [Fact]
+    public async Task PutIfNoneMatchStar_OnExistingKey_FailsAndKeepsTheObject()
+    {
+        var bucket = await NewBucketAsync();
+        await PutAsync(bucket, "foo", "original");
+
+        var response = await SendAsync(HttpMethod.Put, $"/{bucket}/foo", "new", r => r.Headers.TryAddWithoutValidation("If-None-Match", "*"));
+
+        Assert.Equal(HttpStatusCode.PreconditionFailed, response.StatusCode);
+        Assert.Equal("original", await (await SendAsync(HttpMethod.Get, $"/{bucket}/foo")).Content.ReadAsStringAsync());
+        Assert.Equal(HttpStatusCode.OK, (await SendAsync(HttpMethod.Put, $"/{bucket}/new", "x", r => r.Headers.TryAddWithoutValidation("If-None-Match", "*"))).StatusCode);
+    }
+
+    [Fact]
+    public async Task PutIfMatch_WritesOnlyOverTheMatchingETag()
+    {
+        var bucket = await NewBucketAsync();
+        var etag = await PutAsync(bucket, "foo", "original");
+
+        Assert.Equal(HttpStatusCode.PreconditionFailed, (await SendAsync(HttpMethod.Put, $"/{bucket}/foo", "new", r => r.Headers.TryAddWithoutValidation("If-Match", "\"abc\""))).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await SendAsync(HttpMethod.Put, $"/{bucket}/missing", "new", r => r.Headers.TryAddWithoutValidation("If-Match", etag))).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await SendAsync(HttpMethod.Put, $"/{bucket}/foo", "new", r => r.Headers.TryAddWithoutValidation("If-Match", etag))).StatusCode);
+    }
+
+    [Fact]
+    public async Task CompleteMultipart_IfNoneMatchStar_FailsOnExistingKey()
+    {
+        var bucket = await NewBucketAsync();
+        await PutAsync(bucket, "mp", "original");
+        var (uploadId, completeXml) = await UploadOnePartAsync(bucket, "mp");
+
+        var response = await SendAsync(HttpMethod.Post, $"/{bucket}/mp?uploadId={uploadId}", completeXml, r => r.Headers.TryAddWithoutValidation("If-None-Match", "*"));
+
+        Assert.Equal(HttpStatusCode.PreconditionFailed, response.StatusCode);
+        Assert.Equal("original", await (await SendAsync(HttpMethod.Get, $"/{bucket}/mp")).Content.ReadAsStringAsync());
+    }
+
+    [Theory]
+    [InlineData("x-amz-copy-source-if-match", "\"abc\"")]
+    [InlineData("x-amz-copy-source-if-none-match", null)]
+    public async Task CopyWithFailingSourceCondition_Returns412(string header, string? value)
+    {
+        var bucket = await NewBucketAsync();
+        var etag = await PutAsync(bucket, "src", "bar");
+
+        var response = await SendAsync(HttpMethod.Put, $"/{bucket}/dst", configure: r =>
+        {
+            r.Headers.Add("x-amz-copy-source", $"{bucket}/src");
+            r.Headers.TryAddWithoutValidation(header, value ?? etag);
+        });
+
+        Assert.Equal(HttpStatusCode.PreconditionFailed, response.StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await SendAsync(HttpMethod.Head, $"/{bucket}/dst")).StatusCode);
+    }
+
     [Fact]
     public async Task KeyWithLiteralPercent_SignsAndRoundTrips()
     {

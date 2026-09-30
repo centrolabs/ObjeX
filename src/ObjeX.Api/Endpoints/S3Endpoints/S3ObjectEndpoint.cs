@@ -127,6 +127,9 @@ public static class S3ObjectEndpoint
                 if (srcObj is null)
                     return S3Xml.Error(S3Errors.NoSuchKey, "The specified source key does not exist.", 404);
 
+                if (Preconditions.CheckCopySource(request, srcObj) is { } copyConditionFailed)
+                    return copyConditionFailed;
+
                 if (await metadata.GetBucketAsync(bucket, IsPrivileged(ctx) ? null : GetCallerId(ctx)) is null)
                     return S3Xml.Error(S3Errors.NoSuchBucket, "The destination bucket does not exist.", 404);
 
@@ -161,6 +164,9 @@ public static class S3ObjectEndpoint
 
             if (fs.GetAvailableFreeSpace() < storageOptions.Value.MinimumFreeDiskBytes)
                 return S3Xml.Error(S3Errors.EntityTooLarge, "Insufficient disk space.", 507);
+
+            if (Preconditions.HasWriteConditions(request) && Preconditions.CheckWrite(request, await metadata.GetObjectAsync(bucket, key)) is { } conditionFailed)
+                return conditionFailed;
 
             // Pre-check with Content-Length if available; catches already-over-quota early
             var quotaError = await StorageQuota.CheckAsync(ctx, bucket, key, S3RequestBody.DecodedContentLength(request) ?? 0);
