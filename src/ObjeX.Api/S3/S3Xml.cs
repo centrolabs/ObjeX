@@ -10,7 +10,7 @@ public static class S3Xml
     private static string Escape(string? value) =>
         SecurityElement.Escape(value ?? string.Empty) ?? string.Empty;
 
-    public static IResult ListBuckets(IEnumerable<Bucket> buckets)
+    public static IResult ListBuckets(IEnumerable<Bucket> buckets, string? prefix, string? continuationToken)
     {
         var xml = new StringBuilder();
         xml.AppendLine("<?xml version=\"1.0\" encoding=\"UTF-8\"?>");
@@ -25,6 +25,10 @@ public static class S3Xml
             xml.AppendLine("    </Bucket>");
         }
         xml.AppendLine("  </Buckets>");
+        if (!string.IsNullOrEmpty(prefix))
+            xml.AppendLine($"  <Prefix>{Escape(prefix)}</Prefix>");
+        if (continuationToken is not null)
+            xml.AppendLine($"  <ContinuationToken>{continuationToken}</ContinuationToken>");
         xml.AppendLine("</ListAllMyBucketsResult>");
         return Results.Content(xml.ToString(), "application/xml", Encoding.UTF8);
     }
@@ -128,24 +132,32 @@ public static class S3Xml
         Results.Content("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<VersioningConfiguration xmlns=\"http://s3.amazonaws.com/doc/2006-03-01/\"/>",
             "application/xml", Encoding.UTF8);
 
-    public static IResult Error(string code, string message, int statusCode = 400)
-        => Results.Content(ErrorDocument(code, message), "application/xml", Encoding.UTF8, statusCode);
+    public static IResult Error(string code, string message, int statusCode = 400) => new ErrorResult(code, message, statusCode);
+
+    private sealed record ErrorResult(string Code, string Message, int StatusCode) : IResult
+    {
+        public Task ExecuteAsync(HttpContext httpContext) => WriteErrorAsync(httpContext, Code, Message, StatusCode);
+    }
 
     /// <summary>Writes an S3 error document straight to the response. For middleware, which has no IResult.</summary>
     public static Task WriteErrorAsync(HttpContext context, string code, string message, int statusCode)
     {
         context.Response.StatusCode = statusCode;
         context.Response.ContentType = "application/xml";
-        return context.Response.WriteAsync(ErrorDocument(code, message));
+        context.Response.Headers[RequestIdHeader] = context.TraceIdentifier;
+        return context.Response.WriteAsync(ErrorDocument(code, message, context.TraceIdentifier));
     }
 
-    private static string ErrorDocument(string code, string message)
+    public const string RequestIdHeader = "x-amz-request-id";
+
+    private static string ErrorDocument(string code, string message, string requestId)
     {
         var xml = new StringBuilder();
         xml.AppendLine("<?xml version=\"1.0\" encoding=\"UTF-8\"?>");
         xml.AppendLine("<Error>");
         xml.AppendLine($"  <Code>{Escape(code)}</Code>");
         xml.AppendLine($"  <Message>{Escape(message)}</Message>");
+        xml.AppendLine($"  <RequestId>{Escape(requestId)}</RequestId>");
         xml.AppendLine("</Error>");
         return xml.ToString();
     }

@@ -12,6 +12,7 @@ public class BucketNameValidatorTests
     [InlineData("a23")]
     [InlineData("bucket-with-numbers-123")]
     [InlineData("9apps")]
+    [InlineData("my.bucket.name")]
     public void Valid_Names_Return_Null(string name)
     {
         Assert.Null(BucketNameValidator.GetValidationError(name));
@@ -79,10 +80,14 @@ public class BucketNameValidatorTests
         Assert.NotNull(BucketNameValidator.GetValidationError(name));
     }
 
-    [Fact]
-    public void Consecutive_Periods_Returns_Error()
+    [Theory]
+    [InlineData("a..b")]
+    [InlineData("my.-bucket")]
+    [InlineData("my-.bucket")]
+    [InlineData("192.168.5.4")]
+    public void Invalid_Period_Placement_Returns_Error(string name)
     {
-        Assert.NotNull(BucketNameValidator.GetValidationError("a..b"));
+        Assert.NotNull(BucketNameValidator.GetValidationError(name));
     }
 
     [Theory]

@@ -263,7 +263,7 @@ public static class S3ObjectEndpoint
                 return S3Xml.Error(S3Errors.InvalidArgument, keyError);
 
             if (await metadata.GetBucketAsync(bucket, IsPrivileged(ctx) ? null : GetCallerId(ctx)) is null)
-                return S3Xml.Error(S3Errors.NoSuchKey, "The specified key does not exist.", 404);
+                return S3Xml.Error(S3Errors.NoSuchBucket, "The specified bucket does not exist.", 404);
 
             var obj = await metadata.GetObjectAsync(bucket, key);
             if (obj is null)

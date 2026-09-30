@@ -18,10 +18,28 @@ public static class S3BucketEndpoint
 
     public static void MapS3BucketEndpoints(this RouteGroupBuilder s3)
     {
-        s3.MapGet("/", async (HttpContext ctx, IMetadataService metadata) =>
+        s3.MapGet("/", async (string? prefix, HttpRequest request, HttpContext ctx, IMetadataService metadata) =>
         {
-            var buckets = await metadata.ListBucketsAsync(IsPrivileged(ctx) ? null : GetCallerId(ctx));
-            return S3Xml.ListBuckets(buckets);
+            var maxRaw = request.Query["max-buckets"].FirstOrDefault();
+            var maxBuckets = MaxBuckets;
+            if (maxRaw is not null && (!int.TryParse(maxRaw, out maxBuckets) || maxBuckets is < 1 or > MaxBuckets))
+                return S3Xml.Error(S3Errors.InvalidArgument, $"max-buckets must be between 1 and {MaxBuckets}.");
+
+            var token = request.Query["continuation-token"].FirstOrDefault();
+            string? after = null;
+            if (!string.IsNullOrEmpty(token) && !ContinuationToken.TryDecode(token, out after))
+                return S3Xml.Error(S3Errors.InvalidArgument, "The continuation token provided is incorrect.");
+
+            var buckets = (await metadata.ListBucketsAsync(IsPrivileged(ctx) ? null : GetCallerId(ctx)))
+                .Where(b => string.IsNullOrEmpty(prefix) || b.Name.StartsWith(prefix, StringComparison.Ordinal))
+                .Where(b => after is null || string.CompareOrdinal(b.Name, after) > 0)
+                .OrderBy(b => b.Name, StringComparer.Ordinal)
+                .Take(maxBuckets + 1)
+                .ToList();
+
+            var page = buckets.Take(maxBuckets).ToList();
+            var next = buckets.Count > maxBuckets ? ContinuationToken.Encode(page[^1].Name) : null;
+            return S3Xml.ListBuckets(page, prefix, next);
         });
 
         s3.MapMethods("/{bucket}", ["HEAD"], async (string bucket, HttpContext ctx, IMetadataService metadata) =>
@@ -34,6 +52,12 @@ public static class S3BucketEndpoint
         {
             if (S3Subresources.IsUnsupportedOnBucket(request))
                 return S3Subresources.NotImplemented();
+
+            // In us-east-1, S3 answers a repeated create of your own bucket with 200 and changes nothing.
+            if (await metadata.GetBucketAsync(bucket) is { } existing)
+                return existing.OwnerId == GetCallerId(ctx)
+                    ? Results.Ok()
+                    : S3Xml.Error(S3Errors.BucketAlreadyExists, $"The bucket '{bucket}' already exists.", 409);
 
             try
             {
@@ -140,6 +164,8 @@ public static class S3BucketEndpoint
             return S3Xml.ListObjects(page, listing, marker);
         });
     }
+
+    private const int MaxBuckets = 10000;
 
     /// <summary>The S3 page size cap; larger max-keys values are lowered to it, as on AWS.</summary>
     private const int MaxKeys = 1000;

@@ -46,7 +46,7 @@ public class S3BucketCrudTests(ObjeXFactory factory) : IClassFixture<ObjeXFactor
     }
 
     [Fact]
-    public async Task CreateBucket_Duplicate_ReturnsError()
+    public async Task CreateBucket_OwnBucketAgain_Succeeds()
     {
         var bucket = "dup-bucket-" + Guid.NewGuid().ToString("N")[..6] + "xx";
 
@@ -58,9 +58,7 @@ public class S3BucketCrudTests(ObjeXFactory factory) : IClassFixture<ObjeXFactor
         var put2 = new HttpRequestMessage(HttpMethod.Put, $"/{bucket}");
         S3RequestSigner.SignRequest(put2, factory.AccessKeyId, factory.SecretAccessKey);
         var response2 = await _client.SendAsync(put2);
-        Assert.Equal(HttpStatusCode.Conflict, response2.StatusCode);
-        var body = await response2.Content.ReadAsStringAsync();
-        Assert.Contains("BucketAlreadyExists", body);
+        Assert.Equal(HttpStatusCode.OK, response2.StatusCode);
 
         // Cleanup
         var del = new HttpRequestMessage(HttpMethod.Delete, $"/{bucket}");
