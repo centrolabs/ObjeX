@@ -2,12 +2,14 @@
 @using ObjeX.Core.Interfaces
 @using ObjeX.Core.Models
 @using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.Extensions.DependencyInjection
 @implements IDisposable
 @inject IMetadataService MetadataService
 @inject IStorageQuotaService QuotaService
 @inject IStorageSpaceService SpaceService
 @inject ILogger<Dashboard> Logger
 @inject AuthenticationStateProvider AuthStateProvider
+@inject IServiceScopeFactory ScopeFactory
 @inject BrowserTimeZone Tz
 
 <PageTitle>Dashboard — ObjeX</PageTitle>
@@ -173,13 +175,17 @@ else
         var auth = await AuthStateProvider.GetAuthenticationStateAsync();
         _currentUserId = auth.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? string.Empty;
         _isPrivileged = auth.User.IsInRole("Admin") || auth.User.IsInRole("Manager");
-        await LoadStats();
+        await LoadStats(MetadataService, QuotaService);
         _timer = new Timer(async _ =>
         {
             if (Interlocked.Exchange(ref _polling, 1) == 1) return;
             try
             {
-                if (await LoadStats())
+                // The timer runs beside the circuit's own work, so it must not share the circuit's scoped context.
+                await using var scope = ScopeFactory.CreateAsyncScope();
+                var changed = await LoadStats(scope.ServiceProvider.GetRequiredService<IMetadataService>(),
+                    scope.ServiceProvider.GetRequiredService<IStorageQuotaService>());
+                if (changed)
                     await InvokeAsync(StateHasChanged);
             }
             catch (Exception ex)
@@ -195,14 +201,14 @@ else
     }
 
     // The bucket rows are few and change with every upload or delete, so they decide whether the GROUP BY over all objects runs at all.
-    async Task<bool> LoadStats()
+    async Task<bool> LoadStats(IMetadataService metadata, IStorageQuotaService quotas)
     {
         // Free space moves without any bucket changing, so the disk card carries its own change check.
         var disk = SpaceService.Get();
         var diskChanged = DiskLabel(disk) != DiskLabel(_disk);
         _disk = disk;
 
-        var buckets = (await MetadataService.ListBucketsAsync(_isPrivileged ? null : _currentUserId)).OrderByDescending(b => b.TotalSize).ToList();
+        var buckets = (await metadata.ListBucketsAsync(_isPrivileged ? null : _currentUserId)).OrderByDescending(b => b.TotalSize).ToList();
         var fingerprint = string.Join("|", buckets.Select(b => $"{b.Name}:{b.ObjectCount}:{b.TotalSize}:{b.UpdatedAt.Ticks}"));
         if (fingerprint == _fingerprint)
         {
@@ -212,14 +218,14 @@ else
 
         _fingerprint = fingerprint;
         _buckets = buckets;
-        _myStorage = await QuotaService.GetAsync(_currentUserId);
+        _myStorage = await quotas.GetAsync(_currentUserId);
         _totalObjects = _buckets.Sum(b => b.ObjectCount);
         _totalSize    = _buckets.Sum(b => b.TotalSize);
         _topBySize  = _buckets.Take(5).ToList();
         _topByCount = _buckets.OrderByDescending(b => b.ObjectCount).Take(5).ToList();
 
         var ownedBucketNames = _buckets.Select(b => b.Name).ToList();
-        var contentTypeStats = (await MetadataService.GetContentTypeStatsAsync(ownedBucketNames)).ToList();
+        var contentTypeStats = (await metadata.GetContentTypeStatsAsync(ownedBucketNames)).ToList();
 
         _fileTypeStats = contentTypeStats
             .GroupBy(s => MimeToExtension(s.ContentType))
