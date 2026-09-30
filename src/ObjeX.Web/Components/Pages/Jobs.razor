@@ -13,7 +13,7 @@
 <OxPageHeader Title="Jobs" />
 
 <OxCard Title="Recurring jobs" Flush="true">
-    <RadzenDataGrid Data="_jobs" TItem="RecurringJobStatus" AllowSorting="false" AllowAlternatingRows="false" EmptyText="No recurring jobs.">
+    <RadzenDataGrid class="@OxSizes.RoomyGridClass" Data="_jobs" TItem="RecurringJobStatus" AllowSorting="false" AllowAlternatingRows="false" EmptyText="No recurring jobs.">
         <Columns>
             <RadzenDataGridColumn TItem="RecurringJobStatus" Property="Name" Title="Job" Width="@OxSizes.NameColumn">
                 <Template Context="job">
