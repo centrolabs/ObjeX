@@ -17,7 +17,7 @@ src/
 │   ├── Startup/         # ServiceCollectionExtensions (AddObjeX* per concern), DatabaseInitializer (migrate, pragmas, legacy blob paths, roles, admin, seeding), BackgroundJobs (Hangfire wiring, recurring schedule, stale-job prune)
 │   ├── Components/      # App.razor (host document), _Imports.razor
 │   ├── wwwroot/         # app.css, favicons, fonts/, site.webmanifest
-│   ├── S3/              # S3Pipeline (the S3 port's request pipeline), SigV4Parser, SigV4Signer, S3Xml, S3Errors, StorageQuota, ContentMd5
+│   ├── S3/              # S3Pipeline (the S3 port's request pipeline), SigV4Parser, SigV4Signer, S3Xml, S3Errors, S3Subresources (501 for unsupported ?acl, ?tagging, …), ObjectHeaders (stored x-amz-meta-* and system headers), Preconditions (conditional writes), ContinuationToken, CopySourceRange, LimitedStream (UploadPartCopy), S3RequestBody, AwsChunkedStream, ObjectDeletion, StorageQuota, ContentMd5
 │   └── Metrics/         # ObjeXMetrics, BucketMetricsSyncJob
 ├── ObjeX.Core/          # Domain — zero framework dependencies
 │   ├── Interfaces/      # IMetadataService, IObjectStorageService, IStorageQuotaService, IStorageSpaceService, IHashService, IHasTimestamps
@@ -34,9 +34,9 @@ src/
 │   ├── Options/         # S3Options (PublicUrl), DefaultAdminOptions — here, not in Api, because Web needs them and cannot reference Api
 │   └── Storage/         # FileSystemStorageService, StorageSpaceService (free disk of the blob volume), LegacyKeyPathMigration (moves pre-1.2.5 alias blobs to their raw-key path at startup)
 ├── ObjeX.Migrations.PostgreSql/  # PostgreSQL-specific EF Core migrations
-├── ObjeX.Tests/         # xUnit — unit (Core validators, hashing) + integration (WebApplicationFactory, real SQLite)
+├── ObjeX.Tests/         # xUnit — unit (Core validators, hashing) + integration (WebApplicationFactory, real SQLite, or PostgreSQL with OBJEX_TEST_POSTGRES)
 │   ├── Unit/            # BucketNameValidator, ObjectKeyValidator, HashingStream, Sha256HashService, StorageSpaceStatus, ETags, CustomMetadata, InlineMediaTypes, S3ClientSnippets, TextPreview, BrowserTimeZone, SearchPattern
-│   └── Integration/     # S3 API round-trips, auth, multipart, quotas, storage space, resilience, cookie auth, health
+│   └── Integration/     # S3 API round-trips, S3 conformance and pagination, auth, multipart, quotas, storage space, resilience, cookie auth, health
 └── ObjeX.Web/           # Razor class library: components, pages, dialogs, layout — no host, no wwwroot
     ├── Helpers/         # FileHelper, AppVersion, S3ClientSnippets, TextPreview, CustomMetadata
     ├── Services/        # BrowserTimeZone (the circuit's browser zone, set by Routes from the objex-tz cookie)
@@ -45,6 +45,8 @@ src/
         ├── Dialogs/     # CreateBucketDialog, UploadObjectDialog, CreateS3CredentialDialog, ShowS3CredentialDialog, CreateFolderDialog, CreateUserDialog, ShowUserPasswordDialog, ChangeOwnerDialog, FilePreviewDialog, FileMetadataDialog, PresignedUrlDialog, S3ConnectDialog
         └── Layout/      # MainLayout, NavMenu, EmptyLayout
 ```
+
+Outside `src/`: `tests/s3-conformance/` (harness that runs ceph/s3-tests against the checkout), `deploy/` (compose files, Helm chart), `docs/` (configuration, API, architecture).
 
 `docs/architecture.md` holds the architecture, sequence, ER and state diagrams. Source is `docs/diagrams/objex.mmd` (one diagram per `%%% Title` section); `docs/diagrams/render.sh` regenerates the committed SVGs, `docs/diagrams/index.html` is a live viewer. Update the diagrams when a flow they show changes.
 
@@ -524,7 +526,7 @@ POST   /                        → S3 POST Object (bucketEndpoint mode); bucket
 # - S3PostObjectEndpoint (ObjeX.Api/Endpoints/S3Endpoints/) — browser-based uploads via presigned POST policy
 #   Auth is form-field-based (policy + X-Amz-Signature), not header SigV4. Middleware handles this as a third auth path.
 #   The policy must carry a parsable expiration, otherwise 403 — it is the only time limit on a leaked signature. Malformed policy JSON is a 403 too, never a 500.
-# - S3RequestBody (ObjeX.Api/S3/) — unwraps aws-chunked bodies (Content-Encoding: aws-chunked or x-amz-content-sha256: STREAMING-*) for PUT and UploadPart; SDKs send that framing whenever they stream with a trailing checksum, the CLI does so over HTTPS. AwsChunkedStream copies chunk data straight into the caller's buffer; only header lines use a fixed 1 KB scratch buffer, so a declared chunk size never sizes an allocation. A chunk size that is not hex, wider than 8 hex digits or above 1 GiB, and a body that ends before its terminating chunk, throw InvalidDataException (S3 XML 500). Chunk signatures and trailer checksums are not verified.
+# - S3RequestBody (ObjeX.Api/S3/) — unwraps aws-chunked bodies for PUT and UploadPart. A body counts as aws-chunked only with x-amz-content-sha256: STREAMING-* or with Content-Encoding: aws-chunked plus x-amz-decoded-content-length; Content-Encoding: aws-chunked alone is just stored metadata. SDKs send that framing whenever they stream with a trailing checksum, the CLI does so over HTTPS. AwsChunkedStream copies chunk data straight into the caller's buffer; only header lines use a fixed 1 KB scratch buffer, so a declared chunk size never sizes an allocation. A chunk size that is not hex, wider than 8 hex digits or above 1 GiB, and a body that ends before its terminating chunk, throw InvalidDataException (S3 XML 500). Chunk signatures and trailer checksums are not verified.
 # - ObjectDeletion (ObjeX.Api/S3/) — shared row-then-blob delete for the S3 endpoints; DeleteManyAsync backs DeleteObjects: all rows in one DeleteObjectsAsync call, then one blob delete per key, so a metadata failure yields an <Error> for every key of the batch
 # - 412 and 416 from Results.File get an S3 error document (PreconditionFailed, InvalidRange) from a small middleware in S3Pipeline
 # - Every S3 response carries x-amz-request-id (HttpContext.TraceIdentifier); error documents repeat it as <RequestId>
@@ -532,7 +534,6 @@ POST   /                        → S3 POST Object (bucketEndpoint mode); bucket
 #   stored together as JSON in BlobObject.CustomMetadata (and MultipartUpload.CustomMetadata from the initiate request); the UI's CustomMetadata.Parse shows only x-amz-meta-*
 # - Preconditions (ObjeX.Api/S3/) — If-Match / If-None-Match on PUT and CompleteMultipartUpload (If-Match on a missing key → 404), x-amz-copy-source-if-* on CopyObject and UploadPartCopy; check-then-write, not atomic
 # - A retried CompleteMultipartUpload succeeds when the object under the key has the ETag the listed parts produce
-# - S3RequestBody treats a body as aws-chunked only with a STREAMING-* payload hash or x-amz-decoded-content-length, so Content-Encoding: aws-chunked alone is just stored metadata
 # - Kestrel writes response headers as Latin-1 (Program.cs), so non-ASCII x-amz-meta-* values round-trip for SDKs instead of failing the response
 # - SigV4Signer canonicalizes the path from IHttpRequestFeature.RawTarget (decoded once per segment); tests pass the raw target via the X-ObjeX-Test-Raw-Target header because TestServer leaves it empty
 # - ContentMd5 (ObjeX.Api/S3/) — verifies the optional Content-MD5 header on PUT object, UploadPart and DeleteObjects. Decoded before the body is read: 400 InvalidDigest unless base64 of 16 bytes. Compared after: 400 BadDigest, the blob or part file is deleted, no row is written. CopyObject, POST Object and CompleteMultipartUpload do not check it; for aws-chunked bodies the digest covers the decoded payload.
@@ -574,7 +575,7 @@ POST   /                        → S3 POST Object (bucketEndpoint mode); bucket
 
 **`cd.yml`** — triggers only on a `v*` tag push, so `latest` is always the last release. Runs the tests, builds multi-arch image (amd64/arm64) via Buildx + QEMU and pushes to GitHub Container Registry (`ghcr.io/centrolabs/objex:latest` + `ghcr.io/centrolabs/objex:<tag>`), then packages `deploy/helm/objex` with chart version `X.Y.Z` and appVersion `vX.Y.Z` and pushes it to `oci://ghcr.io/centrolabs/charts`. The image tag in the chart defaults to its appVersion; the repo copy carries `0.0.0`/`latest` placeholders. The image carries BuildKit SBOM and provenance attestations, plus a Sigstore-signed provenance from `actions/attest-build-provenance`; verify with `gh attestation verify oci://ghcr.io/centrolabs/objex:<tag> --owner centrolabs`. The `scan` job builds an SPDX SBOM of the pushed image with Syft (`anchore/sbom-action`), scans it with Grype and uploads the SARIF to Code Scanning; the scan never fails the release, because the image is already public by then. The release job attaches `objex-<tag>.spdx.json`. Uses `GITHUB_TOKEN` (automatic, no manual secrets needed).
 
-**Release** — tag a commit on `main` as `vX.Y.Z` and push the tag; no release commit. CD strips the `v` and passes the rest as the `VERSION` build arg (`-p:Version`), builds and pushes the image and creates the GitHub release. `Directory.Build.props` keeps `<Version>0.0.0</Version>`, so local builds show 0.0.0 and the lock files never change on a release. The nav footer shows `ObjeX <version> (<sha>)`; the sha comes from the SDK locally and from the `SOURCE_REVISION` build arg in Docker. The same arg sets the image labels `org.opencontainers.image.revision` and `org.opencontainers.image.source`.
+**Release** — tag a commit on `main` as `vX.Y.Z` and push the tag; no release commit. Optional hand-written notes go in `.github/release-notes/vX.Y.Z.md`; CD puts them above the generated release notes. CD strips the `v` and passes the rest as the `VERSION` build arg (`-p:Version`), builds and pushes the image and creates the GitHub release. `Directory.Build.props` keeps `<Version>0.0.0</Version>`, so local builds show 0.0.0 and the lock files never change on a release. The nav footer shows `ObjeX <version> (<sha>)`; the sha comes from the SDK locally and from the `SOURCE_REVISION` build arg in Docker. The same arg sets the image labels `org.opencontainers.image.revision` and `org.opencontainers.image.source`.
 
 **`.github/dependabot.yml`** — weekly Monday PRs: one `nuget` group for all minor and patch updates (major updates come as single PRs, max 5 open) and one `github-actions` group.
 

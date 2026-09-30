@@ -149,8 +149,17 @@ jobs:
         with:
           name: objex-${{ github.ref_name }}.spdx.json
 
+      # Hand-written notes for this tag, if any, go above the generated ones.
+      - name: Release notes
+        id: notes
+        run: |
+          file=".github/release-notes/${GITHUB_REF_NAME}.md"
+          [ -f "$file" ] || { file="$RUNNER_TEMP/release-notes.md"; : > "$file"; }
+          echo "path=$file" >> "$GITHUB_OUTPUT"
+
       - name: Create release
         uses: softprops/action-gh-release@v3
         with:
+          body_path: ${{ steps.notes.outputs.path }}
           generate_release_notes: true
           files: objex-${{ github.ref_name }}.spdx.json
