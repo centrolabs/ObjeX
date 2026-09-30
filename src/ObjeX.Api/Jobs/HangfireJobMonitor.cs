@@ -44,9 +44,9 @@ public class HangfireJobMonitor(JobStorage storage, IRecurringJobManager manager
     {
         var monitor = storage.GetMonitoringApi();
 
-        var processing = monitor.ProcessingJobs(0, count).Where(j => j.Value.InProcessingState).Select(j => (j.Key, At: j.Value.StartedAt));
-        var succeeded = monitor.SucceededJobs(0, count).Where(j => j.Value.InSucceededState).Select(j => (j.Key, At: j.Value.SucceededAt));
-        var failed = monitor.FailedJobs(0, count).Where(j => j.Value.InFailedState).Select(j => (j.Key, At: j.Value.FailedAt));
+        var processing = monitor.ProcessingJobs(0, count).Where(j => j.Value is { InProcessingState: true }).Select(j => (j.Key, At: j.Value!.StartedAt));
+        var succeeded = monitor.SucceededJobs(0, count).Where(j => j.Value is { InSucceededState: true }).Select(j => (j.Key, At: j.Value!.SucceededAt));
+        var failed = monitor.FailedJobs(0, count).Where(j => j.Value is { InFailedState: true }).Select(j => (j.Key, At: j.Value!.FailedAt));
 
         return processing.Concat(succeeded).Concat(failed)
             .OrderByDescending(j => j.At ?? DateTime.MinValue)
