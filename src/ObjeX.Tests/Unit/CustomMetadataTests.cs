@@ -13,14 +13,13 @@ public class CustomMetadataTests
         => Assert.Empty(CustomMetadata.Parse(json));
 
     [Fact]
-    public void Parse_StripsPrefixAndSortsByKey()
+    public void Parse_KeepsOnlyUserMetadata_StripsPrefixAndSortsByKey()
     {
-        var entries = CustomMetadata.Parse("""{"x-amz-meta-zeta":"last","x-amz-meta-alpha":"first","plain":"kept"}""");
+        var entries = CustomMetadata.Parse("""{"x-amz-meta-zeta":"last","x-amz-meta-alpha":"first","cache-control":"no-cache"}""");
 
         Assert.Equal(
             [
                 new KeyValuePair<string, string>("alpha", "first"),
-                new KeyValuePair<string, string>("plain", "kept"),
                 new KeyValuePair<string, string>("zeta", "last"),
             ],
             entries);

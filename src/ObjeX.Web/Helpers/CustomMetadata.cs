@@ -6,7 +6,7 @@ public static class CustomMetadata
 {
     private const string Prefix = "x-amz-meta-";
 
-    /// <summary>Reads the stored JSON dictionary of x-amz-meta-* headers; anything unparsable comes back empty.</summary>
+    /// <summary>Reads the x-amz-meta-* entries of the stored header JSON, which also holds system headers; anything unparsable comes back empty.</summary>
     public static IReadOnlyList<KeyValuePair<string, string>> Parse(string? json)
     {
         if (string.IsNullOrWhiteSpace(json)) return [];
@@ -17,7 +17,8 @@ public static class CustomMetadata
             if (document.RootElement.ValueKind != JsonValueKind.Object) return [];
 
             return [.. document.RootElement.EnumerateObject()
-                .Select(p => new KeyValuePair<string, string>(StripPrefix(p.Name), Value(p.Value)))
+                .Where(p => p.Name.StartsWith(Prefix, StringComparison.OrdinalIgnoreCase))
+                .Select(p => new KeyValuePair<string, string>(p.Name[Prefix.Length..], Value(p.Value)))
                 .OrderBy(p => p.Key, StringComparer.Ordinal)];
         }
         catch (JsonException)
@@ -25,9 +26,6 @@ public static class CustomMetadata
             return [];
         }
     }
-
-    private static string StripPrefix(string name) =>
-        name.StartsWith(Prefix, StringComparison.OrdinalIgnoreCase) ? name[Prefix.Length..] : name;
 
     private static string Value(JsonElement element) =>
         element.ValueKind == JsonValueKind.String ? element.GetString() ?? string.Empty : element.GetRawText();

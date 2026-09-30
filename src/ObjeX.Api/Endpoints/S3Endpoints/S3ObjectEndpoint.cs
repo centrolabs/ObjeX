@@ -1,5 +1,4 @@
 using System.Security.Claims;
-using System.Text.Json;
 
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
@@ -22,23 +21,6 @@ public static class S3ObjectEndpoint
     static bool IsPrivileged(HttpContext ctx) =>
         ctx.User.IsInRole("Admin") || ctx.User.IsInRole("Manager");
 
-    static string? ExtractCustomMetadata(IHeaderDictionary headers)
-    {
-        var meta = new Dictionary<string, string>();
-        foreach (var h in headers.Where(h => h.Key.StartsWith("x-amz-meta-", StringComparison.OrdinalIgnoreCase)))
-            meta[h.Key.ToLowerInvariant()] = h.Value.ToString();
-        return meta.Count > 0 ? JsonSerializer.Serialize(meta) : null;
-    }
-
-    static void SetCustomMetadataHeaders(HttpResponse response, string? customMetadata)
-    {
-        if (string.IsNullOrEmpty(customMetadata)) return;
-        var meta = JsonSerializer.Deserialize<Dictionary<string, string>>(customMetadata);
-        if (meta is null) return;
-        foreach (var (key, value) in meta)
-            if (key.StartsWith("x-amz-meta-", StringComparison.OrdinalIgnoreCase))
-                response.Headers[key] = value;
-    }
     public static void MapS3ObjectEndpoints(this RouteGroupBuilder s3)
     {
         s3.MapPut("/{bucket}/{*key}", async (
@@ -165,7 +147,7 @@ public static class S3ObjectEndpoint
                     ContentType = replaceMetadata ? request.ContentType ?? "application/octet-stream" : srcObj.ContentType,
                     ETag = destEtag,
                     StoragePath = destPath,
-                    CustomMetadata = replaceMetadata ? ExtractCustomMetadata(request.Headers) : srcObj.CustomMetadata
+                    CustomMetadata = replaceMetadata ? ObjectHeaders.Extract(request.Headers) : srcObj.CustomMetadata
                 }, GetCallerId(ctx));
 
                 return S3Xml.CopyObjectResult(destEtag, DateTime.UtcNow);
@@ -188,7 +170,7 @@ public static class S3ObjectEndpoint
                 return S3Xml.Error(S3Errors.InvalidDigest, "The Content-MD5 you specified is not valid.");
 
             var contentType = request.ContentType ?? "application/octet-stream";
-            var customMetadata = ExtractCustomMetadata(request.Headers);
+            var customMetadata = ObjectHeaders.Extract(request.Headers);
 
             var bodyStream = S3RequestBody.Decoded(request);
 
@@ -252,7 +234,7 @@ public static class S3ObjectEndpoint
             if (obj is null)
                 return S3Xml.Error(S3Errors.NoSuchKey, "The specified key does not exist.", 404);
 
-            SetCustomMetadataHeaders(ctx.Response, obj.CustomMetadata);
+            ObjectHeaders.Apply(ctx.Response, obj.CustomMetadata);
 
             Stream stream = await storage.RetrieveAsync(bucket, key, ctx.RequestAborted);
 
@@ -276,8 +258,10 @@ public static class S3ObjectEndpoint
 
             var fileName = Path.GetFileName(obj.Key);
 
+            var overriddenType = ObjectHeaders.ApplyOverrides(request, ctx.Response);
+
             // ?download=true forces browser download regardless of content type
-            var contentType = download == true ? "application/octet-stream" : obj.ContentType;
+            var contentType = download == true ? "application/octet-stream" : overriddenType ?? obj.ContentType;
             var downloadName = download == true ? fileName : null;
             var entityTag = new Microsoft.Net.Http.Headers.EntityTagHeaderValue($"\"{obj.ETag}\"");
 
@@ -308,7 +292,7 @@ public static class S3ObjectEndpoint
             ctx.Response.Headers.ContentLength = obj.Size;
             ctx.Response.Headers.ContentType = obj.ContentType;
             ctx.Response.Headers.LastModified = obj.UpdatedAt.ToString("R");
-            SetCustomMetadataHeaders(ctx.Response, obj.CustomMetadata);
+            ObjectHeaders.Apply(ctx.Response, obj.CustomMetadata);
             return Results.Ok();
         });
 
