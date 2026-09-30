@@ -349,7 +349,7 @@ public interface IHashService
 - **DB columns**: snake_case via `EFCore.NamingConventions` (`UseSnakeCaseNamingConvention()`)
 - **JSON responses**: camelCase, nulls omitted (`JsonNamingPolicy.CamelCase`, `WhenWritingNull`)
 - **EF migrations**: run automatically on startup via `db.Database.Migrate()` in `Startup/DatabaseInitializer.cs` (disable with `Database:AutoMigrate=false`)
-- **Bucket name rules**: 3–63 chars, lowercase alphanumeric + hyphens, no consecutive hyphens, no leading/trailing hyphens — enforced by `BucketNameValidator`
+- **Bucket name rules**: 3–63 chars, lowercase letters, digits, hyphens and periods, starting and ending with a letter or digit; no `..`, no period next to a hyphen, not an IP address — enforced by `BucketNameValidator`
 - **Object keys**: support slashes (virtual paths). Validated by `ObjectKeyValidator.GetValidationError` (in `ObjeX.Core/Validation/`) — rejects empty, >1024 chars, leading `/` and control characters (including null bytes). `..` and `\` are ordinary key characters. `FileSystemStorageService` hashes the raw key, never a normalised form, so two distinct keys never share a blob; the logical key is stored as-is in DB, the physical path is always a SHA256 hash
 - **ETag**: MD5 of the uploaded stream, hex-encoded lowercase
 
@@ -490,7 +490,7 @@ GET    /hangfire          → Hangfire dashboard (Admin role only)
 # Own pipeline (ObjeX.Api/S3/S3Pipeline.cs): MapGroup("/").RequireAuthorization() inside its own routing.
 # Selected by TCP port, no RequireHost — the Host header is free (proxies, ingresses, tunnels).
 # Auth: SigV4AuthMiddleware runs before UseAuthorization, sets context.User on valid signature
-GET    /                        → list all buckets (S3 ListAllMyBuckets XML)
+GET    /                        → list all buckets (S3 ListAllMyBuckets XML); prefix, max-buckets (1–10000), continuation-token
 HEAD   /{bucket}                → bucket exists check (200/404)
 GET    /{bucket}?location       → GetBucketLocation (S3Conventions.Region, us-east-1)
 GET    /{bucket}?uploads        → ListMultipartUploads XML
@@ -499,14 +499,14 @@ GET    /{bucket}                → ListObjects (marker, NextMarker only with a 
 GET    /{bucket}?versions       → ListObjectVersions with key-marker paging; each object is its own "null" version (buckets are never versioned)
 GET    /{bucket}?versioning     → empty VersioningConfiguration (never versioned)
 GET|PUT|DELETE /{bucket}?acl|policy|cors|lifecycle|tagging|… → 501 NotImplemented (S3Subresources, ObjeX.Api/S3/); never falls through to create or delete
-PUT    /{bucket}                → create bucket (S3 XML response)
+PUT    /{bucket}                → create bucket; repeating it for your own bucket is a 200 no-op (us-east-1 behaviour) unless it carries x-amz-acl, someone else's → 409 BucketAlreadyExists
 DELETE /{bucket}                → delete bucket
 PUT    /{bucket}/{*key}         → upload object (returns ETag header); x-amz-copy-source → CopyObject (onto itself only with x-amz-metadata-directive: REPLACE, which takes Content-Type and x-amz-meta-* from the request); x-amz-meta-* captured
 GET|PUT|DELETE /{bucket}/{*key}?acl|tagging|attributes|retention|… → 501 NotImplemented; never touches the object
-PUT    /{bucket}/{*key}?partNumber=N&uploadId=X → UploadPart; upserts part, returns ETag header
-GET    /{bucket}/{*key}         → download object; ?download=true forces application/octet-stream attachment; Range requests supported; x-amz-meta-* returned; x-objex-verify-integrity header triggers ETag re-hash (500 on mismatch; multipart objects are served without the check)
+PUT    /{bucket}/{*key}?partNumber=N&uploadId=X → UploadPart; upserts part, returns ETag header; with x-amz-copy-source it is UploadPartCopy (optional x-amz-copy-source-range bytes=first-last, CopyPartResult XML)
+GET    /{bucket}/{*key}         → download object; ?download=true forces application/octet-stream attachment; Range requests supported; x-amz-meta-* and stored system headers returned; response-content-type/-cache-control/-content-disposition/-content-encoding/-content-language/-expires override them; x-objex-verify-integrity header triggers ETag re-hash (500 on mismatch; multipart objects are served without the check)
 GET    /{bucket}/{*key}?uploadId=X → ListParts XML
-HEAD   /{bucket}/{*key}         → object metadata (ETag, Content-Length, Content-Type, x-amz-meta-* headers)
+HEAD   /{bucket}/{*key}         → object metadata (ETag, Content-Length, Content-Type, x-amz-meta-* and stored system headers)
 DELETE /{bucket}/{*key}         → delete object (204)
 DELETE /{bucket}/{*key}?uploadId=X → AbortMultipartUpload; deletes parts + session
 POST   /{bucket}/{*key}?uploads → InitiateMultipartUpload; returns UploadId XML
@@ -527,6 +527,14 @@ POST   /                        → S3 POST Object (bucketEndpoint mode); bucket
 # - S3RequestBody (ObjeX.Api/S3/) — unwraps aws-chunked bodies (Content-Encoding: aws-chunked or x-amz-content-sha256: STREAMING-*) for PUT and UploadPart; SDKs send that framing whenever they stream with a trailing checksum, the CLI does so over HTTPS. AwsChunkedStream copies chunk data straight into the caller's buffer; only header lines use a fixed 1 KB scratch buffer, so a declared chunk size never sizes an allocation. A chunk size that is not hex, wider than 8 hex digits or above 1 GiB, and a body that ends before its terminating chunk, throw InvalidDataException (S3 XML 500). Chunk signatures and trailer checksums are not verified.
 # - ObjectDeletion (ObjeX.Api/S3/) — shared row-then-blob delete for the S3 endpoints; DeleteManyAsync backs DeleteObjects: all rows in one DeleteObjectsAsync call, then one blob delete per key, so a metadata failure yields an <Error> for every key of the batch
 # - 412 and 416 from Results.File get an S3 error document (PreconditionFailed, InvalidRange) from a small middleware in S3Pipeline
+# - Every S3 response carries x-amz-request-id (HttpContext.TraceIdentifier); error documents repeat it as <RequestId>
+# - ObjectHeaders (ObjeX.Api/S3/) — x-amz-meta-* plus Cache-Control, Content-Disposition, Content-Encoding (without aws-chunked), Content-Language and Expires,
+#   stored together as JSON in BlobObject.CustomMetadata (and MultipartUpload.CustomMetadata from the initiate request); the UI's CustomMetadata.Parse shows only x-amz-meta-*
+# - Preconditions (ObjeX.Api/S3/) — If-Match / If-None-Match on PUT and CompleteMultipartUpload (If-Match on a missing key → 404), x-amz-copy-source-if-* on CopyObject and UploadPartCopy; check-then-write, not atomic
+# - A retried CompleteMultipartUpload succeeds when the object under the key has the ETag the listed parts produce
+# - S3RequestBody treats a body as aws-chunked only with a STREAMING-* payload hash or x-amz-decoded-content-length, so Content-Encoding: aws-chunked alone is just stored metadata
+# - Kestrel writes response headers as Latin-1 (Program.cs), so non-ASCII x-amz-meta-* values round-trip for SDKs instead of failing the response
+# - SigV4Signer canonicalizes the path from IHttpRequestFeature.RawTarget (decoded once per segment); tests pass the raw target via the X-ObjeX-Test-Raw-Target header because TestServer leaves it empty
 # - ContentMd5 (ObjeX.Api/S3/) — verifies the optional Content-MD5 header on PUT object, UploadPart and DeleteObjects. Decoded before the body is read: 400 InvalidDigest unless base64 of 16 bytes. Compared after: 400 BadDigest, the blob or part file is deleted, no row is written. CopyObject, POST Object and CompleteMultipartUpload do not check it; for aws-chunked bodies the digest covers the decoded payload.
 # - S3MultipartEndpoint (ObjeX.Api/Endpoints/S3Endpoints/) — Initiate + Complete (single MapPost dispatch on ?uploads vs ?uploadId)
 # - Parts stored at {BasePath}/_multipart/{uploadId}/{partNumber}.part; cleaned up after Complete or Abort
