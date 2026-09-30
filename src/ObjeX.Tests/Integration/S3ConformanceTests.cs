@@ -217,6 +217,48 @@ public class S3ConformanceTests(ObjeXFactory factory) : IClassFixture<ObjeXFacto
         Assert.Equal(["esperanto"], response.Content.Headers.ContentLanguage);
     }
 
+    private async Task<(string UploadId, string CompleteXml)> UploadOnePartAsync(string bucket, string key, Action<HttpRequestMessage>? initiate = null)
+    {
+        var init = await SendAsync(HttpMethod.Post, $"/{bucket}/{key}?uploads", configure: initiate);
+        var uploadId = System.Xml.Linq.XDocument.Parse(await init.Content.ReadAsStringAsync()).Descendants().Single(e => e.Name.LocalName == "UploadId").Value;
+        var part = await SendAsync(HttpMethod.Put, $"/{bucket}/{key}?partNumber=1&uploadId={uploadId}", "part one");
+        var etag = part.Headers.ETag!.Tag;
+        return (uploadId, $"<CompleteMultipartUpload><Part><PartNumber>1</PartNumber><ETag>{etag}</ETag></Part></CompleteMultipartUpload>");
+    }
+
+    [Fact]
+    public async Task MultipartUpload_KeepsTheHeadersOfTheInitiateRequest()
+    {
+        var bucket = await NewBucketAsync();
+        var (uploadId, completeXml) = await UploadOnePartAsync(bucket, "mp", r =>
+        {
+            r.Headers.Add("x-amz-meta-foo", "bar");
+            r.Headers.CacheControl = new() { NoCache = true };
+            r.Content = new ByteArrayContent([]);
+            r.Content.Headers.ContentType = new("text/bla");
+        });
+
+        Assert.Equal(HttpStatusCode.OK, (await SendAsync(HttpMethod.Post, $"/{bucket}/mp?uploadId={uploadId}", completeXml)).StatusCode);
+
+        var head = await SendAsync(HttpMethod.Head, $"/{bucket}/mp");
+        Assert.Equal("text/bla", head.Content.Headers.ContentType?.MediaType);
+        Assert.Equal("bar", head.Headers.GetValues("x-amz-meta-foo").Single());
+        Assert.Equal("no-cache", head.Headers.CacheControl?.ToString());
+    }
+
+    [Fact]
+    public async Task CompleteMultipartUpload_Twice_ReturnsTheSameObject()
+    {
+        var bucket = await NewBucketAsync();
+        var (uploadId, completeXml) = await UploadOnePartAsync(bucket, "mp");
+        var first = await SendAsync(HttpMethod.Post, $"/{bucket}/mp?uploadId={uploadId}", completeXml);
+
+        var second = await SendAsync(HttpMethod.Post, $"/{bucket}/mp?uploadId={uploadId}", completeXml);
+
+        Assert.Equal(HttpStatusCode.OK, second.StatusCode);
+        Assert.Equal(await first.Content.ReadAsStringAsync(), await second.Content.ReadAsStringAsync());
+    }
+
     [Fact]
     public async Task KeyWithLiteralPercent_SignsAndRoundTrips()
     {

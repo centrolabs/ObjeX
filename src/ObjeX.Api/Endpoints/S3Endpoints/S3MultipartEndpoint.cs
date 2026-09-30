@@ -88,6 +88,7 @@ public static class S3MultipartEndpoint
             BucketName = bucket,
             Key = key,
             ContentType = contentType,
+            CustomMetadata = ObjectHeaders.Extract(request.Headers),
             InitiatedByUserId = userId
         };
 
@@ -106,13 +107,6 @@ public static class S3MultipartEndpoint
         if (!Guid.TryParse(uploadIdStr, out var uploadId))
             return S3Xml.Error(S3Errors.NoSuchUpload, "The specified upload does not exist.", 404);
 
-        var upload = await db.MultipartUploads
-            .Include(u => u.Parts)
-            .FirstOrDefaultAsync(u => u.Id == uploadId && u.BucketName == bucket && u.Key == key);
-
-        if (upload is null)
-            return S3Xml.Error(S3Errors.NoSuchUpload, "The specified upload does not exist.", 404);
-
         // Parse XML body
         XDocument doc;
         try { doc = await XDocument.LoadAsync(request.Body, LoadOptions.None, request.HttpContext.RequestAborted); }
@@ -127,6 +121,19 @@ public static class S3MultipartEndpoint
             .Select(p => (PartNumber: p.PartNumber!.Value, ETag: p.ETag!))
             .OrderBy(p => p.PartNumber)
             .ToList();
+
+        var upload = await db.MultipartUploads
+            .Include(u => u.Parts)
+            .FirstOrDefaultAsync(u => u.Id == uploadId && u.BucketName == bucket && u.Key == key);
+
+        if (upload is null)
+        {
+            // A retried complete finds the upload gone; it succeeds again if the object is the one these parts made.
+            var existing = await metadata.GetObjectAsync(bucket, key);
+            return existing is not null && requestedParts.Count > 0 && existing.ETag == TryComputeMultipartETag(requestedParts.Select(p => p.ETag).ToList())
+                ? S3Xml.CompleteMultipartUpload(bucket, key, $"{s3.PublicUrl}/{bucket}/{key}", existing.ETag)
+                : S3Xml.Error(S3Errors.NoSuchUpload, "The specified upload does not exist.", 404);
+        }
 
         if (requestedParts.Count == 0)
             return S3Xml.Error(S3Errors.MalformedXML, "You must specify at least one part.");
@@ -180,7 +187,8 @@ public static class S3MultipartEndpoint
             Size = totalSize,
             ContentType = upload.ContentType,
             ETag = finalEtag,
-            StoragePath = storagePath
+            StoragePath = storagePath,
+            CustomMetadata = upload.CustomMetadata
         }, GetCallerId(ctx));
 
         // Cleanup
@@ -189,6 +197,12 @@ public static class S3MultipartEndpoint
         await db.SaveChangesAsync();
 
         return S3Xml.CompleteMultipartUpload(bucket, key, $"{s3.PublicUrl}/{bucket}/{key}", finalEtag);
+    }
+
+    private static string? TryComputeMultipartETag(IList<string> partEtags)
+    {
+        try { return ComputeMultipartETag(partEtags); }
+        catch (FormatException) { return null; }
     }
 
     private static string ComputeMultipartETag(IList<string> partEtags)
