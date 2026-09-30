@@ -7,11 +7,13 @@ using ObjeX.Infrastructure.Data;
 
 namespace ObjeX.Infrastructure.Metadata;
 
-public class EfCoreMetadataService(ObjeXDbContext ctx) : IMetadataService
+// Every call opens its own short context. A Blazor circuit keeps its scoped services for the whole session, and a context
+// shared that long tracks every object it ever wrote: a later overwrite or delete then works on stale values or throws.
+public class EfCoreMetadataService(IDbContextFactory<ObjeXDbContext> contexts) : IMetadataService
 {
-
     public async Task<Bucket> CreateBucketAsync(Bucket bucket, string? auditUserId = null, CancellationToken ctk = default)
     {
+        await using var ctx = await contexts.CreateDbContextAsync(ctk);
         var error = BucketNameValidator.GetValidationError(bucket.Name);
         if (error is not null)
             throw new ArgumentException(error, nameof(bucket));
@@ -28,7 +30,7 @@ public class EfCoreMetadataService(ObjeXDbContext ctx) : IMetadataService
 
     public async Task<Bucket?> GetBucketAsync(string bucketName, string? ownerFilter = null, CancellationToken ctk = default)
     {
-        // Reads are untracked: the context is circuit-scoped in Blazor and would otherwise return stale instances.
+        await using var ctx = await contexts.CreateDbContextAsync(ctk);
         var query = ctx.Buckets.AsNoTracking().Include(b => b.Owner).Where(b => b.Name == bucketName);
         if (ownerFilter is not null)
             query = query.Where(b => b.OwnerId == ownerFilter);
@@ -37,6 +39,7 @@ public class EfCoreMetadataService(ObjeXDbContext ctx) : IMetadataService
 
     public async Task<IEnumerable<Bucket>> ListBucketsAsync(string? ownerFilter = null, CancellationToken ctk = default)
     {
+        await using var ctx = await contexts.CreateDbContextAsync(ctk);
         var query = ctx.Buckets.AsNoTracking().Include(b => b.Owner).AsQueryable();
         if (ownerFilter is not null)
             query = query.Where(b => b.OwnerId == ownerFilter);
@@ -45,6 +48,7 @@ public class EfCoreMetadataService(ObjeXDbContext ctx) : IMetadataService
 
     public async Task DeleteBucketAsync(string bucketName, string userId, bool isPrivileged, string? auditUserId = null, CancellationToken ctk = default)
     {
+        await using var ctx = await contexts.CreateDbContextAsync(ctk);
         var bucket = await ctx.Buckets.FirstOrDefaultAsync(b => b.Name == bucketName, ctk);
         if (bucket is null) return;
 
@@ -61,25 +65,26 @@ public class EfCoreMetadataService(ObjeXDbContext ctx) : IMetadataService
 
     public async Task<bool> ExistsBucketAsync(string bucketName, CancellationToken ctk = default)
     {
+        await using var ctx = await contexts.CreateDbContextAsync(ctk);
         return await ctx.Buckets.AnyAsync(b => b.Name == bucketName, ctk);
     }
 
     public async Task<BlobObject> SaveObjectAsync(BlobObject blobObject, string? auditUserId = null, CancellationToken ctk = default)
     {
-        var existing = await GetObjectAsync(blobObject.BucketName, blobObject.Key, ctk);
+        await using var ctx = await contexts.CreateDbContextAsync(ctk);
+        var existing = await ctx.BlobObjects.AsNoTracking()
+            .FirstOrDefaultAsync(o => o.BucketName == blobObject.BucketName && o.Key == blobObject.Key, ctk);
         var sizeDelta = blobObject.Size - (existing?.Size ?? 0);
         var countDelta = existing is null ? 1 : 0;
         if (existing is not null)
         {
-            existing = Tracked(existing);
             existing.Size = blobObject.Size;
             existing.ETag = blobObject.ETag;
             existing.ContentType = blobObject.ContentType;
             existing.StoragePath = blobObject.StoragePath;
             existing.CustomMetadata = blobObject.CustomMetadata;
             existing.UpdatedAt = DateTime.UtcNow;
-            if (ctx.Entry(existing).State == EntityState.Detached)
-                ctx.BlobObjects.Update(existing);
+            ctx.BlobObjects.Update(existing);
         }
         else
         {
@@ -90,7 +95,7 @@ public class EfCoreMetadataService(ObjeXDbContext ctx) : IMetadataService
 
         await using var tx = await ctx.Database.BeginTransactionAsync(ctk);
         await ctx.SaveChangesAsync(ctk);
-        await AdjustBucketStatsAsync(blobObject.BucketName, countDelta, sizeDelta, ctk);
+        await AdjustBucketStatsAsync(ctx, blobObject.BucketName, countDelta, sizeDelta, ctk);
         await tx.CommitAsync(ctk);
 
         return blobObject;
@@ -98,6 +103,7 @@ public class EfCoreMetadataService(ObjeXDbContext ctx) : IMetadataService
 
     public async Task<BlobObject?> GetObjectAsync(string bucketName, string key, CancellationToken ctk = default)
     {
+        await using var ctx = await contexts.CreateDbContextAsync(ctk);
         return await ctx.BlobObjects.AsNoTracking()
             .FirstOrDefaultAsync(o => o.BucketName == bucketName && o.Key == key, ctk);
     }
@@ -105,6 +111,7 @@ public class EfCoreMetadataService(ObjeXDbContext ctx) : IMetadataService
     public async Task<ListObjectsResult> ListObjectsAsync(string bucketName, string? prefix = null, string? delimiter = null,
         string? startAfter = null, int? maxKeys = null, CancellationToken ctk = default)
     {
+        await using var ctx = await contexts.CreateDbContextAsync(ctk);
         const int batchSize = 1000;
         var limit = maxKeys ?? int.MaxValue;
         var objects = new List<BlobObject>();
@@ -123,8 +130,8 @@ public class EfCoreMetadataService(ObjeXDbContext ctx) : IMetadataService
             if (!string.IsNullOrEmpty(prefix))
                 query = query.Where(o => o.Key.StartsWith(prefix));
             if (!string.IsNullOrEmpty(bound))
-                query = KeysFrom(query, bound, inclusive);
-            var page = await OrderByKey(query).Take(batchSize).ToListAsync(ctk);
+                query = KeysFrom(ctx, query, bound, inclusive);
+            var page = await OrderByKey(ctx, query).Take(batchSize).ToListAsync(ctk);
 
             // Ordinal compares UTF-16 code units, which differs from UTF-8 byte order only for supplementary characters.
             foreach (var obj in page)
@@ -182,7 +189,7 @@ public class EfCoreMetadataService(ObjeXDbContext ctx) : IMetadataService
             : s[..^1] + (char)next;
     }
 
-    private IQueryable<BlobObject> KeysFrom(IQueryable<BlobObject> query, string bound, bool inclusive) => (IsPostgreSql, inclusive) switch
+    private static IQueryable<BlobObject> KeysFrom(ObjeXDbContext ctx, IQueryable<BlobObject> query, string bound, bool inclusive) => (IsPostgreSql(ctx), inclusive) switch
     {
         (true, true) => query.Where(o => string.Compare(EF.Functions.Collate(o.Key, "C"), bound) >= 0),
         (true, false) => query.Where(o => string.Compare(EF.Functions.Collate(o.Key, "C"), bound) > 0),
@@ -192,6 +199,7 @@ public class EfCoreMetadataService(ObjeXDbContext ctx) : IMetadataService
 
     public async Task<IReadOnlyList<BlobObject>> SearchObjectsAsync(string bucketName, string? prefix, string term, int limit, CancellationToken ctk = default)
     {
+        await using var ctx = await contexts.CreateDbContextAsync(ctk);
         if (string.IsNullOrWhiteSpace(term)) return [];
 
         var (composed, decomposed) = SearchPattern.FromTermInBothForms(term.ToLowerInvariant());
@@ -203,11 +211,12 @@ public class EfCoreMetadataService(ObjeXDbContext ctx) : IMetadataService
         // Both sides lower-cased, because PostgreSQL's LIKE is case-sensitive and SQLite's is ASCII-only.
         query = query.Where(o => EF.Functions.Like(o.Key.ToLower(), composed, "\\") || EF.Functions.Like(o.Key.ToLower(), decomposed, "\\"));
 
-        return await OrderByKey(query).Take(limit).ToListAsync(ctk);
+        return await OrderByKey(ctx, query).Take(limit).ToListAsync(ctk);
     }
 
     public async Task<IReadOnlyList<BlobObject>> SearchAllObjectsAsync(string? ownerFilter, string term, int limit, CancellationToken ctk = default)
     {
+        await using var ctx = await contexts.CreateDbContextAsync(ctk);
         if (string.IsNullOrWhiteSpace(term)) return [];
 
         var (composed, decomposed) = SearchPattern.FromTermInBothForms(term.ToLowerInvariant());
@@ -218,46 +227,49 @@ public class EfCoreMetadataService(ObjeXDbContext ctx) : IMetadataService
 
         query = query.Where(o => EF.Functions.Like(o.Key.ToLower(), composed, "\\") || EF.Functions.Like(o.Key.ToLower(), decomposed, "\\"));
 
-        return await OrderByBucketThenKey(query).Take(limit).ToListAsync(ctk);
+        return await OrderByBucketThenKey(ctx, query).Take(limit).ToListAsync(ctk);
     }
 
     // S3 orders keys by UTF-8 bytes; SQLite's default BINARY collation already does that,
     // PostgreSQL needs COLLATE "C" because a locale collation sorts "a" before "B".
-    private IOrderedQueryable<BlobObject> OrderByKey(IQueryable<BlobObject> query) =>
-        IsPostgreSql
+    private static IOrderedQueryable<BlobObject> OrderByKey(ObjeXDbContext ctx, IQueryable<BlobObject> query) =>
+        IsPostgreSql(ctx)
             ? query.OrderBy(o => EF.Functions.Collate(o.Key, "C"))
             : query.OrderBy(o => o.Key);
 
-    private IOrderedQueryable<BlobObject> OrderByBucketThenKey(IQueryable<BlobObject> query) =>
-        IsPostgreSql
+    private static IOrderedQueryable<BlobObject> OrderByBucketThenKey(ObjeXDbContext ctx, IQueryable<BlobObject> query) =>
+        IsPostgreSql(ctx)
             ? query.OrderBy(o => EF.Functions.Collate(o.BucketName, "C")).ThenBy(o => EF.Functions.Collate(o.Key, "C"))
             : query.OrderBy(o => o.BucketName).ThenBy(o => o.Key);
 
-    private bool IsPostgreSql => ctx.Database.ProviderName == "Npgsql.EntityFrameworkCore.PostgreSQL";
+    private static bool IsPostgreSql(ObjeXDbContext ctx) => ctx.Database.ProviderName == "Npgsql.EntityFrameworkCore.PostgreSQL";
 
     public async Task<IEnumerable<BlobObject>> ListAllObjectsAsync(CancellationToken ctk = default)
     {
+        await using var ctx = await contexts.CreateDbContextAsync(ctk);
         return await ctx.BlobObjects.AsNoTracking().ToListAsync(ctk);
     }
 
     public async Task DeleteObjectAsync(string bucketName, string key, string? auditUserId = null, CancellationToken ctk = default)
     {
-        var obj = await GetObjectAsync(bucketName, key, ctk);
+        await using var ctx = await contexts.CreateDbContextAsync(ctk);
+        var obj = await ctx.BlobObjects.FirstOrDefaultAsync(o => o.BucketName == bucketName && o.Key == key, ctk);
         if (obj is not null)
         {
-            ctx.BlobObjects.Remove(Tracked(obj));
+            ctx.BlobObjects.Remove(obj);
             if (auditUserId is not null)
                 ctx.AuditEntries.Add(new AuditEntry { UserId = auditUserId, Action = "DeleteObject", BucketName = bucketName, Key = key });
 
             await using var tx = await ctx.Database.BeginTransactionAsync(ctk);
             await ctx.SaveChangesAsync(ctk);
-            await AdjustBucketStatsAsync(bucketName, -1, -obj.Size, ctk);
+            await AdjustBucketStatsAsync(ctx, bucketName, -1, -obj.Size, ctk);
             await tx.CommitAsync(ctk);
         }
     }
 
     public async Task<int> DeleteObjectsAsync(string bucketName, IEnumerable<string> keys, string? auditUserId = null, CancellationToken ctk = default)
     {
+        await using var ctx = await contexts.CreateDbContextAsync(ctk);
         var keyList = keys.Distinct().ToList();
         if (keyList.Count == 0) return 0;
 
@@ -273,7 +285,7 @@ public class EfCoreMetadataService(ObjeXDbContext ctx) : IMetadataService
 
         await using var tx = await ctx.Database.BeginTransactionAsync(ctk);
         await ctx.SaveChangesAsync(ctk);
-        await AdjustBucketStatsAsync(bucketName, -objects.Count, -objects.Sum(o => o.Size), ctk);
+        await AdjustBucketStatsAsync(ctx, bucketName, -objects.Count, -objects.Sum(o => o.Size), ctk);
         await tx.CommitAsync(ctk);
 
         return objects.Count;
@@ -281,16 +293,13 @@ public class EfCoreMetadataService(ObjeXDbContext ctx) : IMetadataService
 
     public async Task<bool> ExistsObjectAsync(string bucketName, string key, CancellationToken ctk = default)
     {
+        await using var ctx = await contexts.CreateDbContextAsync(ctk);
         return await ctx.BlobObjects
             .AnyAsync(o => o.BucketName == bucketName && o.Key == key, ctk);
     }
 
     /// <summary>Set-based so two writers on the same bucket cannot lose each other's delta.</summary>
-    // Reads are untracked, but a long-lived context (one per Blazor circuit) may still track the row from an earlier write.
-    // Attaching a second instance with the same key throws and leaves the context unable to save anything afterwards.
-    private BlobObject Tracked(BlobObject obj) => ctx.BlobObjects.Local.FirstOrDefault(o => o.Id == obj.Id) ?? obj;
-
-    private Task AdjustBucketStatsAsync(string bucketName, long countDelta, long sizeDelta, CancellationToken ctk) =>
+    private static Task AdjustBucketStatsAsync(ObjeXDbContext ctx, string bucketName, long countDelta, long sizeDelta, CancellationToken ctk) =>
         ctx.Buckets
             .Where(b => b.Name == bucketName)
             .ExecuteUpdateAsync(s => s
@@ -300,6 +309,7 @@ public class EfCoreMetadataService(ObjeXDbContext ctx) : IMetadataService
 
     public async Task UpdateBucketStatsAsync(string bucketName, CancellationToken ctk = default)
     {
+        await using var ctx = await contexts.CreateDbContextAsync(ctk);
         var stats = await ctx.BlobObjects
             .Where(o => o.BucketName == bucketName)
             .GroupBy(o => o.BucketName)
@@ -320,6 +330,7 @@ public class EfCoreMetadataService(ObjeXDbContext ctx) : IMetadataService
 
     public async Task<IEnumerable<ContentTypeStats>> GetContentTypeStatsAsync(IEnumerable<string>? bucketNames = null, CancellationToken ctk = default)
     {
+        await using var ctx = await contexts.CreateDbContextAsync(ctk);
         var query = ctx.BlobObjects.Where(o => !o.Key.EndsWith("/"));
         if (bucketNames is not null)
         {

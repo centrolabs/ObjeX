@@ -1,3 +1,4 @@
+using Microsoft.EntityFrameworkCore;
 using System.Net;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.DependencyInjection;
@@ -26,7 +27,7 @@ public class ObjectDeleteOrderTests(ObjectDeleteOrderTests.Factory factory) : IC
             {
                 services.RemoveAll<IMetadataService>();
                 services.AddScoped<IMetadataService>(sp => new FailingDeleteMetadata(
-                    new EfCoreMetadataService(sp.GetRequiredService<ObjeXDbContext>()), () => FailMetadataDelete));
+                    new EfCoreMetadataService(sp.GetRequiredService<IDbContextFactory<ObjeXDbContext>>()), () => FailMetadataDelete));
             });
         }
     }
