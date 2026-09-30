@@ -23,6 +23,9 @@ Dockerfile
 # Deployment manifests
 deploy/
 
+# Conformance harness
+tests/
+
 # Test projects (not needed in production image)
 src/ObjeX.Tests/
 
