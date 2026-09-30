@@ -53,6 +53,8 @@ h1:focus { outline: none; }
 
 .rz-grid-table tbody tr:last-child td { border-bottom: 0; }
 
+.ox-grid-roomy .rz-grid-table td { height: auto; padding-block: var(--ox-space-4); }
+
 .rz-grid-table tbody tr.rz-data-row:hover > td { background: var(--ox-surface-hover); }
 
 .rz-data-grid .rz-grid-table tbody tr.ox-row-selected > td,

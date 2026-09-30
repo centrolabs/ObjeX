@@ -40,6 +40,8 @@ public static class OxSizes
     public const string NameColumn = "240px";
     /// <summary>Row class for a selected grid row. RowRender replaces the class attribute, so Radzen's own row class is repeated.</summary>
     public const string SelectedRowClass = "rz-data-row ox-row-selected";
+    /// <summary>Grid class for rows whose cells stack two lines: the row grows instead of squeezing them.</summary>
+    public const string RoomyGridClass = "ox-grid-roomy";
     public const string DialogSmall = "440px";
     public const string DialogMedium = "480px";
     public const string DialogWide = "640px";
