@@ -29,7 +29,10 @@ h1:focus { outline: none; }
 /* ---- DataGrid -------------------------------------------------------------------------- */
 .rz-data-grid { border: 0; border-radius: 0; background: var(--ox-surface); }
 
-.rz-grid-table { font-variant-numeric: tabular-nums; }
+/* A narrow screen scrolls the table sideways instead of squeezing the name column. */
+.rz-data-grid-data { overflow-x: auto; }
+
+.rz-grid-table { min-width: var(--ox-size-table-min); font-variant-numeric: tabular-nums; }
 
 .rz-grid-table thead th {
     height: var(--ox-size-row);
@@ -39,6 +42,8 @@ h1:focus { outline: none; }
 }
 
 .rz-grid-table thead th .rz-column-title { font-weight: var(--ox-fw-medium); color: var(--ox-text-muted); }
+
+.rz-grid-table thead th.rz-text-align-end .rz-column-title { justify-content: flex-end; padding-inline: 0 var(--ox-space-6); }
 
 .rz-grid-table td {
     height: var(--ox-size-row);
@@ -50,8 +55,8 @@ h1:focus { outline: none; }
 
 .rz-grid-table tbody tr.rz-data-row:hover > td { background: var(--ox-surface-hover); }
 
-.rz-grid-table tbody tr.ox-row-selected > td,
-.rz-grid-table tbody tr.ox-row-selected:hover > td { background: var(--ox-surface-selected); }
+.rz-data-grid .rz-grid-table tbody tr.ox-row-selected > td,
+.rz-data-grid .rz-grid-table tbody tr.ox-row-selected:hover > td { background: var(--ox-surface-selected); }
 
 .rz-grid-table td.ox-col-muted { color: var(--ox-text-muted); }
 
@@ -64,7 +69,7 @@ h1:focus { outline: none; }
 
 .rz-data-row:hover .ox-row-actions,
 .rz-data-row:focus-within .ox-row-actions,
-.ox-row-actions.is-open { opacity: 1; }
+.ox-row-actions:has(.is-active) { opacity: 1; }
 
 @media (hover: none) {
     .ox-row-actions { opacity: 1; }
@@ -103,6 +108,8 @@ h1:focus { outline: none; }
     letter-spacing: normal;
     box-shadow: var(--ox-shadow-ctl);
 }
+
+.rz-button.rz-base, .rz-button.rz-light, .rz-button.rz-secondary { background: var(--ox-surface); color: var(--ox-text); }
 
 .rz-button:hover:not(.rz-state-disabled) { background: var(--ox-surface-hover); color: var(--ox-text); }
 

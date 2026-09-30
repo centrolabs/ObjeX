@@ -11,7 +11,6 @@
 @inject IObjectStorageService StorageService
 @inject ILogger<Objects> Logger
 @inject DialogService DialogService
-@inject ContextMenuService ContextMenuService
 @inject NotificationService NotificationService
 @inject NavigationManager Navigation
 @inject IOptions<S3Options> S3
@@ -22,158 +21,102 @@
 
 <PageTitle>@BucketName — ObjeX</PageTitle>
 
-<div @ref="_dropZoneRef" style="position:relative;min-height:80vh">
-    <InputFile @ref="_inputFileRef" OnChange="OnDropFiles" multiple style="display:none" />
-
-<RadzenStack Gap="1rem">
-    <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" JustifyContent="JustifyContent.SpaceBetween">
-        <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
-            <a href="/buckets" style="color:var(--rz-primary);text-decoration:none">Buckets</a>
-            <RadzenText>/</RadzenText>
-            <span style="color:var(--rz-primary);cursor:pointer" @onclick="@(() => NavigateToPrefix(string.Empty))">@BucketName</span>
-            @foreach (var (segment, prefixUpTo) in GetBreadcrumbSegments())
-            {
-                <RadzenText>/</RadzenText>
-                var upTo = prefixUpTo;
-                <span style="color:var(--rz-primary);cursor:pointer" @onclick="@(() => NavigateToPrefix(upTo))">@segment</span>
-            }
-            @if (_bucket is not null)
-            {
-                <RadzenText TextStyle="TextStyle.Caption" Style="margin:0 0 0 0.75rem;color:var(--rz-text-secondary-color)">
-                    @HeaderCaption
-                </RadzenText>
-            }
-        </RadzenStack>
-        <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
+<OxDropZone OnFiles="OnDropFiles">
+    <OxPageHeader Meta="@(_bucket is null ? null : HeaderCaption)">
+        <Heading><OxBreadcrumbs Items="@Crumbs" /></Heading>
+        <ChildContent>
             @if (_bucketExists && _bucket is { ObjectCount: > 0 })
             {
-                <input class="rz-textbox" style="width:220px" type="text" placeholder="Search" title="* matches any text, ? one character" autocomplete="off"
-                       value="@_searchTerm" @oninput="OnSearchInput" @onkeydown="OnSearchKeyDown" />
-                <RadzenButton Icon="close" ButtonStyle="ButtonStyle.Light" Variant="Variant.Text"
-                              Click="@ClearSearch" title="Clear search"
-                              style="@(_searchTerm.Length > 0 ? "" : "display:none")" />
+                <OxSearch Value="@_searchTerm" ValueChanged="OnSearchInput" OnClear="ClearSearch" Title="* matches any text, ? one character" />
             }
-            <RadzenButton Text="New Folder" Icon="create_new_folder"
-                          ButtonStyle="ButtonStyle.Secondary" Disabled="@(!_bucketExists)"
-                          Click="@OnNewFolderClick" />
-            <RadzenButton Text="@(_uploadStatus ?? "Upload")" Icon="upload"
-                          ButtonStyle="ButtonStyle.Primary" Disabled="@(_uploading || !_bucketExists)"
-                          Click="@OnUploadClick" />
-            <RadzenButton Text="Cancel" Icon="close" ButtonStyle="ButtonStyle.Light"
-                          Click="@(() => _uploadCts?.Cancel())"
-                          style="@(_uploading ? "" : "display:none")" />
-        </RadzenStack>
-    </RadzenStack>
+            @if (_uploading)
+            {
+                <OxButton Icon="close" OnClick="@(() => _uploadCts?.Cancel())">Cancel</OxButton>
+            }
+            <OxButton Icon="create_new_folder" Disabled="@(!_bucketExists)" OnClick="OnNewFolderClick">New folder</OxButton>
+            <OxButton Variant="OxButtonVariant.Primary" Icon="upload" Disabled="@(_uploading || !_bucketExists)" OnClick="OnUploadClick">@(_uploadStatus ?? "Upload")</OxButton>
+        </ChildContent>
+    </OxPageHeader>
 
-    <RadzenProgressBar Value="@_uploadProgress" Max="100" ShowValue="false"
-                       Style="@($"height:4px;margin-top:-0.5rem;visibility:{(_uploading ? "visible" : "hidden")}")" />
+    @if (_uploading)
+    {
+        <OxMeter Value="@_uploadProgress" Label="Upload progress" />
+    }
 
-    <RadzenCard Style="@($"padding:0.6rem 1rem;opacity:{(_selected.Count > 0 ? "1" : "0.5")};transition:opacity 0.15s")">
-        <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="1rem">
-            <RadzenText Style="color:var(--rz-text-secondary-color)">@_selected.Count selected</RadzenText>
-            <RadzenButton Text="Download ZIP" Icon="download" ButtonStyle="ButtonStyle.Primary"
-                          Size="ButtonSize.Small" Click="BulkDownload" Disabled="@(_selected.Count == 0)" />
-            <RadzenButton Text="Delete" Icon="delete" ButtonStyle="ButtonStyle.Danger"
-                          Size="ButtonSize.Small" Click="BulkDelete" Disabled="@(_selected.Count == 0)" />
-            <RadzenButton Text="Clear" Icon="close" ButtonStyle="ButtonStyle.Secondary"
-                          Size="ButtonSize.Small" Click="@(() => _selected.Clear())" Disabled="@(_selected.Count == 0)" />
-        </RadzenStack>
-    </RadzenCard>
+    <OxSelectionBar Count="@_selected.Count" OnClear="@(() => _selected.Clear())">
+        <OxButton Icon="download" OnClick="BulkDownload">Download ZIP</OxButton>
+        <OxButton Variant="OxButtonVariant.Danger" Icon="delete" OnClick="BulkDelete">Delete</OxButton>
+    </OxSelectionBar>
 
-    <div class="objects-grid" style="overflow-x:auto">
-    <RadzenDataGrid Data="@_rows" TItem="ListRow" AllowSorting="true"
+    <RadzenDataGrid Data="@_rows" TItem="ListRow" AllowSorting="true" AllowAlternatingRows="false" RowRender="OnRowRender"
                     EmptyText="@(_searchApplied ? "No matches." : "No objects yet. Drag files here or click Upload.")">
         <Columns>
-            <RadzenDataGridColumn TItem="ListRow" Width="48px" Sortable="false" Resizable="false">
+            <RadzenDataGridColumn TItem="ListRow" Width="@OxSizes.CheckColumn" Sortable="false" Resizable="false" CssClass="ox-col-check">
                 <HeaderTemplate>
-                    <RadzenCheckBox TValue="bool"
-                                    Value="@(_rows.Count > 0 && _selected.Count == _rows.Count)"
-                                    Change="@(v => { if (v) _rows.ForEach(r => _selected.Add(r)); else _selected.Clear(); StateHasChanged(); })" />
+                    <OxCheckbox Label="Select all" Checked="@(_rows.Count > 0 && _selected.Count == _rows.Count)"
+                                CheckedChanged="@(v => { if (v) _rows.ForEach(r => _selected.Add(r)); else _selected.Clear(); })" />
                 </HeaderTemplate>
                 <Template Context="row">
-                    <RadzenCheckBox TValue="bool" Value="@_selected.Contains(row)"
-                                    Change="@(v => { if (v) _selected.Add(row); else _selected.Remove(row); StateHasChanged(); })" />
+                    <OxCheckbox Label="@($"Select {row.Name}")" Checked="@_selected.Contains(row)"
+                                CheckedChanged="@(v => { if (v) _selected.Add(row); else _selected.Remove(row); })" />
                 </Template>
             </RadzenDataGridColumn>
             <RadzenDataGridColumn TItem="ListRow" Title="Name" Property="Name">
                 <Template Context="row">
                     @if (row.IsFolder)
                     {
-                        <span style="color:var(--rz-primary);cursor:pointer" @onclick="@(() => NavigateToPrefix(row.FolderPath!))">@row.Name</span>
+                        <OxFileName Kind="OxFileKind.Folder" Href="@PrefixUrl(row.FolderPath!)">@row.Name</OxFileName>
                     }
                     else
                     {
-                        @row.Name
+                        <OxFileName Kind="@OxFileIcon.KindOf(row.Object!.ContentType)">@row.Name</OxFileName>
                     }
                 </Template>
             </RadzenDataGridColumn>
-            <RadzenDataGridColumn TItem="ListRow" Title="Content Type" Property="SortContentType">
-                <Template Context="row">@(row.IsFolder ? "" : row.Object!.ContentType)</Template>
+            <RadzenDataGridColumn TItem="ListRow" Title="Type" Property="SortContentType" Width="@OxSizes.TypeColumn" CssClass="ox-col-muted">
+                <Template Context="row">@(row.IsFolder ? "—" : row.Object!.ContentType)</Template>
             </RadzenDataGridColumn>
-            <RadzenDataGridColumn TItem="ListRow" Title="Size" Property="SortSize">
-                <Template Context="row">@(row.IsFolder ? "" : FileHelper.FormatBytes(row.Object!.Size))</Template>
+            <RadzenDataGridColumn TItem="ListRow" Title="Size" Property="SortSize" Width="@OxSizes.SizeColumn" TextAlign="TextAlign.End">
+                <Template Context="row">@(row.IsFolder ? "—" : FileHelper.FormatBytes(row.Object!.Size))</Template>
             </RadzenDataGridColumn>
-            <RadzenDataGridColumn TItem="ListRow" Title="Uploaded" Property="SortDate">
-                <Template Context="row">@(row.IsFolder ? "" : Tz.Format(row.Object!.CreatedAt))</Template>
+            <RadzenDataGridColumn TItem="ListRow" Title="Modified" Property="SortDate" Width="@OxSizes.DateColumn" CssClass="ox-col-muted">
+                <Template Context="row">@(row.IsFolder ? "—" : Tz.Format(row.Object!.UpdatedAt))</Template>
             </RadzenDataGridColumn>
-            <RadzenDataGridColumn TItem="ListRow" Title="" Width="280px" Sortable="false">
+            <RadzenDataGridColumn TItem="ListRow" Title="" Width="@OxSizes.ActionsColumn" Sortable="false" Resizable="false" CssClass="ox-col-actions">
                 <Template Context="row">
-                    <div style="display:flex;align-items:center;justify-content:flex-end">
-                    @if (row.IsFolder)
-                    {
-                        <a href="@FileHelper.FolderZipUrl(BucketName, row.FolderPath!)" download="@(row.Name[..^1]).zip" target="_blank" style="display:flex">
-                            <RadzenButton Icon="download" ButtonStyle="ButtonStyle.Primary" Variant="Variant.Text" />
-                        </a>
-                        <RadzenButton Icon="link"         ButtonStyle="ButtonStyle.Secondary" Variant="Variant.Text" style="visibility:hidden" />
-                        <RadzenButton Icon="content_copy" ButtonStyle="ButtonStyle.Secondary" Variant="Variant.Text" style="visibility:hidden" />
-                        <RadzenButton Icon="visibility" ButtonStyle="ButtonStyle.Dark"     Variant="Variant.Text" style="visibility:hidden" />
-                        <RadzenButton Icon="info"       ButtonStyle="ButtonStyle.Dark"     Variant="Variant.Text" style="visibility:hidden" />
-                        <RadzenButton Icon="delete"     ButtonStyle="ButtonStyle.Danger"    Variant="Variant.Text"
-                                      Click="@(() => OnDeleteFolder(row.FolderPath!))" />
-                    }
-                    else
-                    {
-                        <a href="@FileHelper.ObjectUrl(BucketName, row.Object!.Key, download: true)" download="@Path.GetFileName(row.Object!.Key)" target="_blank" style="display:flex">
-                            <RadzenButton Icon="download" ButtonStyle="ButtonStyle.Primary" Variant="Variant.Text" />
-                        </a>
-                        <RadzenButton Icon="link" ButtonStyle="ButtonStyle.Secondary" Variant="Variant.Text"
-                                      Click="@(() => CopyPresignedLink(row.Object!))"
-                                      title="Copy presigned link" />
-                        <RadzenButton Icon="content_copy" ButtonStyle="ButtonStyle.Secondary" Variant="Variant.Text"
-                                      Click="@(args => ShowCopyMenu(args, row.Object!))"
-                                      title="Copy key or S3 URI" />
-                        @if (IsPreviewable(row.Object!.ContentType))
+                    <OxRowActions>
+                        @if (row.IsFolder)
                         {
-                            <RadzenButton Icon="visibility" ButtonStyle="ButtonStyle.Dark" Variant="Variant.Text"
-                                          Click="@(() => PreviewObject(row.Object!))"
-                                          title="Preview" />
+                            <OxMenuButton Label="@($"More actions for {row.Name}")">
+                                <OxMenuItem Icon="download" Href="@FileHelper.FolderZipUrl(BucketName, row.FolderPath!)" Download="@($"{row.Name[..^1]}.zip")">Download ZIP</OxMenuItem>
+                                <OxMenuDivider />
+                                <OxMenuItem Icon="delete" Danger="true" OnClick="@(() => OnDeleteFolder(row.FolderPath!))">Delete</OxMenuItem>
+                            </OxMenuButton>
                         }
                         else
                         {
-                            <RadzenButton Icon="visibility" ButtonStyle="ButtonStyle.Dark" Variant="Variant.Text" style="visibility:hidden" />
+                            var obj = row.Object!;
+                            <OxIconButton Icon="download" Label="Download" Href="@FileHelper.ObjectUrl(BucketName, obj.Key, download: true)"
+                                          Download="@Path.GetFileName(obj.Key)" target="_blank" />
+                            <OxIconButton Icon="link" Label="Share link" OnClick="@(() => CopyPresignedLink(obj))" />
+                            <OxMenuButton Label="@($"More actions for {row.Name}")">
+                                @if (IsPreviewable(obj.ContentType))
+                                {
+                                    <OxMenuItem Icon="visibility" OnClick="@(() => PreviewObject(obj))">Preview</OxMenuItem>
+                                }
+                                <OxMenuItem Icon="info" OnClick="@(() => ShowMetadata(obj))">Metadata</OxMenuItem>
+                                <OxMenuItem Icon="content_copy" OnClick="@(() => CopyText(obj.Key, "Key copied"))">Copy key</OxMenuItem>
+                                <OxMenuItem Icon="content_copy" OnClick="@(() => CopyText($"s3://{BucketName}/{obj.Key}", "S3 URI copied"))">Copy S3 URI</OxMenuItem>
+                                <OxMenuDivider />
+                                <OxMenuItem Icon="delete" Danger="true" OnClick="@(() => OnDeleteObject(obj))">Delete</OxMenuItem>
+                            </OxMenuButton>
                         }
-                        <RadzenButton Icon="info" ButtonStyle="ButtonStyle.Dark" Variant="Variant.Text"
-                                      Click="@(() => ShowMetadata(row.Object!))"
-                                      title="File info" />
-                        <RadzenButton Icon="delete" ButtonStyle="ButtonStyle.Danger" Variant="Variant.Text"
-                                      Click="@(() => OnDeleteObject(row.Object!))" />
-                    }
-                    </div>
+                    </OxRowActions>
                 </Template>
             </RadzenDataGridColumn>
         </Columns>
     </RadzenDataGrid>
-    </div>
-</RadzenStack>
-</div>
-
-<style>
-    .objects-grid .rz-data-grid-data td {
-        height: 44px !important;
-        padding-top: 0 !important;
-        padding-bottom: 0 !important;
-    }
-</style>
+</OxDropZone>
 
 @code {
     [Parameter] public string BucketName { get; set; } = string.Empty;
@@ -183,7 +126,7 @@
     {
         public string SortContentType => Object?.ContentType ?? string.Empty;
         public long   SortSize        => Object?.Size        ?? 0;
-        public DateTime SortDate      => Object?.CreatedAt   ?? DateTime.MinValue;
+        public DateTime SortDate      => Object?.UpdatedAt   ?? DateTime.MinValue;
     }
 
     List<ListRow> _rows = [];
@@ -198,9 +141,6 @@
     bool _bucketExists = true;
     Bucket? _bucket;
     string? _loadedPrefix;
-    ElementReference _dropZoneRef;
-    InputFile? _inputFileRef;
-    IJSObjectReference? _dropZoneModule;
     string _currentUserId = string.Empty;
     bool _isPrivileged;
     string _searchTerm = string.Empty;
@@ -218,13 +158,17 @@
                 : $"{_rows.Count:N0} results"
             : $"{_bucket!.ObjectCount:N0} objects · {FileHelper.FormatBytes(_bucket.TotalSize)}";
 
-    protected override async Task OnAfterRenderAsync(bool firstRender)
+    IReadOnlyList<OxCrumb> Crumbs =>
+    [
+        new("Buckets", "/buckets"),
+        new(BucketName, PrefixUrl(string.Empty)),
+        ..GetBreadcrumbSegments().Select(c => new OxCrumb(c.Segment, PrefixUrl(c.PrefixUpTo)))
+    ];
+
+    void OnRowRender(RowRenderEventArgs<ListRow> args)
     {
-        if (firstRender && _inputFileRef?.Element is not null)
-        {
-            _dropZoneModule = await JS.InvokeAsync<IJSObjectReference>("import", "./_content/ObjeX.Web/Components/Pages/Objects.razor.js");
-            await _dropZoneModule.InvokeVoidAsync("initDropZone", _dropZoneRef, _inputFileRef.Element);
-        }
+        if (args.Data is not null && _selected.Contains(args.Data))
+            args.Attributes["class"] = OxSizes.SelectedRowClass;
     }
 
     protected override async Task OnInitializedAsync()
@@ -286,9 +230,9 @@
         _searchApplied = true;
     }
 
-    async Task OnSearchInput(ChangeEventArgs e)
+    async Task OnSearchInput(string value)
     {
-        _searchTerm = e.Value?.ToString() ?? string.Empty;
+        _searchTerm = value;
         // Blazor serialises handlers on its dispatcher, so replacing the source cannot race with the awaiting keystroke.
         _searchCts.Cancel();
         _searchCts = new CancellationTokenSource();
@@ -309,11 +253,6 @@
         catch (OperationCanceledException) { }
     }
 
-    void OnSearchKeyDown(KeyboardEventArgs e)
-    {
-        if (e.Key == "Escape") ClearSearch();
-    }
-
     void ClearSearch()
     {
         _searchTerm = string.Empty;
@@ -331,15 +270,11 @@
         BuildFolderRows();
     }
 
-    // Pushes a history entry per folder; OnParametersSetAsync does the loading, so Back and Forward work the same way.
-    void NavigateToPrefix(string prefix)
-    {
-        ClearSearch();
-        var url = string.IsNullOrEmpty(prefix)
+    // Folders are links, so each one is a history entry; OnParametersSetAsync does the loading and Back and Forward work the same way.
+    string PrefixUrl(string prefix) =>
+        string.IsNullOrEmpty(prefix)
             ? $"/buckets/{BucketName}"
             : $"/buckets/{BucketName}?prefix={Uri.EscapeDataString(prefix)}";
-        Navigation.NavigateTo(url);
-    }
 
     protected override async Task OnParametersSetAsync()
     {
@@ -511,12 +446,7 @@
 
     async Task OnDeleteFolder(string folderPath)
     {
-        var confirmed = await DialogService.Confirm(
-            $"Delete \"{folderPath.TrimEnd('/')}\" and all its contents?",
-            "Delete Folder",
-            new ConfirmOptions { OkButtonText = "Delete", CancelButtonText = "Cancel", CloseDialogOnOverlayClick = true });
-
-        if (confirmed != true) return;
+        if (!await ConfirmDialog.AskAsync(DialogService, "Delete folder", $"Delete \"{folderPath.TrimEnd('/')}\" and all its contents?", "Delete", danger: true)) return;
 
         try
         {
@@ -533,12 +463,7 @@
 
     async Task OnDeleteObject(BlobObject obj)
     {
-        var confirmed = await DialogService.Confirm(
-            $"Delete \"{obj.Key}\"?",
-            "Delete Object",
-            new ConfirmOptions { OkButtonText = "Delete", CancelButtonText = "Cancel", CloseDialogOnOverlayClick = true });
-
-        if (confirmed != true) return;
+        if (!await ConfirmDialog.AskAsync(DialogService, "Delete object", $"Delete \"{obj.Key}\"?", "Delete", danger: true)) return;
 
         try
         {
@@ -555,12 +480,7 @@
     async Task BulkDelete()
     {
         var count = _selected.Count;
-        var confirmed = await DialogService.Confirm(
-            $"Delete {count} selected item(s)? This cannot be undone.",
-            "Delete Selected",
-            new ConfirmOptions { OkButtonText = "Delete", CancelButtonText = "Cancel", CloseDialogOnOverlayClick = true });
-
-        if (confirmed != true) return;
+        if (!await ConfirmDialog.AskAsync(DialogService, "Delete selection", $"Delete {count} selected item(s)? This cannot be undone.", "Delete", danger: true)) return;
 
         var errors = new List<string>();
         try
@@ -631,7 +551,7 @@
                 { "UpdatedAt",   obj.UpdatedAt },
                 { "CustomMetadataJson", obj.CustomMetadata },
             },
-            new DialogOptions { Width = "480px", CloseDialogOnOverlayClick = true, ShowClose = true });
+            new DialogOptions { Width = OxSizes.DialogMedium, CloseDialogOnOverlayClick = true, ShowClose = true });
     }
 
     // Row first, blob second: a row must never point at a missing blob, while a leftover blob is collected by the orphan cleanup job.
@@ -679,27 +599,15 @@
                 { "BucketName",  BucketName },
                 { "Key",         obj.Key },
             },
-            new DialogOptions { Width = "860px", CloseDialogOnOverlayClick = true, ShowClose = true });
+            new DialogOptions { Width = OxSizes.DialogLarge, CloseDialogOnOverlayClick = true, ShowClose = true });
     }
 
-    void ShowCopyMenu(MouseEventArgs args, BlobObject obj) =>
-        ContextMenuService.Open(args,
-            [
-                new ContextMenuItem { Text = "Copy key",    Value = "key" },
-                new ContextMenuItem { Text = "Copy S3 URI", Value = "uri" },
-            ],
-            // The click callback is synchronous, so the copy runs detached and reports its own failures.
-            e => _ = CopyFromMenu(obj, e));
-
-    async Task CopyFromMenu(BlobObject obj, MenuItemEventArgs e)
+    async Task CopyText(string text, string message)
     {
-        ContextMenuService.Close();
-        var isKey = (string?)e.Value == "key";
-        var text = isKey ? obj.Key : $"s3://{BucketName}/{obj.Key}";
         try
         {
             await JS.InvokeVoidAsync("navigator.clipboard.writeText", text);
-            NotificationService.Notify(NotificationSeverity.Success, isKey ? "Key copied" : "S3 URI copied");
+            NotificationService.Notify(NotificationSeverity.Success, message);
         }
         catch (Exception ex)
         {
@@ -740,7 +648,7 @@
                 { "MaxSeconds",     maxExpiry },
                 { "CredentialName", credential.Name },
             },
-            new DialogOptions { Width = "440px", CloseDialogOnOverlayClick = true });
+            new DialogOptions { Width = OxSizes.DialogSmall, CloseDialogOnOverlayClick = true });
 
         if (result is not int expiresSeconds) return;
 

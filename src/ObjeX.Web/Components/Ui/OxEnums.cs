@@ -22,6 +22,11 @@ public static class OxSizes
 {
     public const string CheckColumn = "40px";
     public const string ActionsColumn = "112px";
+    public const string TypeColumn = "180px";
+    public const string SizeColumn = "110px";
+    public const string DateColumn = "170px";
+    /// <summary>Row class for a selected grid row. RowRender replaces the class attribute, so Radzen's own row class is repeated.</summary>
+    public const string SelectedRowClass = "rz-data-row ox-row-selected";
     public const string DialogSmall = "440px";
     public const string DialogMedium = "480px";
     public const string DialogLarge = "860px";

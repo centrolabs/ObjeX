@@ -1,0 +1,18 @@
+<span class="ox-file-name">
+    <OxFileIcon Kind="@Kind" />
+    @if (Href is not null)
+    {
+        <a href="@Href">@ChildContent</a>
+    }
+    else
+    {
+        <span>@ChildContent</span>
+    }
+</span>
+
+@code {
+    [Parameter] public OxFileKind Kind { get; set; }
+    /// <summary>Makes the name a link, for a folder or a bucket.</summary>
+    [Parameter] public string? Href { get; set; }
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+}

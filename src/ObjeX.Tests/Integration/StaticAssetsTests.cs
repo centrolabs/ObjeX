@@ -56,7 +56,8 @@ public class StaticAssetsTests(ObjeXFactory factory) : IClassFixture<ObjeXFactor
     }
 
     [Theory]
-    [InlineData("/_content/ObjeX.Web/Components/Pages/Objects.razor.js")]
+    [InlineData("/_content/ObjeX.Web/Components/Ui/OxDropZone.razor.js")]
+    [InlineData("/_content/ObjeX.Web/Components/Ui/OxMenuButton.razor.js")]
     [InlineData("/_content/ObjeX.Web/Components/Dialogs/UploadObjectDialog.razor.js")]
     [InlineData("/fonts/inter-400.ttf")]
     public async Task AssetsLoadedAtRuntime_Resolve(string url)
