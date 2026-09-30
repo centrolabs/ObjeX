@@ -1,89 +1,47 @@
 @inject DialogService DialogService
 @inject BrowserTimeZone Tz
 
-<RadzenStack Gap="1rem" @onkeydown="OnKeyDown" tabindex="-1">
-
-    @* Quick-select chips *@
-    <RadzenStack Orientation="Orientation.Horizontal" Gap="0.35rem" Style="flex-wrap:wrap">
+<OxStack Gap="7" @onkeydown="OnKeyDown" tabindex="-1">
+    <OxStack Row="true" Wrap="true" Gap="3">
         @foreach (var preset in _presets)
         {
             var p = preset;
-            var active = _value == p.Value && _unit == p.Unit;
-            <span class="presign-chip @(active ? "presign-chip--active" : "")"
-                  @onclick="@(() => ApplyPreset(p))">@p.Label</span>
+            <OxChip Active="@(_value == p.Value && _unit == p.Unit)" OnClick="@(() => ApplyPreset(p))">@p.Label</OxChip>
         }
-    </RadzenStack>
+    </OxStack>
 
-    @* Custom input *@
-    <RadzenStack Orientation="Orientation.Horizontal" Gap="0.75rem" AlignItems="AlignItems.Start">
-        <RadzenFormField Text="Duration" Style="flex:1">
-            <input type="number" min="1" @oninput="OnValueInput"
-                   value="@_value"
-                   class="rz-textbox no-spinner"
-                   style="width:100%" />
-        </RadzenFormField>
-        <RadzenFormField Text="Unit" Style="flex:1">
-            <RadzenDropDown @bind-Value="_unit" Data="_units"
-                            TextProperty="@nameof(TimeUnit.Label)"
-                            ValueProperty="@nameof(TimeUnit.Id)"
-                            Change="@(_ => Validate())"
-                            Style="width:100%" />
-        </RadzenFormField>
-    </RadzenStack>
+    <OxStack Row="true" Gap="6" Align="OxAlign.Start">
+        <OxStack Grow="true">
+            <OxField Label="Duration">
+                <OxTextInput Type="number" min="1" Value="@_value.ToString()" ValueChanged="OnValueInput" Invalid="@(_error is not null)" />
+            </OxField>
+        </OxStack>
+        <OxStack Grow="true">
+            <OxField Label="Unit">
+                <RadzenDropDown @bind-Value="_unit" Data="_units"
+                                TextProperty="@nameof(TimeUnit.Label)"
+                                ValueProperty="@nameof(TimeUnit.Id)"
+                                Change="@(_ => Validate())" />
+            </OxField>
+        </OxStack>
+    </OxStack>
 
     @if (_error is not null)
     {
-        <RadzenText TextStyle="TextStyle.Caption" Style="color:var(--rz-danger)">@_error</RadzenText>
+        <OxText Variant="OxTextVariant.Small" Tone="OxTone.Danger">@_error</OxText>
     }
     else
     {
-        <RadzenText TextStyle="TextStyle.Caption" Style="color:var(--rz-text-secondary-color)">
-            Expires at: @Tz.FormatSeconds(DateTime.UtcNow.AddSeconds(TotalSeconds))
-        </RadzenText>
+        <OxText Variant="OxTextVariant.Small">Expires at: @Tz.FormatSeconds(DateTime.UtcNow.AddSeconds(TotalSeconds))</OxText>
     }
 
-    <RadzenText TextStyle="TextStyle.Caption" Style="color:var(--rz-text-secondary-color)">
-        Signed with your S3 credential "@CredentialName". The link stops working when you delete that credential.
-    </RadzenText>
+    <OxText Variant="OxTextVariant.Small">Signed with your S3 credential "@CredentialName". The link stops working when you delete that credential.</OxText>
 
-    <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.End" Gap="0.5rem">
-        <RadzenButton Text="Cancel" ButtonStyle="ButtonStyle.Light" Click="@(() => DialogService.Close(null))" />
-        <RadzenButton Text="Copy Link" ButtonStyle="ButtonStyle.Primary"
-                      Disabled="@(_error is not null || _value < 1)"
-                      Click="@(() => DialogService.Close(TotalSeconds))" />
-    </RadzenStack>
-
-</RadzenStack>
-
-<style>
-    .presign-chip {
-        display: inline-flex;
-        align-items: center;
-        padding: 0.25rem 0.7rem;
-        border-radius: 9999px;
-        font-size: 0.8rem;
-        font-weight: 500;
-        cursor: pointer;
-        border: 1px solid var(--rz-border-disabled-color);
-        background: transparent;
-        color: var(--rz-text-secondary-color);
-        transition: background 0.15s, color 0.15s, border-color 0.15s;
-        user-select: none;
-    }
-    .presign-chip:hover {
-        border-color: var(--rz-primary);
-        color: var(--rz-primary);
-    }
-    .presign-chip--active {
-        background: var(--rz-primary);
-        border-color: var(--rz-primary);
-        color: #fff;
-    }
-    /* Hide browser number input spinners */
-    .no-spinner::-webkit-outer-spin-button,
-    .no-spinner::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
-    .no-spinner { -moz-appearance: textfield; }
-</style>
+    <OxStack Row="true" Justify="OxJustify.End" Gap="4">
+        <OxButton OnClick="@(() => DialogService.Close(null))">Cancel</OxButton>
+        <OxButton Variant="OxButtonVariant.Primary" Icon="link" Disabled="@(_error is not null || _value < 1)" OnClick="@(() => DialogService.Close(TotalSeconds))">Copy link</OxButton>
+    </OxStack>
+</OxStack>
 
 @code {
     [Parameter] public int DefaultSeconds { get; set; } = 3600;
@@ -124,9 +82,9 @@
         Validate();
     }
 
-    void OnValueInput(ChangeEventArgs e)
+    void OnValueInput(string value)
     {
-        _value = int.TryParse(e.Value?.ToString(), out var v) ? v : 0;
+        _value = int.TryParse(value, out var v) ? v : 0;
         Validate();
     }
 

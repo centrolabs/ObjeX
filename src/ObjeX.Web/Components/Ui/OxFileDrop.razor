@@ -1,7 +1,7 @@
 @implements IAsyncDisposable
 @inject IJSRuntime JS
 
-<div class="ox-file-drop" @ref="_zone">
+<div class="ox-file-drop @(Hidden ? "is-hidden" : null)" @ref="_zone">
     <OxIcon Name="upload" />
     <span>@ChildContent</span>
     <InputFile @ref="_input" OnChange="OnChange" multiple="@Multiple" aria-label="Choose files" />
@@ -15,6 +15,8 @@
     /// <summary>The area a user clicks or drops files on. The text inside says so.</summary>
     [Parameter] public RenderFragment? ChildContent { get; set; }
     [Parameter] public bool Multiple { get; set; } = true;
+    /// <summary>Keeps the input in the page but out of sight: the files a user chose are read through it.</summary>
+    [Parameter] public bool Hidden { get; set; }
     [Parameter] public EventCallback<InputFileChangeEventArgs> OnChange { get; set; }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
