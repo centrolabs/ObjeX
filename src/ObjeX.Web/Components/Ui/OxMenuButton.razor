@@ -42,7 +42,7 @@
     }
 
     [JSInvokable]
-    public Task CloseFromScroll() => InvokeAsync(CloseAsync);
+    public Task CloseFromBrowser() => InvokeAsync(CloseAsync);
 
     Task OnKeyDown(KeyboardEventArgs e) => e.Key == "Escape" ? CloseAsync() : Task.CompletedTask;
 
@@ -62,7 +62,7 @@
         {
             if (_module is not null)
             {
-                await _module.InvokeVoidAsync("release", null);
+                await _module.InvokeVoidAsync("stop", _anchor);
                 await _module.DisposeAsync();
             }
         }
