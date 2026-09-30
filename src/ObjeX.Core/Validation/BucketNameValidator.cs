@@ -5,12 +5,13 @@ namespace ObjeX.Core.Validation;
 public static partial class BucketNameValidator
 {
     /// <summary>
-    /// Validates DNS-compliant bucket names: 3-63 lowercase alphanumeric characters or hyphens, must start/end with alphanumeric.
-    /// Regex pattern compiled at build-time using source generators for zero-overhead performance.
-    /// Must be declared as 'partial' to allow the compiler to inject the generated code.
+    /// S3 bucket naming rules: 3-63 lowercase letters, digits, hyphens and periods, starting and ending with a letter or digit.
     /// </summary>
-    [GeneratedRegex("^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$")]
-    private static partial Regex BucketNameRegex();  // Compiler generates this at build time
+    [GeneratedRegex("^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$")]
+    private static partial Regex BucketNameRegex();
+
+    [GeneratedRegex(@"^\d+\.\d+\.\d+\.\d+$")]
+    private static partial Regex IpAddressRegex();
 
     public static string? GetValidationError(string name)
     {
@@ -31,9 +32,15 @@ public static partial class BucketNameValidator
         
         if (name.Contains(".."))
             return "Bucket name cannot contain consecutive periods";
-        
+
+        if (name.Contains(".-") || name.Contains("-."))
+            return "Bucket name cannot have a period next to a hyphen";
+
+        if (IpAddressRegex().IsMatch(name))
+            return "Bucket name must not be formatted as an IP address";
+
         if (!BucketNameRegex().IsMatch(name))
-            return "Bucket name can only contain lowercase letters, numbers, and hyphens";
+            return "Bucket name can only contain lowercase letters, numbers, hyphens and periods";
         
         return null;
     }

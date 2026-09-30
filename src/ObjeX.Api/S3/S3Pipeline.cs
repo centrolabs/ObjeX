@@ -29,6 +29,11 @@ public static class S3Pipeline
             S3Xml.WriteErrorAsync(ctx, S3Errors.InternalError,
                 "We encountered an internal error. Please try again.", StatusCodes.Status500InternalServerError)));
 
+        s3.Use((ctx, next) =>
+        {
+            ctx.Response.Headers[S3Xml.RequestIdHeader] = ctx.TraceIdentifier;
+            return next(ctx);
+        });
         s3.UseCors("S3");
         s3.UseMiddleware<SigV4AuthMiddleware>();
 

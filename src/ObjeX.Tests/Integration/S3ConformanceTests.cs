@@ -1,6 +1,12 @@
 using System.Net;
 using System.Text;
 
+using Microsoft.AspNetCore.Identity;
+using Microsoft.Extensions.DependencyInjection;
+
+using ObjeX.Core.Models;
+using ObjeX.Infrastructure.Data;
+
 namespace ObjeX.Tests.Integration;
 
 /// <summary>
@@ -11,15 +17,32 @@ public class S3ConformanceTests(ObjeXFactory factory) : IClassFixture<ObjeXFacto
 {
     private readonly HttpClient _client = factory.CreateS3Client();
 
-    private async Task<HttpResponseMessage> SendAsync(HttpMethod method, string path, string? body = null, Action<HttpRequestMessage>? configure = null)
+    private Task<HttpResponseMessage> SendAsync(HttpMethod method, string path, string? body = null, Action<HttpRequestMessage>? configure = null) =>
+        SendAsAsync((factory.AccessKeyId, factory.SecretAccessKey), method, path, body, configure);
+
+    private async Task<HttpResponseMessage> SendAsAsync((string AccessKeyId, string Secret) credential, HttpMethod method, string path, string? body = null, Action<HttpRequestMessage>? configure = null)
     {
         var bytes = body is null ? null : Encoding.UTF8.GetBytes(body);
         var request = new HttpRequestMessage(method, path);
         if (bytes is not null)
             request.Content = new ByteArrayContent(bytes);
         configure?.Invoke(request);
-        S3RequestSigner.SignRequest(request, factory.AccessKeyId, factory.SecretAccessKey, bytes);
+        S3RequestSigner.SignRequest(request, credential.AccessKeyId, credential.Secret, bytes);
         return await _client.SendAsync(request);
+    }
+
+    private async Task<(string AccessKeyId, string Secret)> OtherUserAsync()
+    {
+        using var scope = factory.CreateScope();
+        var users = scope.ServiceProvider.GetRequiredService<UserManager<User>>();
+        var user = new User { UserName = $"other{Guid.NewGuid():N}"[..20], Email = $"{Guid.NewGuid():N}@objex.local" };
+        Assert.True((await users.CreateAsync(user, "pass")).Succeeded);
+        await users.AddToRoleAsync(user, "User");
+        var (credential, secret) = S3Credential.Create("other", user.Id);
+        var db = scope.ServiceProvider.GetRequiredService<ObjeXDbContext>();
+        db.S3Credentials.Add(credential);
+        await db.SaveChangesAsync();
+        return (credential.AccessKeyId, secret);
     }
 
     private async Task<string> NewBucketAsync()
@@ -366,6 +389,67 @@ public class S3ConformanceTests(ObjeXFactory factory) : IClassFixture<ObjeXFacto
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         Assert.Contains($"<Code>{code}</Code>", await response.Content.ReadAsStringAsync());
+    }
+
+    [Fact]
+    public async Task ErrorResponse_CarriesTheRequestIdOfItsHeader()
+    {
+        var bucket = await NewBucketAsync();
+
+        var response = await SendAsync(HttpMethod.Get, $"/{bucket}/missing");
+
+        var requestId = Assert.Single(response.Headers.GetValues("x-amz-request-id"));
+        Assert.False(string.IsNullOrEmpty(requestId));
+        Assert.Contains($"<RequestId>{requestId}</RequestId>", await response.Content.ReadAsStringAsync());
+    }
+
+    [Fact]
+    public async Task GetObjectInMissingBucket_ReturnsNoSuchBucket()
+    {
+        var response = await SendAsync(HttpMethod.Get, $"/nope-{Guid.NewGuid():N}"[..20] + "/foo");
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+        Assert.Contains("<Code>NoSuchBucket</Code>", await response.Content.ReadAsStringAsync());
+    }
+
+    [Fact]
+    public async Task BucketNameWithPeriods_IsAccepted()
+    {
+        var bucket = $"dots.{Guid.NewGuid():N}"[..20];
+
+        Assert.Equal(HttpStatusCode.OK, (await SendAsync(HttpMethod.Put, $"/{bucket}")).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await SendAsync(HttpMethod.Put, $"/{bucket}/foo", "bar")).StatusCode);
+    }
+
+    [Fact]
+    public async Task ListBuckets_PagesWithMaxBuckets()
+    {
+        var prefix = $"lb{Guid.NewGuid():N}"[..12];
+        foreach (var name in new[] { $"{prefix}-a", $"{prefix}-b" })
+            await SendAsync(HttpMethod.Put, $"/{name}");
+
+        var first = System.Xml.Linq.XElement.Parse(await (await SendAsync(HttpMethod.Get, $"/?prefix={prefix}&max-buckets=1")).Content.ReadAsStringAsync());
+        var token = first.Descendants().SingleOrDefault(e => e.Name.LocalName == "ContinuationToken")?.Value;
+        var second = System.Xml.Linq.XElement.Parse(await (await SendAsync(HttpMethod.Get, $"/?prefix={prefix}&max-buckets=1&continuation-token={Uri.EscapeDataString(token!)}")).Content.ReadAsStringAsync());
+
+        static string[] Names(System.Xml.Linq.XElement root) => root.Descendants().Where(e => e.Name.LocalName == "Name").Select(e => e.Value).ToArray();
+        Assert.Equal([$"{prefix}-a"], Names(first));
+        Assert.Equal([$"{prefix}-b"], Names(second));
+        Assert.DoesNotContain(second.Descendants(), e => e.Name.LocalName == "ContinuationToken");
+    }
+
+    [Fact]
+    public async Task CreateBucket_OwnBucketAgain_IsANoOp_SomeoneElsesIsAConflict()
+    {
+        var bucket = await NewBucketAsync();
+        await PutAsync(bucket, "foo", "bar");
+
+        Assert.Equal(HttpStatusCode.OK, (await SendAsync(HttpMethod.Put, $"/{bucket}")).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await SendAsync(HttpMethod.Head, $"/{bucket}/foo")).StatusCode);
+
+        var other = await SendAsAsync(await OtherUserAsync(), HttpMethod.Put, $"/{bucket}");
+        Assert.Equal(HttpStatusCode.Conflict, other.StatusCode);
+        Assert.Contains("<Code>BucketAlreadyExists</Code>", await other.Content.ReadAsStringAsync());
     }
 
     [Fact]
