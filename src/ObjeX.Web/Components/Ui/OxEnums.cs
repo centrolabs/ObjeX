@@ -29,6 +29,8 @@ public static class OxSizes
     public const string ActionsColumn = "112px";
     /// <summary>For a row whose only control is the menu.</summary>
     public const string MenuColumn = "56px";
+    /// <summary>For a row whose action is one labelled button.</summary>
+    public const string ButtonColumn = "140px";
     public const string TypeColumn = "180px";
     public const string SizeColumn = "110px";
     public const string DateColumn = "170px";

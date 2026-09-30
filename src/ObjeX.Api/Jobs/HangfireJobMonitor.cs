@@ -117,7 +117,8 @@ public class HangfireJobMonitor(JobStorage storage, IRecurringJobManager manager
     {
         null => null,
         CleanupResult r => $"{Count(r.FilesChecked, "blob file")} checked, {Count(r.FilesDeleted, "orphan")} deleted",
-        IntegrityResult r => $"{Count(r.Checked, "blob")} verified, {r.Corrupted:N0} corrupted, {r.Missing:N0} missing, {r.Skipped:N0} multipart skipped",
+        IntegrityResult r => $"{Count(r.Checked, "blob")} verified, {r.Corrupted:N0} corrupted, {r.Missing:N0} missing"
+            + (r.Skipped > 0 ? $", {r.Skipped:N0} multipart skipped" : ""),
         AbandonedMultipartResult r => $"{Count(r.UploadsChecked, "abandoned upload")} found, {r.UploadsDeleted:N0} deleted",
         _ => result.ToString(),
     };
