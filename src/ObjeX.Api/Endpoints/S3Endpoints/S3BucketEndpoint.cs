@@ -53,9 +53,10 @@ public static class S3BucketEndpoint
             if (S3Subresources.IsUnsupportedOnBucket(request))
                 return S3Subresources.NotImplemented();
 
-            // In us-east-1, S3 answers a repeated create of your own bucket with 200 and changes nothing.
+            // In us-east-1, S3 answers a repeated create of your own bucket with 200 and changes nothing;
+            // ObjeX keeps no ACLs, so a repeat that asks for one cannot be honoured and conflicts instead.
             if (await metadata.GetBucketAsync(bucket) is { } existing)
-                return existing.OwnerId == GetCallerId(ctx)
+                return existing.OwnerId == GetCallerId(ctx) && !request.Headers.ContainsKey("x-amz-acl")
                     ? Results.Ok()
                     : S3Xml.Error(S3Errors.BucketAlreadyExists, $"The bucket '{bucket}' already exists.", 409);
 
