@@ -168,6 +168,17 @@ public class S3ConformanceTests(ObjeXFactory factory) : IClassFixture<ObjeXFacto
     }
 
     [Fact]
+    public async Task KeyWithLiteralPercent_SignsAndRoundTrips()
+    {
+        var bucket = await NewBucketAsync();
+
+        Assert.Equal(HttpStatusCode.OK, (await SendAsync(HttpMethod.Put, $"/{bucket}/file%2525.txt", "bar")).StatusCode);
+
+        var xml = await (await SendAsync(HttpMethod.Get, $"/{bucket}")).Content.ReadAsStringAsync();
+        Assert.Contains("<Key>file%25.txt</Key>", xml);
+    }
+
+    [Fact]
     public async Task CopyOntoItself_WithoutReplace_IsRejected()
     {
         var bucket = await NewBucketAsync();

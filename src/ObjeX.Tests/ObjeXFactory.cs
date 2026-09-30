@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
@@ -24,6 +25,9 @@ public class ObjeXFactory : WebApplicationFactory<ApiAssemblyMarker>
 
     /// <summary>Test-only header that stands in for the TCP port a request arrived on.</summary>
     public const string PortHeader = "X-ObjeX-Test-Port";
+
+    /// <summary>Test-only header carrying the path as sent; TestServer leaves RawTarget empty, Kestrel does not.</summary>
+    public const string RawTargetHeader = "X-ObjeX-Test-Raw-Target";
     public const int UiPort = 9001;
     public const int S3Port = 9000;
 
@@ -93,7 +97,7 @@ public class ObjeXFactory : WebApplicationFactory<ApiAssemblyMarker>
     /// </summary>
     public HttpClient CreateS3Client()
     {
-        var client = CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
+        var client = CreateDefaultClient(new RawTargetHandler());
         client.DefaultRequestHeaders.Host = "localhost:9000";
         client.DefaultRequestHeaders.Add(PortHeader, S3Port.ToString());
         return client;
@@ -128,9 +132,21 @@ file class TestPortStartupFilter : IStartupFilter
             {
                 if (int.TryParse(ctx.Request.Headers[ObjeXFactory.PortHeader], out var port))
                     ctx.Connection.LocalPort = port;
+                if (ctx.Request.Headers[ObjeXFactory.RawTargetHeader] is [{ } rawTarget])
+                    ctx.Features.Get<IHttpRequestFeature>()!.RawTarget = rawTarget;
                 await nextMiddleware();
             });
             next(app);
         };
+    }
+}
+
+file class RawTargetHandler : DelegatingHandler
+{
+    protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+    {
+        request.Headers.TryAddWithoutValidation(ObjeXFactory.RawTargetHeader,
+            request.RequestUri!.GetComponents(UriComponents.PathAndQuery, UriFormat.UriEscaped));
+        return base.SendAsync(request, cancellationToken);
     }
 }

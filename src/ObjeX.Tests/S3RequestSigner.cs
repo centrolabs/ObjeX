@@ -58,8 +58,7 @@ public static class S3RequestSigner
 
         // Normalize canonical URI: decode then re-encode each segment
         // (matches server-side SigV4Signer.GetCanonicalUri behavior)
-        var decoded = Uri.UnescapeDataString(rawPath);
-        var canonicalUri = string.Join("/", decoded.Split('/').Select(UriEncode));
+        var canonicalUri = string.Join("/", rawPath.Split('/').Select(segment => UriEncode(Uri.UnescapeDataString(segment))));
         var canonicalQuery = BuildCanonicalQueryString(rawQuery);
 
         var canonicalHeaders =

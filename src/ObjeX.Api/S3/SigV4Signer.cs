@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Http.Features;
 using System.Security.Cryptography;
 using System.Text;
 
@@ -42,7 +43,7 @@ public static class SigV4Signer
     private static string BuildCanonicalRequest(HttpRequest request, SigV4Parser.ParsedSig parsed)
     {
         var method          = request.Method.ToUpperInvariant();
-        var canonicalUri    = GetCanonicalUri(request.Path);
+        var canonicalUri    = GetCanonicalUri(request);
         var canonicalQuery  = GetCanonicalQueryString(request, parsed);
         var canonicalHeaders = GetCanonicalHeaders(request, parsed.SignedHeaders);
         var signedHeaders   = string.Join(";", parsed.SignedHeaders);
@@ -59,12 +60,13 @@ public static class SigV4Signer
             payloadHash);
     }
 
-    private static string GetCanonicalUri(PathString path)
+    private static string GetCanonicalUri(HttpRequest request)
     {
-        // Decode first (Kestrel may leave percent-encoding in PathString), then re-encode strictly.
-        var decoded = Uri.UnescapeDataString(path.Value ?? "/");
-        var segments = decoded.Split('/');
-        return string.Join("/", segments.Select(UriEncodeStrict));
+        // Decode the path as the client sent it exactly once, then re-encode strictly. PathString is already
+        // decoded (except %2F), so decoding it again would turn a key's literal "%25" into "%".
+        var raw = request.HttpContext.Features.Get<IHttpRequestFeature>()?.RawTarget;
+        var path = string.IsNullOrEmpty(raw) || raw[0] != '/' ? request.Path.Value ?? "/" : raw.Split('?')[0];
+        return string.Join("/", path.Split('/').Select(segment => UriEncodeStrict(Uri.UnescapeDataString(segment))));
     }
 
     private static string GetCanonicalQueryString(HttpRequest request, SigV4Parser.ParsedSig parsed)
