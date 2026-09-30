@@ -1,0 +1,40 @@
+@implements IDisposable
+@using ObjeX.Core.Interfaces
+@inject NavigationManager Navigation
+@inject AuthenticationStateProvider AuthStateProvider
+@inject IStorageSpaceService StorageSpace
+
+<OxSideInfo>
+    <ChildContent><b>@FileHelper.FormatBytes(_disk.FreeBytes)</b> free of @FileHelper.FormatBytes(_disk.TotalBytes)</ChildContent>
+    <Meter><OxMeter Value="@_disk.UsedPercent" Tone="@DiskTone" Label="Disk used" /></Meter>
+</OxSideInfo>
+<OxUserBar Name="@_username" Version="@AppVersion.Display"
+           OnSignOut="@(() => Navigation.NavigateTo("/account/logout", forceLoad: true))" />
+
+@code {
+    string _username = string.Empty;
+    StorageSpaceStatus _disk = null!;
+
+    OxTone DiskTone => _disk.IsBelowMinimum ? OxTone.Danger : _disk.IsNearMinimum ? OxTone.Warning : OxTone.Default;
+
+    protected override void OnInitialized()
+    {
+        _disk = StorageSpace.Get();
+        Navigation.LocationChanged += OnLocationChanged;
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        var auth = await AuthStateProvider.GetAuthenticationStateAsync();
+        _username = auth.User.Identity?.Name ?? "Unknown";
+    }
+
+    // Free space moves with every upload and delete, so each navigation reads it again.
+    void OnLocationChanged(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e)
+    {
+        _disk = StorageSpace.Get();
+        InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose() => Navigation.LocationChanged -= OnLocationChanged;
+}
