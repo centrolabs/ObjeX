@@ -17,173 +17,115 @@
 
 <PageTitle>Settings — ObjeX</PageTitle>
 
-<RadzenStack Gap="1.5rem">
-    <RadzenText TextStyle="TextStyle.H4">Settings</RadzenText>
+<OxPageHeader Title="Settings" />
 
-    <RadzenCard>
-        <RadzenStack Gap="1rem">
-            <RadzenText TextStyle="TextStyle.H6">Appearance</RadzenText>
-            <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center"
-                         JustifyContent="JustifyContent.SpaceBetween">
-                <RadzenText>Dark mode</RadzenText>
-                <RadzenSwitch @bind-Value="_isDark" Change="OnThemeChanged" />
-            </RadzenStack>
-        </RadzenStack>
-    </RadzenCard>
+<OxBox Width="OxWidth.Page">
+    <OxCard Title="Appearance">
+        <OxSettingRow Label="Dark mode">
+            <OxSwitch Label="Dark mode" Checked="@_isDark" CheckedChanged="OnThemeChanged" />
+        </OxSettingRow>
+    </OxCard>
 
     @if (_isAdmin || _isManager)
     {
-    <RadzenCard>
-        <RadzenStack Gap="1rem">
-            <RadzenText TextStyle="TextStyle.H6">Presigned URLs</RadzenText>
-            <RadzenStack Gap="0.75rem">
-                <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center"
-                             JustifyContent="JustifyContent.SpaceBetween">
-                    <RadzenText>Default expiry</RadzenText>
-                    <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" AlignItems="AlignItems.Center">
-                        <input type="number" min="1" @oninput="OnDefaultValueInput" value="@_defaultValue"
-                               class="rz-textbox no-spinner" style="width:72px;text-align:right" />
-                        <RadzenDropDown @bind-Value="_defaultUnit" Data="_units"
-                                        TextProperty="@nameof(TimeUnit.Label)" ValueProperty="@nameof(TimeUnit.Id)"
-                                        Change="@(_ => ValidatePresignSettings())" Style="width:110px" />
-                    </RadzenStack>
-                </RadzenStack>
-                <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center"
-                             JustifyContent="JustifyContent.SpaceBetween">
-                    <RadzenText>Maximum expiry</RadzenText>
-                    <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" AlignItems="AlignItems.Center">
-                        <input type="number" min="1" @oninput="OnMaxValueInput" value="@_maxValue"
-                               class="rz-textbox no-spinner" style="width:72px;text-align:right" />
-                        <RadzenDropDown @bind-Value="_maxUnit" Data="_units"
-                                        TextProperty="@nameof(TimeUnit.Label)" ValueProperty="@nameof(TimeUnit.Id)"
-                                        Change="@(_ => ValidatePresignSettings())" Style="width:110px" />
-                    </RadzenStack>
-                </RadzenStack>
-            </RadzenStack>
-            @if (_presignError is not null)
-            {
-                <RadzenText TextStyle="TextStyle.Caption" Style="color:var(--rz-danger)">@_presignError</RadzenText>
-            }
-            <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.End">
-                <RadzenButton Text="Save" ButtonStyle="ButtonStyle.Primary" Size="ButtonSize.Small"
-                              Disabled="@(_presignError is not null)"
-                              Click="SavePresignSettings" />
-            </RadzenStack>
-        </RadzenStack>
-    </RadzenCard>
-    }
+        <OxCard Title="Presigned URLs">
+            <OxSettingRow Label="Default expiry" Hint="Used when a share link is created without a choice.">
+                <OxBox Width="OxWidth.Xs"><OxTextInput Type="number" min="1" AlignEnd="true" Value="@_defaultValue.ToString()" ValueChanged="OnDefaultValueInput" /></OxBox>
+                <OxBox Width="OxWidth.Sm">
+                    <RadzenDropDown @bind-Value="_defaultUnit" Data="_units"
+                                    TextProperty="@nameof(TimeUnit.Label)" ValueProperty="@nameof(TimeUnit.Id)"
+                                    Change="@(_ => ValidatePresignSettings())" />
+                </OxBox>
+            </OxSettingRow>
+            <OxSettingRow Label="Maximum expiry" Hint="No link lives longer than this, whoever signs it.">
+                <OxBox Width="OxWidth.Xs"><OxTextInput Type="number" min="1" AlignEnd="true" Value="@_maxValue.ToString()" ValueChanged="OnMaxValueInput" /></OxBox>
+                <OxBox Width="OxWidth.Sm">
+                    <RadzenDropDown @bind-Value="_maxUnit" Data="_units"
+                                    TextProperty="@nameof(TimeUnit.Label)" ValueProperty="@nameof(TimeUnit.Id)"
+                                    Change="@(_ => ValidatePresignSettings())" />
+                </OxBox>
+            </OxSettingRow>
+            <OxStack Row="true" Justify="OxJustify.Between" Align="OxAlign.Center" Gap="6">
+                <OxText Variant="OxTextVariant.Small" Tone="OxTone.Danger">@_presignError</OxText>
+                <OxButton Variant="OxButtonVariant.Primary" Disabled="@(_presignError is not null)" OnClick="SavePresignSettings">Save</OxButton>
+            </OxStack>
+        </OxCard>
 
-    @if (_isAdmin || _isManager)
-    {
-    <RadzenCard>
-        <RadzenStack Gap="1rem">
-            <RadzenText TextStyle="TextStyle.H6">Storage Quotas</RadzenText>
-            <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center"
-                         JustifyContent="JustifyContent.SpaceBetween">
-                <RadzenText>Default quota per user</RadzenText>
-                <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" AlignItems="AlignItems.Center">
-                    <input type="number" min="0" @oninput="OnQuotaValueInput" value="@_quotaValue"
-                           class="rz-textbox no-spinner" style="width:72px;text-align:right"
-                           placeholder="∞" />
+        <OxCard Title="Storage quotas">
+            <OxSettingRow Label="Default quota per user" Hint="Applies to the User role only. Admins and Managers are unlimited by default. Set per-user overrides on the Users page.">
+                <OxBox Width="OxWidth.Xs"><OxTextInput Type="number" min="0" AlignEnd="true" Placeholder="∞" Value="@(_quotaValue == 0 ? null : _quotaValue.ToString())" ValueChanged="OnQuotaValueInput" /></OxBox>
+                <OxBox Width="OxWidth.Sm">
                     <RadzenDropDown @bind-Value="_quotaUnit" Data="_sizeUnits"
-                                    TextProperty="@nameof(SizeUnit.Label)" ValueProperty="@nameof(SizeUnit.Id)"
-                                    Style="width:80px" />
-                </RadzenStack>
-            </RadzenStack>
-            <RadzenText TextStyle="TextStyle.Caption" Style="color:var(--rz-text-secondary-color)">
-                Applies to users with the User role only. Admins and Managers are unlimited by default. Per-user overrides can be set on the Users page.
-            </RadzenText>
-            <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.End">
-                <RadzenButton Text="Save" ButtonStyle="ButtonStyle.Primary" Size="ButtonSize.Small"
-                              Click="SaveQuotaSettings" />
-            </RadzenStack>
-        </RadzenStack>
-    </RadzenCard>
+                                    TextProperty="@nameof(SizeUnit.Label)" ValueProperty="@nameof(SizeUnit.Id)" />
+                </OxBox>
+            </OxSettingRow>
+            <OxStack Row="true" Justify="OxJustify.End">
+                <OxButton Variant="OxButtonVariant.Primary" OnClick="SaveQuotaSettings">Save</OxButton>
+            </OxStack>
+        </OxCard>
     }
+</OxBox>
 
-    <RadzenCard>
-        <RadzenStack Gap="1rem">
-            <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center"
-                         JustifyContent="JustifyContent.SpaceBetween">
-                <RadzenText TextStyle="TextStyle.H6">S3 Credentials</RadzenText>
-                <RadzenButton Text="New Credential" Icon="add" ButtonStyle="ButtonStyle.Primary"
-                              Size="ButtonSize.Small" Click="CreateCredential" />
-            </RadzenStack>
+<OxCard Title="S3 credentials">
+    <Actions>
+        <OxButton Variant="OxButtonVariant.Primary" Icon="add" OnClick="CreateCredential">New credential</OxButton>
+    </Actions>
+    <ChildContent>
+        <OxStack Row="true" Wrap="true" Align="OxAlign.Center" Gap="8">
+            <OxStack Row="true" Align="OxAlign.Center" Gap="4">
+                <OxText Variant="OxTextVariant.Label">Endpoint</OxText>
+                <OxCode Text="@Endpoint" Copyable="true" />
+            </OxStack>
+            <OxStack Row="true" Align="OxAlign.Center" Gap="4">
+                <OxText Variant="OxTextVariant.Label">Region</OxText>
+                <OxCode Text="@S3Conventions.Region" Copyable="true" />
+            </OxStack>
+            <OxStack Row="true" Align="OxAlign.Center" Gap="4">
+                <OxText Variant="OxTextVariant.Label">Addressing</OxText>
+                <OxCode Text="@S3Conventions.AddressingStyle" />
+            </OxStack>
+        </OxStack>
 
-            <RadzenStack Orientation="Orientation.Horizontal" Wrap="FlexWrap.Wrap"
-                         AlignItems="AlignItems.Center" Gap="1.5rem">
-                <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
-                    <RadzenText TextStyle="TextStyle.Caption" Style="color:var(--rz-text-secondary-color); margin:0">Endpoint</RadzenText>
-                    <code style="background:var(--rz-base-100); border-radius:var(--rz-border-radius); padding:0.2rem 0.5rem; font-size:0.8rem">@Endpoint</code>
-                    <RadzenButton Icon="@(_copied == "Endpoint" ? "check" : "content_copy")" Variant="Variant.Text"
-                                  ButtonStyle="ButtonStyle.Light" Size="ButtonSize.ExtraSmall"
-                                  Click="@(() => Copy("Endpoint", Endpoint))" />
-                </RadzenStack>
-                <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
-                    <RadzenText TextStyle="TextStyle.Caption" Style="color:var(--rz-text-secondary-color); margin:0">Region</RadzenText>
-                    <code style="background:var(--rz-base-100); border-radius:var(--rz-border-radius); padding:0.2rem 0.5rem; font-size:0.8rem">@S3Conventions.Region</code>
-                    <RadzenButton Icon="@(_copied == "Region" ? "check" : "content_copy")" Variant="Variant.Text"
-                                  ButtonStyle="ButtonStyle.Light" Size="ButtonSize.ExtraSmall"
-                                  Click="@(() => Copy("Region", S3Conventions.Region))" />
-                </RadzenStack>
-                <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
-                    <RadzenText TextStyle="TextStyle.Caption" Style="color:var(--rz-text-secondary-color); margin:0">Addressing</RadzenText>
-                    <code style="background:var(--rz-base-100); border-radius:var(--rz-border-radius); padding:0.2rem 0.5rem; font-size:0.8rem">@S3Conventions.AddressingStyle</code>
-                </RadzenStack>
-            </RadzenStack>
+        @if (IsDefaultEndpoint)
+        {
+            <OxText Variant="OxTextVariant.Small">Local endpoint. Clients on other machines need the public URL, set via S3:PublicUrl.</OxText>
+        }
 
-            @if (IsDefaultEndpoint)
-            {
-                <RadzenText TextStyle="TextStyle.Caption" Style="color:var(--rz-text-secondary-color); margin:0">
-                    Local endpoint. Clients on other machines need the public URL, set via <code>S3:PublicUrl</code>.
-                </RadzenText>
-            }
-
-            @if (_credentials.Count == 0)
-            {
-                <RadzenText Style="color:var(--rz-text-secondary-color)">No S3 credentials yet. Create one to access your buckets via the S3 API.</RadzenText>
-            }
-            else
-            {
-                <RadzenDataGrid Data="_credentials" TItem="S3Credential" AllowSorting="false"
-                                Style="border:none">
-                    <Columns>
-                        <RadzenDataGridColumn TItem="S3Credential" Property="Name" Title="Name" />
-                        <RadzenDataGridColumn TItem="S3Credential" Property="AccessKeyId" Title="Access Key ID">
-                            <Template Context="cred">
-                                <code style="font-size:0.85rem">@cred.AccessKeyId</code>
-                            </Template>
-                        </RadzenDataGridColumn>
-                        <RadzenDataGridColumn TItem="S3Credential" Property="CreatedAt" Title="Created" Width="160px">
-                            <Template Context="cred">
-                                @Tz.Format(cred.CreatedAt)
-                            </Template>
-                        </RadzenDataGridColumn>
-                        <RadzenDataGridColumn TItem="S3Credential" Property="LastUsedAt" Title="Last Used" Width="160px">
-                            <Template Context="cred">
-                                @(cred.LastUsedAt is { } used ? Tz.Format(used) : "Never")
-                            </Template>
-                        </RadzenDataGridColumn>
-                        <RadzenDataGridColumn TItem="S3Credential" Title="" Width="100px" TextAlign="TextAlign.Right">
-                            <Template Context="cred">
-                                <RadzenButton Icon="terminal" Variant="Variant.Text" ButtonStyle="ButtonStyle.Light"
-                                              Size="ButtonSize.Small" Click="@(() => ShowConnect(cred))" />
-                                <RadzenButton Icon="delete" Variant="Variant.Text" ButtonStyle="ButtonStyle.Danger"
-                                              Size="ButtonSize.Small" Click="@(() => DeleteCredential(cred))" />
-                            </Template>
-                        </RadzenDataGridColumn>
-                    </Columns>
-                </RadzenDataGrid>
-            }
-        </RadzenStack>
-    </RadzenCard>
-</RadzenStack>
-
-<style>
-    .no-spinner::-webkit-outer-spin-button,
-    .no-spinner::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
-    .no-spinner { -moz-appearance: textfield; }
-</style>
+        @if (_credentials.Count == 0)
+        {
+            <OxEmptyState Icon="key" Title="No S3 credentials yet">Create one to access your buckets through the S3 API.</OxEmptyState>
+        }
+        else
+        {
+            <RadzenDataGrid Data="_credentials" TItem="S3Credential" AllowSorting="false" AllowAlternatingRows="false">
+                <Columns>
+                    <RadzenDataGridColumn TItem="S3Credential" Property="Name" Title="Name">
+                        <Template Context="cred"><OxText Truncate="true"><strong>@cred.Name</strong></OxText></Template>
+                    </RadzenDataGridColumn>
+                    <RadzenDataGridColumn TItem="S3Credential" Property="AccessKeyId" Title="Access key ID" Width="@OxSizes.NameColumn">
+                        <Template Context="cred"><OxText Variant="OxTextVariant.Mono">@cred.AccessKeyId</OxText></Template>
+                    </RadzenDataGridColumn>
+                    <RadzenDataGridColumn TItem="S3Credential" Property="CreatedAt" Title="Created" Width="@OxSizes.DateColumn" CssClass="ox-col-muted">
+                        <Template Context="cred">@Tz.Format(cred.CreatedAt)</Template>
+                    </RadzenDataGridColumn>
+                    <RadzenDataGridColumn TItem="S3Credential" Property="LastUsedAt" Title="Last used" Width="@OxSizes.DateColumn" CssClass="ox-col-muted">
+                        <Template Context="cred">@(cred.LastUsedAt is { } used ? Tz.Format(used) : "Never")</Template>
+                    </RadzenDataGridColumn>
+                    <RadzenDataGridColumn TItem="S3Credential" Title="" Width="@OxSizes.ActionsColumn" Sortable="false" CssClass="ox-col-actions">
+                        <Template Context="cred">
+                            <OxRowActions>
+                                <OxIconButton Icon="terminal" Label="Connect" OnClick="@(() => ShowConnect(cred))" />
+                                <OxMenuButton Label="@($"More actions for {cred.Name}")">
+                                    <OxMenuItem Icon="delete" Danger="true" OnClick="@(() => DeleteCredential(cred))">Delete</OxMenuItem>
+                                </OxMenuButton>
+                            </OxRowActions>
+                        </Template>
+                    </RadzenDataGridColumn>
+                </Columns>
+            </RadzenDataGrid>
+        }
+    </ChildContent>
+</OxCard>
 
 @code {
     bool _isDark;
@@ -191,20 +133,8 @@
     bool _isManager;
     string _userId = string.Empty;
     List<S3Credential> _credentials = [];
-    string? _copied;
-
     string Endpoint => S3.Value.PublicUrl.TrimEnd('/');
     bool IsDefaultEndpoint => Endpoint == new S3Options().PublicUrl.TrimEnd('/');
-
-    async Task Copy(string label, string value)
-    {
-        await JS.InvokeVoidAsync("navigator.clipboard.writeText", value);
-        _copied = label;
-        StateHasChanged();
-        await Task.Delay(2000);
-        if (_copied == label) _copied = null;
-        StateHasChanged();
-    }
 
     // Quota config (admin)
     int _quotaValue;
@@ -268,16 +198,16 @@
         return (seconds / 60, "minutes");
     }
 
-    void OnDefaultValueInput(ChangeEventArgs e)
+    void OnDefaultValueInput(string value)
     {
-        if (int.TryParse(e.Value?.ToString(), out var v) && v >= 1)
+        if (int.TryParse(value, out var v) && v >= 1)
             _defaultValue = v;
         ValidatePresignSettings();
     }
 
-    void OnMaxValueInput(ChangeEventArgs e)
+    void OnMaxValueInput(string value)
     {
-        if (int.TryParse(e.Value?.ToString(), out var v) && v >= 1)
+        if (int.TryParse(value, out var v) && v >= 1)
             _maxValue = v;
         ValidatePresignSettings();
     }
@@ -331,9 +261,9 @@
         return ((int)(bytes / (1024L * 1024)), "MB");
     }
 
-    void OnQuotaValueInput(ChangeEventArgs e)
+    void OnQuotaValueInput(string value)
     {
-        if (int.TryParse(e.Value?.ToString(), out var v) && v >= 0)
+        if (int.TryParse(value, out var v) && v >= 0)
             _quotaValue = v;
     }
 
@@ -380,13 +310,13 @@
                 { "AccessKeyId", cred.AccessKeyId },
                 { "Endpoint", Endpoint }
             },
-            new DialogOptions { CloseDialogOnOverlayClick = true, ShowClose = true, Width = "640px" });
+            new DialogOptions { CloseDialogOnOverlayClick = true, ShowClose = true, Width = OxSizes.DialogWide });
     }
 
     async Task CreateCredential()
     {
-        var result = await DialogService.OpenAsync<CreateS3CredentialDialog>("New S3 Credential",
-            options: new DialogOptions { CloseDialogOnOverlayClick = true, ShowClose = true });
+        var result = await DialogService.OpenAsync<CreateS3CredentialDialog>("New S3 credential",
+            options: new DialogOptions { Width = OxSizes.DialogSmall, CloseDialogOnOverlayClick = true, ShowClose = true });
 
         if (result is not CreateS3CredentialDialog.Result r) return;
 
@@ -398,24 +328,20 @@
         }
         await LoadCredentials();
 
-        await DialogService.OpenAsync<ShowS3CredentialDialog>("Your New S3 Credential",
+        await DialogService.OpenAsync<ShowS3CredentialDialog>("Your new S3 credential",
             new Dictionary<string, object?>
             {
                 { "AccessKeyId", credential.AccessKeyId },
                 { "SecretAccessKey", secret },
                 { "Endpoint", Endpoint }
             },
-            options: new DialogOptions { CloseDialogOnOverlayClick = false, ShowClose = false, Width = "640px" });
+            options: new DialogOptions { CloseDialogOnOverlayClick = false, ShowClose = false, Width = OxSizes.DialogWide });
     }
 
     async Task DeleteCredential(S3Credential cred)
     {
-        var confirmed = await DialogService.Confirm(
-            $"Delete credential \"{cred.Name}\"? This cannot be undone.",
-            "Delete Credential",
-            new ConfirmOptions { OkButtonText = "Delete", CancelButtonText = "Cancel" });
-
-        if (confirmed != true) return;
+        if (!await ConfirmDialog.AskAsync(DialogService, "Delete credential",
+                $"Delete credential \"{cred.Name}\"? Links signed with it stop working. This cannot be undone.", "Delete", danger: true)) return;
 
         await using (var db = await DbFactory.CreateDbContextAsync())
         {
@@ -430,6 +356,7 @@
 
     async Task OnThemeChanged(bool value)
     {
+        _isDark = value;
         var theme = ThemeMode.CookieValue(value);
         ThemeService.SetTheme(theme);
         await JS.InvokeVoidAsync("ObjeX.setCookie", ThemeMode.CookieName, theme);
