@@ -19,112 +19,86 @@
 
 <PageTitle>Buckets — ObjeX</PageTitle>
 
-<RadzenStack Gap="1rem">
-    <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" JustifyContent="JustifyContent.SpaceBetween">
-        <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0">
-            <RadzenText TextStyle="TextStyle.H4" Style="margin:0">Buckets</RadzenText>
-            @if (_searchApplied)
-            {
-                <RadzenText TextStyle="TextStyle.Caption" Style="margin:0 0 0 0.75rem;color:var(--rz-text-secondary-color)">
-                    @HeaderCaption
-                </RadzenText>
-            }
-        </RadzenStack>
-        <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
-            @if (_buckets.Count > 0)
-            {
-                <input class="rz-textbox" style="width:220px" type="text" placeholder="Search all buckets" autocomplete="off"
-                       value="@_searchTerm" @oninput="OnSearchInput" @onkeydown="OnSearchKeyDown" />
-                <RadzenButton Icon="close" ButtonStyle="ButtonStyle.Light" Variant="Variant.Text"
-                              Click="@ClearSearch" title="Clear search"
-                              style="@(_searchTerm.Length > 0 ? "" : "display:none")" />
-            }
-            <RadzenButton Text="Create Bucket" Icon="add" ButtonStyle="ButtonStyle.Primary" Click="@OnCreateBucket" />
-        </RadzenStack>
-    </RadzenStack>
-
-    <div style="overflow-x:auto">
-    @if (_searchApplied)
+<OxPageHeader Title="Buckets" Meta="@(_searchApplied ? HeaderCaption : null)">
+    @if (_buckets.Count > 0)
     {
-        <RadzenDataGrid Data="@_results" TItem="BlobObject" AllowSorting="true" EmptyText="No matches.">
-            <Columns>
-                <RadzenDataGridColumn TItem="BlobObject" Property="BucketName" Title="Bucket" Width="180px">
-                    <Template Context="obj">
-                        <a href="/buckets/@Uri.EscapeDataString(obj.BucketName)" style="color:var(--rz-primary);text-decoration:none">@obj.BucketName</a>
-                    </Template>
-                </RadzenDataGridColumn>
-                <RadzenDataGridColumn TItem="BlobObject" Property="Key" Title="Key">
-                    <Template Context="obj">
-                        <a href="@FolderUrl(obj)" style="color:var(--rz-primary);text-decoration:none">@obj.Key</a>
-                    </Template>
-                </RadzenDataGridColumn>
-                <RadzenDataGridColumn TItem="BlobObject" Property="Size" Title="Size" Width="120px">
-                    <Template Context="obj">@FileHelper.FormatBytes(obj.Size)</Template>
-                </RadzenDataGridColumn>
-                <RadzenDataGridColumn TItem="BlobObject" Property="UpdatedAt" Title="Modified" Width="160px">
-                    <Template Context="obj">@Tz.Format(obj.UpdatedAt)</Template>
-                </RadzenDataGridColumn>
-                <RadzenDataGridColumn TItem="BlobObject" Title="" Width="60px" Sortable="false">
-                    <Template Context="obj">
-                        <div style="display:flex;align-items:center;justify-content:flex-end">
-                            <a href="@FileHelper.ObjectUrl(obj.BucketName, obj.Key, download: true)" download="@Path.GetFileName(obj.Key)" target="_blank" style="display:flex">
-                                <RadzenButton Icon="download" ButtonStyle="ButtonStyle.Primary" Variant="Variant.Text" />
-                            </a>
-                        </div>
-                    </Template>
-                </RadzenDataGridColumn>
-            </Columns>
-        </RadzenDataGrid>
+        <OxSearch Value="@_searchTerm" ValueChanged="OnSearchInput" OnClear="ClearSearch" Placeholder="Search all buckets" Title="* matches any text, ? one character" />
     }
-    else
-    {
-    <RadzenDataGrid Data="@_buckets" TItem="Bucket" AllowSorting="true" EmptyText="No buckets yet.">
+    <OxButton Variant="OxButtonVariant.Primary" Icon="add" OnClick="OnCreateBucket">New bucket</OxButton>
+</OxPageHeader>
+
+@if (_searchApplied)
+{
+    <RadzenDataGrid Data="@_results" TItem="BlobObject" AllowSorting="true" AllowAlternatingRows="false" EmptyText="No matches.">
         <Columns>
-            <RadzenDataGridColumn TItem="Bucket" Property="Name" Title="Name">
-                <Template Context="bucket">
-                    <a href="/buckets/@bucket.Name" style="color:var(--rz-primary);text-decoration:none">@bucket.Name</a>
+            <RadzenDataGridColumn TItem="BlobObject" Property="BucketName" Title="Bucket" Width="@OxSizes.TypeColumn">
+                <Template Context="obj">
+                    <OxFileName Kind="OxFileKind.Bucket" Href="@($"/buckets/{Uri.EscapeDataString(obj.BucketName)}")">@obj.BucketName</OxFileName>
                 </Template>
             </RadzenDataGridColumn>
-            <RadzenDataGridColumn TItem="Bucket" Property="ObjectCount" Title="Objects" />
-            <RadzenDataGridColumn TItem="Bucket" Property="TotalSize" Title="Size" Sortable="true">
-                <Template Context="bucket">@FileHelper.FormatBytes(bucket.TotalSize)</Template>
+            <RadzenDataGridColumn TItem="BlobObject" Property="Key" Title="Key">
+                <Template Context="obj">
+                    <OxFileName Kind="@OxFileIcon.KindOf(obj.ContentType)" Href="@FolderUrl(obj)">@obj.Key</OxFileName>
+                </Template>
             </RadzenDataGridColumn>
-            @if (_isPrivileged)
-            {
-                <RadzenDataGridColumn TItem="Bucket" Property="Owner.UserName" Title="Owner" Width="120px">
-                    <Template Context="bucket">
-                        @if (bucket.Owner?.UserName == _adminUsername)
-                        {
-                            <RadzenBadge Text="Admin" BadgeStyle="BadgeStyle.Light" Shade="Shade.Default" />
-                        }
-                        else
-                        {
-                            @(bucket.Owner?.UserName ?? _adminUsername)
-                        }
-                    </Template>
-                </RadzenDataGridColumn>
-            }
-            <RadzenDataGridColumn TItem="Bucket" Property="CreatedAt" Title="Created">
-                <Template Context="bucket">@Tz.Format(bucket.CreatedAt)</Template>
+            <RadzenDataGridColumn TItem="BlobObject" Property="Size" Title="Size" Width="@OxSizes.SizeColumn" TextAlign="TextAlign.End">
+                <Template Context="obj">@FileHelper.FormatBytes(obj.Size)</Template>
             </RadzenDataGridColumn>
-            <RadzenDataGridColumn TItem="Bucket" Title="" Width="@(_isAdmin ? "100px" : "60px")" Sortable="false">
-                <Template Context="bucket">
-                    <RadzenStack Orientation="Orientation.Horizontal" Gap="0" JustifyContent="JustifyContent.End">
-                        @if (_isAdmin)
-                        {
-                            <RadzenButton Icon="manage_accounts" ButtonStyle="ButtonStyle.Info" Variant="Variant.Text"
-                                          title="Change owner" Click="@(() => OnChangeOwner(bucket))" />
-                        }
-                        <RadzenButton Icon="delete" ButtonStyle="ButtonStyle.Danger" Variant="Variant.Text"
-                                      Click="@(() => OnDeleteBucket(bucket))" />
-                    </RadzenStack>
+            <RadzenDataGridColumn TItem="BlobObject" Property="UpdatedAt" Title="Modified" Width="@OxSizes.DateColumn" CssClass="ox-col-muted">
+                <Template Context="obj">@Tz.Format(obj.UpdatedAt)</Template>
+            </RadzenDataGridColumn>
+            <RadzenDataGridColumn TItem="BlobObject" Title="" Width="@OxSizes.ActionsColumn" Sortable="false" CssClass="ox-col-actions">
+                <Template Context="obj">
+                    <OxRowActions>
+                        <OxIconButton Icon="download" Label="Download" Href="@FileHelper.ObjectUrl(obj.BucketName, obj.Key, download: true)"
+                                      Download="@Path.GetFileName(obj.Key)" target="_blank" />
+                    </OxRowActions>
                 </Template>
             </RadzenDataGridColumn>
         </Columns>
     </RadzenDataGrid>
-    }
-    </div>
-</RadzenStack>
+}
+else
+{
+    <RadzenDataGrid Data="@_buckets" TItem="Bucket" AllowSorting="true" AllowAlternatingRows="false" EmptyText="No buckets yet. Create one to store objects.">
+        <Columns>
+            <RadzenDataGridColumn TItem="Bucket" Property="Name" Title="Name">
+                <Template Context="bucket">
+                    <OxFileName Kind="OxFileKind.Bucket" Href="@($"/buckets/{bucket.Name}")">@bucket.Name</OxFileName>
+                </Template>
+            </RadzenDataGridColumn>
+            <RadzenDataGridColumn TItem="Bucket" Property="ObjectCount" Title="Objects" Width="@OxSizes.NumberColumn" TextAlign="TextAlign.End">
+                <Template Context="bucket">@bucket.ObjectCount.ToString("N0")</Template>
+            </RadzenDataGridColumn>
+            <RadzenDataGridColumn TItem="Bucket" Property="TotalSize" Title="Size" Width="@OxSizes.SizeColumn" TextAlign="TextAlign.End">
+                <Template Context="bucket">@FileHelper.FormatBytes(bucket.TotalSize)</Template>
+            </RadzenDataGridColumn>
+            @if (_isPrivileged)
+            {
+                <RadzenDataGridColumn TItem="Bucket" Property="Owner.UserName" Title="Owner" Width="@OxSizes.TypeColumn" CssClass="ox-col-muted">
+                    <Template Context="bucket">@(bucket.Owner?.UserName ?? _adminUsername)</Template>
+                </RadzenDataGridColumn>
+            }
+            <RadzenDataGridColumn TItem="Bucket" Property="CreatedAt" Title="Created" Width="@OxSizes.DateColumn" CssClass="ox-col-muted">
+                <Template Context="bucket">@Tz.Format(bucket.CreatedAt)</Template>
+            </RadzenDataGridColumn>
+            <RadzenDataGridColumn TItem="Bucket" Title="" Width="@OxSizes.ActionsColumn" Sortable="false" CssClass="ox-col-actions">
+                <Template Context="bucket">
+                    <OxRowActions>
+                        <OxMenuButton Label="@($"More actions for {bucket.Name}")">
+                            @if (_isAdmin)
+                            {
+                                <OxMenuItem Icon="manage_accounts" OnClick="@(() => OnChangeOwner(bucket))">Change owner</OxMenuItem>
+                                <OxMenuDivider />
+                            }
+                            <OxMenuItem Icon="delete" Danger="true" OnClick="@(() => OnDeleteBucket(bucket))">Delete</OxMenuItem>
+                        </OxMenuButton>
+                    </OxRowActions>
+                </Template>
+            </RadzenDataGridColumn>
+        </Columns>
+    </RadzenDataGrid>
+}
 
 @code {
     List<Bucket> _buckets = [];
@@ -186,9 +160,9 @@
         _searchApplied = true;
     }
 
-    async Task OnSearchInput(ChangeEventArgs e)
+    async Task OnSearchInput(string value)
     {
-        _searchTerm = e.Value?.ToString() ?? string.Empty;
+        _searchTerm = value;
         // Blazor serialises handlers on its dispatcher, so replacing the source cannot race with the awaiting keystroke.
         _searchCts.Cancel();
         _searchCts = new CancellationTokenSource();
@@ -209,11 +183,6 @@
         catch (OperationCanceledException) { }
     }
 
-    void OnSearchKeyDown(KeyboardEventArgs e)
-    {
-        if (e.Key == "Escape") ClearSearch();
-    }
-
     void ClearSearch()
     {
         _searchTerm = string.Empty;
@@ -232,7 +201,7 @@
 
     async Task OnCreateBucket()
     {
-        var name = await DialogService.OpenAsync<CreateBucketDialog>("Create Bucket");
+        var name = await DialogService.OpenAsync<CreateBucketDialog>("New bucket", options: new DialogOptions { Width = OxSizes.DialogSmall, CloseDialogOnOverlayClick = true });
         if (name is null) return;
 
         try
@@ -249,12 +218,8 @@
 
     async Task OnDeleteBucket(Bucket bucket)
     {
-        var confirmed = await DialogService.Confirm(
-            $"Delete \"{bucket.Name}\"? This will permanently remove all {bucket.ObjectCount} object(s) inside.",
-            "Delete Bucket",
-            new ConfirmOptions { OkButtonText = "Delete", CancelButtonText = "Cancel", CloseDialogOnOverlayClick = true });
-
-        if (confirmed != true) return;
+        if (!await ConfirmDialog.AskAsync(DialogService, "Delete bucket",
+                $"Delete \"{bucket.Name}\"? This will permanently remove all {bucket.ObjectCount} object(s) inside.", "Delete", danger: true)) return;
 
         try
         {
@@ -282,9 +247,9 @@
 
     async Task OnChangeOwner(Bucket bucket)
     {
-        var result = await DialogService.OpenAsync<ChangeOwnerDialog>("Change Owner",
+        var result = await DialogService.OpenAsync<ChangeOwnerDialog>("Change owner",
             new Dictionary<string, object?> { { "Bucket", bucket } },
-            new DialogOptions { CloseDialogOnOverlayClick = true, ShowClose = true });
+            new DialogOptions { Width = OxSizes.DialogSmall, CloseDialogOnOverlayClick = true, ShowClose = true });
 
         if (result is not ChangeOwnerDialog.Result r) return;
 

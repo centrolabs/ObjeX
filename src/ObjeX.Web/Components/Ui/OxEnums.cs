@@ -17,7 +17,7 @@ public enum OxWidth { Auto, Xs, Sm, Md, Lg, Fill }
 public enum OxPreviewKind { Image, Video, Audio, Pdf, Text }
 
 /// <summary>What a file row shows: decides the icon and, for folders, images and videos, its colour.</summary>
-public enum OxFileKind { File, Folder, Image, Video, Audio, Text, Pdf, Archive }
+public enum OxFileKind { File, Folder, Bucket, Image, Video, Audio, Text, Pdf, Archive }
 
 /// <summary>One entry of <see cref="OxBreadcrumbs"/>. The last entry is the current location and needs no link.</summary>
 public record OxCrumb(string Text, string? Href = null);

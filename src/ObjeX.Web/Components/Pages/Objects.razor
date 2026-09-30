@@ -297,7 +297,7 @@
 
     async Task OnNewFolderClick()
     {
-        var name = await DialogService.OpenAsync<Dialogs.CreateFolderDialog>("New Folder");
+        var name = await DialogService.OpenAsync<Dialogs.CreateFolderDialog>("New folder", options: new DialogOptions { Width = OxSizes.DialogSmall, CloseDialogOnOverlayClick = true });
         if (name is not string folderName || string.IsNullOrWhiteSpace(folderName)) return;
 
         var key = _currentPrefix + folderName.Trim('/') + "/";
@@ -331,7 +331,7 @@
             return;
         }
 
-        var result = await DialogService.OpenAsync<UploadObjectDialog>("Upload");
+        var result = await DialogService.OpenAsync<UploadObjectDialog>("Upload", options: new DialogOptions { Width = OxSizes.DialogMedium, CloseDialogOnOverlayClick = true });
         if (result is not List<UploadObjectDialog.UploadFile> selectedFiles || selectedFiles.Count == 0) return;
 
         var files = selectedFiles.Select(f => (f.Name, f.ContentType, f.Size, Stream: (Stream)f.BrowserFile.OpenReadStream(MaxFileSize))).ToList();
@@ -641,7 +641,7 @@
         }
 
         var result = await DialogService.OpenAsync<Dialogs.PresignedUrlDialog>(
-            "Share Link",
+            "Share link",
             new Dictionary<string, object?>
             {
                 { "DefaultSeconds", defaultExpiry },

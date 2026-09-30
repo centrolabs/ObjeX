@@ -18,106 +18,78 @@
 
 <PageTitle>Users — ObjeX</PageTitle>
 
-<RadzenStack Gap="1.5rem">
-    <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center"
-                 JustifyContent="JustifyContent.SpaceBetween">
-        <RadzenText TextStyle="TextStyle.H4">Users</RadzenText>
-        <RadzenButton Text="New User" Icon="add" ButtonStyle="ButtonStyle.Primary"
-                      Size="ButtonSize.Small" Click="CreateUser" />
-    </RadzenStack>
+<OxPageHeader Title="Users" Meta="@($"{_users.Count:N0} users")">
+    <OxButton Variant="OxButtonVariant.Primary" Icon="person_add" OnClick="CreateUser">New user</OxButton>
+</OxPageHeader>
 
-    <RadzenCard Style="padding:0">
-        <RadzenDataGrid Data="_users" TItem="UserRow" AllowSorting="true" Style="border:none">
-            <Columns>
-                <RadzenDataGridColumn TItem="UserRow" Property="Username" Title="Username" />
-                <RadzenDataGridColumn TItem="UserRow" Property="Email" Title="Email" />
-                <RadzenDataGridColumn TItem="UserRow" Property="Role" Title="Role" Width="100px" />
-                <RadzenDataGridColumn TItem="UserRow" Property="Status" Title="Status" Width="140px">
-                    <Template Context="row">
-                        @if (row.IsDeactivated)
-                        {
-                            <RadzenBadge Text="Deactivated" BadgeStyle="BadgeStyle.Danger" Shade="Shade.Lighter" />
-                        }
-                        else if (row.IsLocked)
-                        {
-                            <RadzenStack Orientation="Orientation.Horizontal" Gap="0.25rem" AlignItems="AlignItems.Center">
-                                <RadzenText TextStyle="TextStyle.Caption" Style="margin:0">Locked</RadzenText>
-                                <RadzenButton Text="Unlock" Variant="Variant.Text" ButtonStyle="ButtonStyle.Warning"
-                                              Size="ButtonSize.Small" Click="@(() => Unlock(row))" />
-                            </RadzenStack>
-                        }
-                        else
-                        {
-                            <RadzenBadge Text="Active" BadgeStyle="BadgeStyle.Success" Shade="Shade.Lighter" />
-                        }
-                    </Template>
-                </RadzenDataGridColumn>
-                <RadzenDataGridColumn TItem="UserRow" Title="Storage" Width="180px" Sortable="false">
-                    <Template Context="row">
-                        <RadzenStack Gap="0.15rem">
-                            <RadzenText TextStyle="TextStyle.Caption">
-                                @FileHelper.FormatBytes(row.StorageUsed)@(row.Quota.HasValue ? $" / {FileHelper.FormatBytes(row.Quota.Value)}" : " / ∞")
-                            </RadzenText>
-                            @if (row.Quota.HasValue && row.Quota.Value > 0)
-                            {
-                                <RadzenProgressBar Value="@((double)row.StorageUsed / row.Quota.Value * 100)" Max="100"
-                                                   ShowValue="false" Style="height:4px"
-                                                   ProgressBarStyle="@(row.StorageUsed > row.Quota.Value * 0.9 ? ProgressBarStyle.Danger : ProgressBarStyle.Primary)" />
-                            }
-                        </RadzenStack>
-                    </Template>
-                </RadzenDataGridColumn>
-                <RadzenDataGridColumn TItem="UserRow" Property="CreatedAt" Title="Created" Width="160px">
-                    <Template Context="row">
-                        @Tz.Format(row.CreatedAt)
-                    </Template>
-                </RadzenDataGridColumn>
-                <RadzenDataGridColumn TItem="UserRow" Title="" Width="190px" TextAlign="TextAlign.Right" Sortable="false">
-                    <Template Context="row">
-                        <RadzenStack Orientation="Orientation.Horizontal" Gap="0" JustifyContent="JustifyContent.End">
-                            <RadzenButton Icon="sd_storage" Variant="Variant.Text" ButtonStyle="ButtonStyle.Dark"
-                                          Size="ButtonSize.Small" title="Set storage quota"
-                                          Click="@(() => SetQuota(row))" />
+<RadzenDataGrid Data="_users" TItem="UserRow" AllowSorting="true" AllowAlternatingRows="false">
+    <Columns>
+        <RadzenDataGridColumn TItem="UserRow" Property="Username" Title="Username">
+            <Template Context="row"><OxText Truncate="true"><strong>@row.Username</strong></OxText></Template>
+        </RadzenDataGridColumn>
+        <RadzenDataGridColumn TItem="UserRow" Property="Email" Title="Email" CssClass="ox-col-muted" />
+        <RadzenDataGridColumn TItem="UserRow" Property="Role" Title="Role" Width="@OxSizes.NumberColumn">
+            <Template Context="row"><OxBadge Tone="@(row.Role == "Admin" ? OxTone.Accent : OxTone.Default)">@row.Role</OxBadge></Template>
+        </RadzenDataGridColumn>
+        <RadzenDataGridColumn TItem="UserRow" Property="Status" Title="Status" Width="@OxSizes.DateColumn">
+            <Template Context="row">
+                @if (row.IsDeactivated)
+                {
+                    <OxBadge Tone="OxTone.Danger">Deactivated</OxBadge>
+                }
+                else if (row.IsLocked)
+                {
+                    <OxStack Row="true" Gap="4" Align="OxAlign.Center">
+                        <OxBadge Tone="OxTone.Warning">Locked</OxBadge>
+                        <OxLink OnClick="@(() => Unlock(row))">Unlock</OxLink>
+                    </OxStack>
+                }
+                else
+                {
+                    <OxText Variant="OxTextVariant.Muted">Active</OxText>
+                }
+            </Template>
+        </RadzenDataGridColumn>
+        <RadzenDataGridColumn TItem="UserRow" Title="Storage" Width="@OxSizes.TypeColumn" Sortable="false">
+            <Template Context="row">
+                <OxStack Gap="2">
+                    <OxText Variant="OxTextVariant.Small">@FileHelper.FormatBytes(row.StorageUsed)@(row.Quota.HasValue ? $" / {FileHelper.FormatBytes(row.Quota.Value)}" : " / ∞")</OxText>
+                    @if (row.Quota is > 0)
+                    {
+                        <OxMeter Value="@((double)row.StorageUsed / row.Quota.Value * 100)" Label="Quota used"
+                                 Tone="@(row.StorageUsed > row.Quota.Value * 0.9 ? OxTone.Danger : OxTone.Default)" />
+                    }
+                </OxStack>
+            </Template>
+        </RadzenDataGridColumn>
+        <RadzenDataGridColumn TItem="UserRow" Property="CreatedAt" Title="Created" Width="@OxSizes.DateColumn" CssClass="ox-col-muted">
+            <Template Context="row">@Tz.Format(row.CreatedAt)</Template>
+        </RadzenDataGridColumn>
+        <RadzenDataGridColumn TItem="UserRow" Title="" Width="@OxSizes.ActionsColumn" Sortable="false" CssClass="ox-col-actions">
+            <Template Context="row">
+                <OxRowActions>
+                    <OxMenuButton Label="@($"More actions for {row.Username}")">
+                        <OxMenuItem Icon="sd_storage" OnClick="@(() => SetQuota(row))">Set storage quota</OxMenuItem>
                         @if (row.Id != _currentUserId && row.Role != "Admin")
                         {
-                                @if (_currentUserIsAdmin)
-                                {
-                                    <RadzenButton Icon="@(row.Role == "Manager" ? "person" : "manage_accounts")"
-                                                  Variant="Variant.Text" ButtonStyle="ButtonStyle.Info"
-                                                  Size="ButtonSize.Small"
-                                                  title="@(row.Role == "Manager" ? "Demote to User" : "Promote to Manager")"
-                                                  Click="@(() => ToggleRole(row))" />
-                                }
-                                @if (!row.IsDeactivated)
-                                {
-                                    <RadzenButton Icon="lock_reset" Variant="Variant.Text" ButtonStyle="ButtonStyle.Warning"
-                                                  Size="ButtonSize.Small" title="Reset password"
-                                                  Click="@(() => ResetPassword(row))" />
-                                }
-                                <RadzenButton Icon="@(row.IsDeactivated ? "person_add" : "person_off")"
-                                              Variant="Variant.Text"
-                                              ButtonStyle="@(row.IsDeactivated ? ButtonStyle.Success : ButtonStyle.Warning)"
-                                              Size="ButtonSize.Small"
-                                              title="@(row.IsDeactivated ? "Reactivate" : "Deactivate")"
-                                              Click="@(() => ToggleDeactivate(row))" />
-                                <RadzenButton Icon="delete" Variant="Variant.Text" ButtonStyle="ButtonStyle.Danger"
-                                              Size="ButtonSize.Small" title="Delete user"
-                                              Click="@(() => DeleteUser(row))" />
+                            @if (_currentUserIsAdmin)
+                            {
+                                <OxMenuItem Icon="@(row.Role == "Manager" ? "person" : "manage_accounts")" OnClick="@(() => ToggleRole(row))">@(row.Role == "Manager" ? "Demote to User" : "Promote to Manager")</OxMenuItem>
+                            }
+                            @if (!row.IsDeactivated)
+                            {
+                                <OxMenuItem Icon="lock_reset" OnClick="@(() => ResetPassword(row))">Reset password</OxMenuItem>
+                            }
+                            <OxMenuItem Icon="@(row.IsDeactivated ? "person_add" : "person_off")" OnClick="@(() => ToggleDeactivate(row))">@(row.IsDeactivated ? "Reactivate" : "Deactivate")</OxMenuItem>
+                            <OxMenuDivider />
+                            <OxMenuItem Icon="delete" Danger="true" OnClick="@(() => DeleteUser(row))">Delete</OxMenuItem>
                         }
-                        else
-                        {
-                                <RadzenButton Icon="person" Variant="Variant.Text" Size="ButtonSize.Small" style="visibility:hidden" />
-                                <RadzenButton Icon="lock_reset" Variant="Variant.Text" Size="ButtonSize.Small" style="visibility:hidden" />
-                                <RadzenButton Icon="person_off" Variant="Variant.Text" Size="ButtonSize.Small" style="visibility:hidden" />
-                                <RadzenButton Icon="delete" Variant="Variant.Text" Size="ButtonSize.Small" style="visibility:hidden" />
-                        }
-                        </RadzenStack>
-                    </Template>
-                </RadzenDataGridColumn>
-            </Columns>
-        </RadzenDataGrid>
-    </RadzenCard>
-</RadzenStack>
+                    </OxMenuButton>
+                </OxRowActions>
+            </Template>
+        </RadzenDataGridColumn>
+    </Columns>
+</RadzenDataGrid>
 
 @code {
     record UserRow(string Id, string Username, string Email, string Role, bool IsDeactivated, bool IsLocked, DateTime CreatedAt, long StorageUsed, long? Quota)
@@ -180,8 +152,8 @@
 
     async Task CreateUser()
     {
-        var result = await DialogService.OpenAsync<CreateUserDialog>("New User",
-            options: new DialogOptions { CloseDialogOnOverlayClick = true, ShowClose = true });
+        var result = await DialogService.OpenAsync<CreateUserDialog>("New user",
+            options: new DialogOptions { Width = OxSizes.DialogSmall, CloseDialogOnOverlayClick = true, ShowClose = true });
 
         if (result is not CreateUserDialog.Result r) return;
 
@@ -205,21 +177,16 @@
         await UserManager.AddToRoleAsync(user, r.Role);
         await LoadUsers();
 
-        await DialogService.OpenAsync<ShowUserPasswordDialog>($"User Created: {r.Username}",
+        await DialogService.OpenAsync<ShowUserPasswordDialog>($"User created: {r.Username}",
             new Dictionary<string, object?> { { "Password", password } },
-            options: new DialogOptions { CloseDialogOnOverlayClick = false, ShowClose = false });
+            options: new DialogOptions { Width = OxSizes.DialogMedium, CloseDialogOnOverlayClick = false, ShowClose = false });
     }
 
     async Task ToggleRole(UserRow row)
     {
         var isPromoting = row.Role == "User";
         var action = isPromoting ? "Promote to Manager" : "Demote to User";
-        var confirmed = await DialogService.Confirm(
-            $"{action}: \"{row.Username}\"?",
-            action,
-            new ConfirmOptions { OkButtonText = action, CancelButtonText = "Cancel" });
-
-        if (confirmed != true) return;
+        if (!await ConfirmDialog.AskAsync(DialogService, action, $"{action}: \"{row.Username}\"?", action)) return;
 
         var user = await UserManager.FindByIdAsync(row.Id);
         if (user is null) return;
@@ -241,12 +208,7 @@
 
     async Task ResetPassword(UserRow row)
     {
-        var confirmed = await DialogService.Confirm(
-            $"Reset password for \"{row.Username}\"? They will be required to change it on next login.",
-            "Reset Password",
-            new ConfirmOptions { OkButtonText = "Reset", CancelButtonText = "Cancel" });
-
-        if (confirmed != true) return;
+        if (!await ConfirmDialog.AskAsync(DialogService, "Reset password", $"Reset password for \"{row.Username}\"? They will be required to change it on next login.", "Reset")) return;
 
         var user = await UserManager.FindByIdAsync(row.Id);
         if (user is null) return;
@@ -265,9 +227,9 @@
         await UserManager.UpdateAsync(user);
         await UserManager.UpdateSecurityStampAsync(user);
 
-        await DialogService.OpenAsync<ShowUserPasswordDialog>($"New Password: {row.Username}",
+        await DialogService.OpenAsync<ShowUserPasswordDialog>($"New password: {row.Username}",
             new Dictionary<string, object?> { { "Password", password } },
-            options: new DialogOptions { CloseDialogOnOverlayClick = false, ShowClose = false });
+            options: new DialogOptions { Width = OxSizes.DialogMedium, CloseDialogOnOverlayClick = false, ShowClose = false });
     }
 
     async Task ToggleDeactivate(UserRow row)
@@ -276,12 +238,7 @@
         if (user is null) return;
 
         var action = user.IsDeactivated ? "Reactivate" : "Deactivate";
-        var confirmed = await DialogService.Confirm(
-            $"{action} user \"{row.Username}\"?",
-            action,
-            new ConfirmOptions { OkButtonText = action, CancelButtonText = "Cancel" });
-
-        if (confirmed != true) return;
+        if (!await ConfirmDialog.AskAsync(DialogService, action, $"{action} user \"{row.Username}\"?", action)) return;
 
         user.IsDeactivated = !user.IsDeactivated;
         await UserManager.UpdateAsync(user);
@@ -294,22 +251,14 @@
     async Task SetQuota(UserRow row)
     {
         var currentGb = row.Quota.HasValue ? (int)(row.Quota.Value / (1024L * 1024 * 1024)) : 0;
-        var input = await DialogService.OpenAsync("Storage Quota", ds =>
-            @<RadzenStack Gap="1rem" Style="padding:0.5rem">
-                <RadzenText>Set storage quota for <b>@row.Username</b></RadzenText>
-                <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" AlignItems="AlignItems.Center">
-                    <RadzenNumeric @bind-Value="currentGb" Min="0" Style="width:100px" />
-                    <RadzenText>GB</RadzenText>
-                </RadzenStack>
-                <RadzenText TextStyle="TextStyle.Caption" Style="color:var(--rz-text-secondary-color)">
-                    @(row.Role is "Admin" or "Manager" ? "0 = unlimited" : "0 = use system default")
-                </RadzenText>
-                <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.End" Gap="0.5rem">
-                    <RadzenButton Text="Cancel" ButtonStyle="ButtonStyle.Light" Click="@(() => ds.Close(null))" />
-                    <RadzenButton Text="Save" ButtonStyle="ButtonStyle.Primary" Click="@(() => ds.Close(currentGb))" />
-                </RadzenStack>
-            </RadzenStack>,
-            new DialogOptions { Width = "360px", CloseDialogOnOverlayClick = true });
+        var input = await DialogService.OpenAsync<SetQuotaDialog>("Storage quota",
+            new Dictionary<string, object?>
+            {
+                { nameof(SetQuotaDialog.Username), row.Username },
+                { nameof(SetQuotaDialog.CurrentGb), currentGb },
+                { nameof(SetQuotaDialog.Unlimited), row.Role is "Admin" or "Manager" },
+            },
+            new DialogOptions { Width = OxSizes.DialogSmall, CloseDialogOnOverlayClick = true });
 
         if (input is not int gb) return;
 
@@ -327,12 +276,7 @@
 
     async Task Unlock(UserRow row)
     {
-        var confirmed = await DialogService.Confirm(
-            $"Unlock \"{row.Username}\"? Failed login attempts are reset.",
-            "Unlock",
-            new ConfirmOptions { OkButtonText = "Unlock", CancelButtonText = "Cancel" });
-
-        if (confirmed != true) return;
+        if (!await ConfirmDialog.AskAsync(DialogService, "Unlock", $"Unlock \"{row.Username}\"? Failed login attempts are reset.", "Unlock")) return;
 
         var user = await UserManager.FindByIdAsync(row.Id);
         if (user is null) return;
@@ -346,12 +290,7 @@
 
     async Task DeleteUser(UserRow row)
     {
-        var confirmed = await DialogService.Confirm(
-            $"Delete user \"{row.Username}\"? This cannot be undone.",
-            "Delete User",
-            new ConfirmOptions { OkButtonText = "Delete", CancelButtonText = "Cancel" });
-
-        if (confirmed != true) return;
+        if (!await ConfirmDialog.AskAsync(DialogService, "Delete user", $"Delete user \"{row.Username}\"? This cannot be undone.", "Delete", danger: true)) return;
 
         // The bucket FK is Restrict, so the rows must move to admin on the same fresh context that deletes the user.
         var adminUser = await UserManager.FindByNameAsync(DefaultAdmin.Value.Username);
