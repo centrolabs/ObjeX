@@ -25,9 +25,22 @@
     <OxPageHeader Meta="@(_bucket is null ? null : HeaderCaption)">
         <Heading><OxBreadcrumbs Items="@Crumbs" /></Heading>
         <ChildContent>
+            @* During a selection the search stays only while it filters, so its clear button stays reachable without crowding the line. *@
+            @if (_bucketExists && _bucket is { ObjectCount: > 0 } && (_selected.Count == 0 || _searchTerm.Length > 0))
+            {
+                <OxSearch Value="@_searchTerm" ValueChanged="OnSearchInput" OnClear="ClearSearch" Title="* matches any text, ? one character" />
+            }
+            @if (_uploading)
+            {
+                <OxButton Icon="close" OnClick="@(() => _uploadCts?.Cancel())">Cancel</OxButton>
+            }
             @* A selection swaps the create actions for the selection actions on the same line, so the table never moves. *@
             @if (_selected.Count > 0)
             {
+                @if (_uploading)
+                {
+                    <OxText Variant="OxTextVariant.Small">@_uploadStatus</OxText>
+                }
                 <OxSelectionBar Count="@_selected.Count" OnClear="@(() => _selected.Clear())">
                     <OxButton Icon="download" OnClick="BulkDownload">Download ZIP</OxButton>
                     <OxButton Variant="OxButtonVariant.Danger" Icon="delete" OnClick="BulkDelete">Delete</OxButton>
@@ -35,14 +48,6 @@
             }
             else
             {
-                @if (_bucketExists && _bucket is { ObjectCount: > 0 })
-                {
-                    <OxSearch Value="@_searchTerm" ValueChanged="OnSearchInput" OnClear="ClearSearch" Title="* matches any text, ? one character" />
-                }
-                @if (_uploading)
-                {
-                    <OxButton Icon="close" OnClick="@(() => _uploadCts?.Cancel())">Cancel</OxButton>
-                }
                 <OxButton Icon="create_new_folder" Disabled="@(!_bucketExists)" OnClick="OnNewFolderClick">New folder</OxButton>
                 <OxButton Variant="OxButtonVariant.Primary" Icon="upload" Disabled="@(_uploading || !_bucketExists)" OnClick="OnUploadClick">@(_uploadStatus ?? "Upload")</OxButton>
             }
