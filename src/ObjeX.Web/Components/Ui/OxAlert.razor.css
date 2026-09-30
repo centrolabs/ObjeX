@@ -1,0 +1,18 @@
+.ox-alert {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--ox-space-5);
+    padding: var(--ox-space-5) var(--ox-space-6);
+    border: var(--ox-border) solid var(--ox-line-strong);
+    border-radius: var(--ox-radius-md);
+    background: var(--ox-surface-hover);
+    color: var(--ox-text);
+}
+
+.ox-alert-body { flex: 1; min-width: 0; }
+.ox-alert ::deep .ox-icon { color: var(--ox-text-muted); }
+.ox-alert--accent ::deep .ox-icon { color: var(--ox-accent-text); }
+.ox-alert--warning { border-color: var(--ox-warning); }
+.ox-alert--warning ::deep .ox-icon { color: var(--ox-warning); }
+.ox-alert--danger { border-color: var(--ox-danger); }
+.ox-alert--danger ::deep .ox-icon { color: var(--ox-danger); }

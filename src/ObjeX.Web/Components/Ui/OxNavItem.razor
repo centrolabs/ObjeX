@@ -1,0 +1,30 @@
+@implements IDisposable
+@inject NavigationManager Navigation
+
+<a href="@Href" class="ox-nav-item @(IsActive ? "is-active" : null)" aria-current="@(IsActive ? "page" : null)" target="@(FullLoad ? "_top" : null)">
+    <OxIcon Name="@Icon" />
+    <span>@ChildContent</span>
+</a>
+
+@code {
+    [Parameter, EditorRequired] public string Href { get; set; } = "/";
+    [Parameter, EditorRequired] public string Icon { get; set; } = string.Empty;
+    /// <summary>Leaves the Blazor circuit with a full page load, for pages the server renders itself.</summary>
+    [Parameter] public bool FullLoad { get; set; }
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    bool IsActive
+    {
+        get
+        {
+            var path = "/" + Navigation.ToBaseRelativePath(Navigation.Uri).Split('?', '#')[0].TrimEnd('/');
+            return Href == "/" ? path == "/" : path == Href || path.StartsWith(Href + "/", StringComparison.OrdinalIgnoreCase);
+        }
+    }
+
+    protected override void OnInitialized() => Navigation.LocationChanged += OnLocationChanged;
+
+    void OnLocationChanged(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e) => InvokeAsync(StateHasChanged);
+
+    public void Dispose() => Navigation.LocationChanged -= OnLocationChanged;
+}

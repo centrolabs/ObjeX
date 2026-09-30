@@ -1,0 +1,17 @@
+<div class="ox-alert ox-alert--@Tone.ToString().ToLowerInvariant()" role="@(Tone == OxTone.Danger ? "alert" : "status")">
+    <OxIcon Name="@Glyph" />
+    <div class="ox-alert-body">@ChildContent</div>
+</div>
+
+@code {
+    [Parameter] public OxTone Tone { get; set; }
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    string Glyph => Tone switch
+    {
+        OxTone.Warning => "warning",
+        OxTone.Danger => "error",
+        OxTone.Accent => "check_circle",
+        _ => "info"
+    };
+}

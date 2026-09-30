@@ -1,0 +1,16 @@
+.ox-card {
+    display: flex;
+    flex-direction: column;
+    gap: var(--ox-space-6);
+    min-width: 0;
+    padding: var(--ox-space-8);
+    border: var(--ox-border) solid var(--ox-line-strong);
+    border-radius: var(--ox-radius-md);
+    background: var(--ox-surface);
+}
+
+.ox-card--flush { padding: 0; overflow: hidden; }
+.ox-card--flush .ox-card-head { padding: var(--ox-space-7) var(--ox-space-8) 0; }
+
+.ox-card-head { display: flex; align-items: center; justify-content: space-between; gap: var(--ox-space-4); }
+.ox-card-title { margin: 0; font-size: var(--ox-fs-lg); font-weight: var(--ox-fw-semibold); }

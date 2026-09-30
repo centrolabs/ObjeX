@@ -1,0 +1,21 @@
+<label class="ox-check">
+    <input type="checkbox" checked="@Checked" disabled="@Disabled" aria-label="@Label" @onchange="OnChange" @attributes="Attributes" />
+    <span class="ox-check-box"><OxIcon Name="check" Small="true" /></span>
+    @if (ChildContent is not null)
+    {
+        <span class="ox-check-label">@ChildContent</span>
+    }
+</label>
+
+@code {
+    [Parameter] public bool Checked { get; set; }
+    [Parameter] public EventCallback<bool> CheckedChanged { get; set; }
+    [Parameter] public bool Disabled { get; set; }
+    /// <summary>Accessible name when the checkbox has no visible label, for example in a table row.</summary>
+    [Parameter] public string? Label { get; set; }
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+    /// <summary>Lands on the input, so a plain HTML form can post it (name, value).</summary>
+    [Parameter(CaptureUnmatchedValues = true)] public Dictionary<string, object>? Attributes { get; set; }
+
+    Task OnChange(ChangeEventArgs e) => CheckedChanged.InvokeAsync(e.Value is true);
+}

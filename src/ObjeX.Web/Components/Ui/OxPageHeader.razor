@@ -1,0 +1,27 @@
+<header class="ox-page-head">
+    <div class="ox-page-head-title">
+        @if (Heading is not null)
+        {
+            @Heading
+        }
+        else
+        {
+            <h1 tabindex="-1">@Title</h1>
+        }
+        @if (!string.IsNullOrEmpty(Meta))
+        {
+            <span class="ox-page-head-meta">@Meta</span>
+        }
+    </div>
+    <div class="ox-page-head-actions">@ChildContent</div>
+</header>
+
+@code {
+    [Parameter] public string? Title { get; set; }
+    /// <summary>Replaces the plain title, for example with <see cref="OxBreadcrumbs"/>.</summary>
+    [Parameter] public RenderFragment? Heading { get; set; }
+    /// <summary>Count and size next to the title.</summary>
+    [Parameter] public string? Meta { get; set; }
+    /// <summary>The actions on the right: search, secondary buttons, the primary button last.</summary>
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+}

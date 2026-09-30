@@ -1,0 +1,14 @@
+.ox-link {
+    padding: 0;
+    border: 0;
+    border-radius: var(--ox-radius-sm);
+    background: none;
+    color: var(--ox-text);
+    font: inherit;
+    font-weight: var(--ox-fw-medium);
+    text-decoration: none;
+    cursor: pointer;
+}
+
+.ox-link:hover { color: var(--ox-accent-text); text-decoration: underline; }
+.ox-link:focus-visible { outline: var(--ox-ring) solid var(--ox-accent-text); outline-offset: var(--ox-ring); }

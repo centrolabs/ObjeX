@@ -1,0 +1,17 @@
+<label class="ox-switch">
+    <input type="checkbox" role="switch" checked="@Checked" disabled="@Disabled" aria-label="@Label"
+           @onchange="@(e => CheckedChanged.InvokeAsync(e.Value is true))" />
+    <span class="ox-switch-track"><span class="ox-switch-thumb"></span></span>
+    @if (ChildContent is not null)
+    {
+        <span>@ChildContent</span>
+    }
+</label>
+
+@code {
+    [Parameter] public bool Checked { get; set; }
+    [Parameter] public EventCallback<bool> CheckedChanged { get; set; }
+    [Parameter] public bool Disabled { get; set; }
+    [Parameter] public string? Label { get; set; }
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+}

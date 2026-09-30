@@ -1,0 +1,7 @@
+<span class="ox-avatar" aria-hidden="true">@Initial</span>
+
+@code {
+    [Parameter, EditorRequired] public string Name { get; set; } = string.Empty;
+
+    string Initial => Name.Length == 0 ? "?" : char.ToUpperInvariant(Name[0]).ToString();
+}

@@ -1,0 +1,23 @@
+<div class="ox-field">
+    <label class="ox-field-label">
+        <span>@Label</span>
+        @ChildContent
+    </label>
+    @if (Hint is not null && Error is null)
+    {
+        <span class="ox-field-hint">@Hint</span>
+    }
+    @if (Error is not null || ReserveError)
+    {
+        <span class="ox-field-error" role="alert">@(Error ?? " ")</span>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public string Label { get; set; } = string.Empty;
+    [Parameter] public string? Hint { get; set; }
+    [Parameter] public string? Error { get; set; }
+    /// <summary>Keeps the line of the error message while there is none, so the form does not jump.</summary>
+    [Parameter] public bool ReserveError { get; set; }
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+}

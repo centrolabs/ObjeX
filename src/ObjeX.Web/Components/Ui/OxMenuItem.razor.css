@@ -1,0 +1,23 @@
+.ox-menu-item {
+    display: flex;
+    align-items: center;
+    gap: var(--ox-space-5);
+    width: 100%;
+    height: var(--ox-size-ctl);
+    padding: 0 var(--ox-space-5);
+    border: 0;
+    border-radius: var(--ox-radius-sm);
+    background: none;
+    color: var(--ox-text);
+    font: inherit;
+    text-align: left;
+    text-decoration: none;
+    white-space: nowrap;
+    cursor: pointer;
+}
+
+.ox-menu-item ::deep .ox-icon { color: var(--ox-text-muted); }
+.ox-menu-item:hover, .ox-menu-item:focus-visible { outline: none; background: var(--ox-surface-hover-strong); }
+.ox-menu-item.is-danger, .ox-menu-item.is-danger ::deep .ox-icon { color: var(--ox-danger); }
+.ox-menu-item:disabled { color: var(--ox-text-faint); cursor: default; }
+.ox-menu-item:disabled:hover { background: none; }

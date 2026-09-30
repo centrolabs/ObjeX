@@ -1,0 +1,24 @@
+.ox-stack { display: flex; flex-direction: column; min-width: 0; }
+.ox-stack--row { flex-direction: row; }
+.ox-stack--wrap { flex-wrap: wrap; }
+.ox-stack--grow { flex: 1; }
+
+.ox-gap-0 { gap: var(--ox-space-0); }
+.ox-gap-1 { gap: var(--ox-space-1); }
+.ox-gap-2 { gap: var(--ox-space-2); }
+.ox-gap-3 { gap: var(--ox-space-3); }
+.ox-gap-4 { gap: var(--ox-space-4); }
+.ox-gap-5 { gap: var(--ox-space-5); }
+.ox-gap-6 { gap: var(--ox-space-6); }
+.ox-gap-7 { gap: var(--ox-space-7); }
+.ox-gap-8 { gap: var(--ox-space-8); }
+.ox-gap-9 { gap: var(--ox-space-9); }
+
+.ox-align-start { align-items: flex-start; }
+.ox-align-center { align-items: center; }
+.ox-align-end { align-items: flex-end; }
+.ox-align-baseline { align-items: baseline; }
+
+.ox-justify-center { justify-content: center; }
+.ox-justify-end { justify-content: flex-end; }
+.ox-justify-between { justify-content: space-between; }

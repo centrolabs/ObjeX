@@ -1,0 +1,18 @@
+<div class="ox-user">
+    <a class="ox-user-link" href="@ProfileHref" title="Profile">
+        <OxAvatar Name="@Name" />
+        <span>@Name</span>
+    </a>
+    <OxIconButton Icon="logout" Label="Sign out" OnClick="@(() => OnSignOut.InvokeAsync())" />
+</div>
+@if (Version is not null)
+{
+    <div class="ox-user-version">@Version</div>
+}
+
+@code {
+    [Parameter, EditorRequired] public string Name { get; set; } = string.Empty;
+    [Parameter] public string ProfileHref { get; set; } = "/profile";
+    [Parameter] public string? Version { get; set; }
+    [Parameter] public EventCallback OnSignOut { get; set; }
+}

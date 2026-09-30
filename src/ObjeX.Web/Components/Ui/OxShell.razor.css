@@ -1,0 +1,88 @@
+.ox-shell { display: flex; min-height: 100vh; background: var(--ox-surface); color: var(--ox-text); }
+
+.ox-shell-side {
+    position: sticky;
+    top: 0;
+    flex: none;
+    display: flex;
+    flex-direction: column;
+    gap: var(--ox-space-7);
+    width: var(--ox-size-sidebar);
+    height: 100vh;
+    padding: var(--ox-space-6);
+    border-right: var(--ox-border) solid var(--ox-line-side);
+    background: var(--ox-surface-side);
+    overflow-y: auto;
+}
+
+.ox-shell-brand {
+    display: flex;
+    align-items: center;
+    gap: var(--ox-space-4);
+    padding: var(--ox-space-2) var(--ox-space-4);
+    border-radius: var(--ox-radius-md);
+    color: var(--ox-text);
+    font-size: var(--ox-fs-lg);
+    font-weight: var(--ox-fw-semibold);
+    text-decoration: none;
+}
+
+.ox-shell-brand:focus-visible { outline: var(--ox-ring) solid var(--ox-accent-text); }
+.ox-shell-brand img { width: var(--ox-size-avatar); height: var(--ox-size-avatar); border-radius: var(--ox-radius-sm); }
+
+.ox-shell-nav { display: flex; flex-direction: column; gap: var(--ox-space-1); }
+.ox-shell-grow { flex: 1; }
+
+.ox-shell-main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: var(--ox-space-7);
+    min-width: 0;
+    padding: var(--ox-space-8) var(--ox-space-9);
+}
+
+.ox-shell-bar, .ox-shell-scrim { display: none; }
+
+@media (max-width: 899px) {
+    .ox-shell { flex-direction: column; }
+
+    .ox-shell-bar {
+        position: sticky;
+        top: 0;
+        z-index: calc(var(--ox-z-drawer) - 1);
+        display: flex;
+        align-items: center;
+        gap: var(--ox-space-4);
+        height: calc(var(--ox-size-ctl) + 2 * var(--ox-space-4));
+        padding: 0 var(--ox-space-6);
+        border-bottom: var(--ox-border) solid var(--ox-line-side);
+        background: var(--ox-surface-side);
+    }
+
+    .ox-shell-side {
+        position: fixed;
+        inset: 0 auto 0 0;
+        z-index: var(--ox-z-drawer);
+        transform: translateX(-100%);
+        visibility: hidden;
+        transition: transform .16s ease-out, visibility .16s;
+        box-shadow: var(--ox-shadow-pop);
+    }
+
+    .ox-shell.is-drawer-open .ox-shell-side { transform: none; visibility: visible; }
+
+    .ox-shell.is-drawer-open .ox-shell-scrim {
+        display: block;
+        position: fixed;
+        inset: 0;
+        z-index: calc(var(--ox-z-drawer) - 1);
+        background: var(--ox-overlay);
+    }
+
+    .ox-shell-main { padding: var(--ox-space-7) var(--ox-space-7); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .ox-shell-side { transition: none; }
+}

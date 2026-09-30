@@ -1,0 +1,32 @@
+.ox-switch { position: relative; display: inline-flex; align-items: center; gap: var(--ox-space-4); cursor: pointer; }
+
+.ox-switch input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: inherit; }
+
+.ox-switch-track {
+    flex: none;
+    display: flex;
+    align-items: center;
+    width: var(--ox-size-ctl);
+    height: var(--ox-space-8);
+    padding: var(--ox-space-1);
+    border-radius: var(--ox-radius-full);
+    background: var(--ox-text-faint);
+    transition: background .12s;
+}
+
+.ox-switch-thumb {
+    width: var(--ox-space-7);
+    height: var(--ox-space-7);
+    border-radius: var(--ox-radius-full);
+    background: var(--ox-on-accent);
+    box-shadow: var(--ox-shadow-ctl);
+    transition: transform .12s;
+}
+
+.ox-switch input:checked + .ox-switch-track { background: var(--ox-accent); }
+.ox-switch input:checked + .ox-switch-track .ox-switch-thumb { transform: translateX(calc(var(--ox-size-ctl) - var(--ox-space-7) - 2 * var(--ox-space-1))); }
+.ox-switch input:focus-visible + .ox-switch-track { outline: var(--ox-ring) solid var(--ox-accent-text); outline-offset: var(--ox-ring); }
+
+@media (prefers-reduced-motion: reduce) {
+    .ox-switch-track, .ox-switch-thumb { transition: none; }
+}

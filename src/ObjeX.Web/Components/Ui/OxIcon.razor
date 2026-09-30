@@ -1,0 +1,18 @@
+<span class="ox-icon notranslate @(Small ? "ox-icon--sm" : null) @ToneClass @Class" aria-hidden="true">@Name</span>
+
+@code {
+    /// <summary>Material Symbols Outlined ligature, for example "download".</summary>
+    [Parameter, EditorRequired] public string Name { get; set; } = string.Empty;
+    [Parameter] public bool Small { get; set; }
+    [Parameter] public OxTone Tone { get; set; }
+    [Parameter] public string? Class { get; set; }
+
+    string? ToneClass => Tone switch
+    {
+        OxTone.Muted => "ox-icon--muted",
+        OxTone.Accent => "ox-icon--accent",
+        OxTone.Warning => "ox-icon--warning",
+        OxTone.Danger => "ox-icon--danger",
+        _ => null
+    };
+}

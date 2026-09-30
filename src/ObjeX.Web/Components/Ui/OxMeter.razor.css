@@ -1,0 +1,10 @@
+.ox-meter {
+    height: var(--ox-size-meter);
+    border-radius: var(--ox-radius-full);
+    background: var(--ox-surface-track);
+    overflow: hidden;
+}
+
+.ox-meter i { display: block; height: 100%; border-radius: inherit; background: var(--ox-accent-text); }
+.ox-meter.is-warning i { background: var(--ox-warning); }
+.ox-meter.is-danger i { background: var(--ox-danger); }

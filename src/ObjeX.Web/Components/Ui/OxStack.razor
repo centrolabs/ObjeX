@@ -1,0 +1,26 @@
+<div class="@Css" @attributes="Attributes">@ChildContent</div>
+
+@code {
+    /// <summary>Horizontal when true, vertical otherwise.</summary>
+    [Parameter] public bool Row { get; set; }
+    /// <summary>Step of the space scale, 0 to 9.</summary>
+    [Parameter] public int Gap { get; set; } = 4;
+    [Parameter] public OxAlign Align { get; set; }
+    [Parameter] public OxJustify Justify { get; set; }
+    [Parameter] public bool Wrap { get; set; }
+    /// <summary>Takes the remaining space of a parent stack.</summary>
+    [Parameter] public bool Grow { get; set; }
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+    [Parameter(CaptureUnmatchedValues = true)] public Dictionary<string, object>? Attributes { get; set; }
+
+    string Css => string.Join(' ', new[]
+    {
+        "ox-stack",
+        Row ? "ox-stack--row" : null,
+        $"ox-gap-{Math.Clamp(Gap, 0, 9)}",
+        Align == OxAlign.Stretch ? null : $"ox-align-{Align.ToString().ToLowerInvariant()}",
+        Justify == OxJustify.Start ? null : $"ox-justify-{Justify.ToString().ToLowerInvariant()}",
+        Wrap ? "ox-stack--wrap" : null,
+        Grow ? "ox-stack--grow" : null
+    }.Where(c => c is not null));
+}

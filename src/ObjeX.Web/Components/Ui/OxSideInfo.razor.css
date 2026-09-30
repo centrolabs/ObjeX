@@ -1,0 +1,2 @@
+.ox-side-info { display: flex; flex-direction: column; gap: var(--ox-space-3); padding: 0 var(--ox-space-4); font-size: var(--ox-fs-sm); color: var(--ox-text-side-muted); }
+.ox-side-info-text ::deep b { font-weight: var(--ox-fw-medium); color: var(--ox-text); }
