@@ -1,0 +1,16 @@
+.ox-chip {
+    height: var(--ox-size-ctl-sm);
+    padding: 0 var(--ox-space-5);
+    border: var(--ox-border) solid var(--ox-line-strong);
+    border-radius: var(--ox-radius-full);
+    background: var(--ox-surface);
+    color: var(--ox-text-muted);
+    font: inherit;
+    font-size: var(--ox-fs-sm);
+    font-weight: var(--ox-fw-medium);
+    cursor: pointer;
+}
+
+.ox-chip:hover { background: var(--ox-surface-hover); color: var(--ox-text); }
+.ox-chip.is-active { border-color: var(--ox-accent); background: var(--ox-accent); color: var(--ox-on-accent); }
+.ox-chip:focus-visible { outline: var(--ox-ring) solid var(--ox-accent-text); outline-offset: var(--ox-ring); }

@@ -1,0 +1,33 @@
+<div class="ox-preview">
+    @switch (Kind)
+    {
+        case OxPreviewKind.Image:
+            <img src="@Url" alt="@Alt" />
+            break;
+        case OxPreviewKind.Video:
+            <video controls>
+                <source src="@Url" type="@ContentType" />
+            </video>
+            break;
+        case OxPreviewKind.Audio:
+            <audio controls>
+                <source src="@Url" type="@ContentType" />
+            </audio>
+            break;
+        case OxPreviewKind.Pdf:
+            <iframe src="@(Url + "#pagemode=none&toolbar=0")" title="@Alt"></iframe>
+            break;
+        case OxPreviewKind.Text:
+            <pre>@Text</pre>
+            break;
+    }
+</div>
+
+@code {
+    [Parameter] public OxPreviewKind Kind { get; set; }
+    [Parameter] public string? Url { get; set; }
+    [Parameter] public string? ContentType { get; set; }
+    [Parameter] public string? Alt { get; set; }
+    /// <summary>The content for <see cref="OxPreviewKind.Text"/>; the caller loads it.</summary>
+    [Parameter] public string? Text { get; set; }
+}

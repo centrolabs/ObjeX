@@ -1,0 +1,41 @@
+@inject IJSRuntime JS
+
+<div class="ox-code @(Block ? "ox-code--block" : null)">
+    @if (Block)
+    {
+        <pre>@Text</pre>
+    }
+    else
+    {
+        <code>@Text</code>
+    }
+    @if (Copyable)
+    {
+        <OxIconButton Icon="@(_copied ? "check" : "content_copy")" Label="@(_copied ? "Copied" : "Copy")" OnClick="Copy" />
+    }
+</div>
+
+@code {
+    bool _copied;
+
+    [Parameter, EditorRequired] public string Text { get; set; } = string.Empty;
+    /// <summary>Several lines, kept as written, for a command or a config snippet.</summary>
+    [Parameter] public bool Block { get; set; }
+    [Parameter] public bool Copyable { get; set; }
+
+    async Task Copy()
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("navigator.clipboard.writeText", Text);
+        }
+        catch (JSException)
+        {
+            return; // the browser refused the clipboard; the text stays selectable
+        }
+        _copied = true;
+        StateHasChanged();
+        await Task.Delay(2000);
+        _copied = false;
+    }
+}

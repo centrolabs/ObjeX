@@ -1,0 +1,6 @@
+<div class="ox-chart">@ChildContent</div>
+
+@code {
+    /// <summary>Frame for one RadzenChart: fixes the height and lets the chart fill it. Series take the chart colour tokens in order.</summary>
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+}

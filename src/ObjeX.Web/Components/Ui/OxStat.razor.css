@@ -1,0 +1,4 @@
+.ox-stat { flex: 1; display: flex; flex-direction: column; gap: var(--ox-space-3); min-width: 0; }
+.ox-stat-label { font-size: var(--ox-fs-sm); font-weight: var(--ox-fw-medium); color: var(--ox-text-muted); }
+.ox-stat-value { font-size: var(--ox-fs-2xl); font-weight: var(--ox-fw-semibold); line-height: 1; white-space: nowrap; }
+.ox-stat-hint { font-size: var(--ox-fs-sm); color: var(--ox-text-muted); }

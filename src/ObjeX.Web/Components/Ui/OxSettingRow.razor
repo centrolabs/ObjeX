@@ -1,0 +1,17 @@
+<div class="ox-setting">
+    <div class="ox-setting-text">
+        <span class="ox-setting-label">@Label</span>
+        @if (Hint is not null)
+        {
+            <span class="ox-setting-hint">@Hint</span>
+        }
+    </div>
+    <div class="ox-setting-control">@ChildContent</div>
+</div>
+
+@code {
+    /// <summary>One setting: its name and an optional explanation on the left, the control on the right.</summary>
+    [Parameter, EditorRequired] public string Label { get; set; } = string.Empty;
+    [Parameter] public string? Hint { get; set; }
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+}

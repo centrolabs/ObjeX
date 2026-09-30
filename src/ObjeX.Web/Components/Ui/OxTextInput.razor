@@ -1,4 +1,4 @@
-<input @ref="_input" class="ox-input @(Invalid ? "is-invalid" : null) @(Mono ? "ox-input--mono" : null)" type="@Type" value="@Value"
+<input @ref="_input" class="ox-input @(Invalid ? "is-invalid" : null) @(Mono ? "ox-input--mono" : null) @(AlignEnd ? "ox-input--end" : null)" type="@Type" value="@Value"
        placeholder="@Placeholder" disabled="@Disabled" readonly="@ReadOnly" aria-invalid="@(Invalid ? "true" : null)"
        @oninput="@(e => ValueChanged.InvokeAsync(e.Value?.ToString() ?? string.Empty))" @onkeydown="OnKeyDown" @attributes="Attributes" />
 
@@ -14,6 +14,8 @@
     [Parameter] public bool ReadOnly { get; set; }
     [Parameter] public bool Invalid { get; set; }
     [Parameter] public bool Mono { get; set; }
+    /// <summary>Right-aligned value, for a number next to its unit.</summary>
+    [Parameter] public bool AlignEnd { get; set; }
     /// <summary>Takes the keyboard focus when it first renders, for the first field of a dialog.</summary>
     [Parameter] public bool AutoFocus { get; set; }
     [Parameter] public EventCallback OnEnter { get; set; }

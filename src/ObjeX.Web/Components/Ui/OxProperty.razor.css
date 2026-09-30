@@ -1,0 +1,12 @@
+.ox-prop {
+    display: flex;
+    align-items: baseline;
+    gap: var(--ox-space-6);
+    padding: var(--ox-space-4) 0;
+    border-bottom: var(--ox-border) solid var(--ox-line);
+}
+
+.ox-prop:last-child { border-bottom: 0; }
+.ox-prop dt { flex: 0 0 var(--ox-size-label); font-size: var(--ox-fs-sm); color: var(--ox-text-muted); }
+.ox-prop dd { flex: 1; min-width: 0; margin: 0; overflow-wrap: anywhere; }
+.ox-prop-mono { font-family: var(--ox-font-mono); font-size: var(--ox-fs-sm); }

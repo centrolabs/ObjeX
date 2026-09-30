@@ -1,0 +1,11 @@
+<div class="ox-prop">
+    <dt>@Label</dt>
+    <dd class="@(Mono ? "ox-prop-mono" : null)">@ChildContent</dd>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public string Label { get; set; } = string.Empty;
+    /// <summary>Monospace value that may break anywhere: keys, ETags, header values.</summary>
+    [Parameter] public bool Mono { get; set; }
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+}

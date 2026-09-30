@@ -15,3 +15,9 @@
 .ox-input.is-invalid:focus { outline-color: var(--ox-danger); }
 .ox-input:disabled { background: var(--ox-surface-hover); color: var(--ox-text-muted); }
 .ox-input--mono { font-family: var(--ox-font-mono); font-size: var(--ox-fs-sm); }
+.ox-input--end { text-align: right; }
+
+/* A number field shows no spinner buttons; the value is typed. */
+.ox-input[type=number] { -moz-appearance: textfield; appearance: textfield; }
+.ox-input[type=number]::-webkit-outer-spin-button,
+.ox-input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }

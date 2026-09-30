@@ -1,0 +1,7 @@
+<div class="ox-box ox-box--@Width.ToString().ToLowerInvariant()">@ChildContent</div>
+
+@code {
+    /// <summary>Gives the control inside a width from the scale. Works for Ui inputs and for Radzen dropdowns and numeric inputs.</summary>
+    [Parameter] public OxWidth Width { get; set; }
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+}

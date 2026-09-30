@@ -1,0 +1,19 @@
+<div class="ox-tabs">
+    <div class="ox-tabs-list" role="tablist">
+        @for (var i = 0; i < Captions.Count; i++)
+        {
+            var index = i;
+            <button type="button" role="tab" class="ox-tab @(index == Active ? "is-active" : null)" aria-selected="@(index == Active ? "true" : "false")"
+                    @onclick="@(() => ActiveChanged.InvokeAsync(index))">@Captions[index]</button>
+        }
+    </div>
+    <div class="ox-tabs-panel" role="tabpanel">@ChildContent</div>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public IReadOnlyList<string> Captions { get; set; } = [];
+    [Parameter] public int Active { get; set; }
+    [Parameter] public EventCallback<int> ActiveChanged { get; set; }
+    /// <summary>The panel of the active tab; the caller renders it from <see cref="Active"/>.</summary>
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+}

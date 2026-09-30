@@ -1,0 +1,17 @@
+<div class="ox-stat">
+    <span class="ox-stat-label">@Label</span>
+    <span class="ox-stat-value">@Value</span>
+    @if (Hint is not null)
+    {
+        <span class="ox-stat-hint">@Hint</span>
+    }
+    @ChildContent
+</div>
+
+@code {
+    /// <summary>One headline number: what it counts, the value, and a line of context. A meter may follow.</summary>
+    [Parameter, EditorRequired] public string Label { get; set; } = string.Empty;
+    [Parameter, EditorRequired] public string Value { get; set; } = string.Empty;
+    [Parameter] public string? Hint { get; set; }
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+}

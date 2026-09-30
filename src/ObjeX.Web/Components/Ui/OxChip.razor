@@ -1,0 +1,8 @@
+<button type="button" class="ox-chip @(Active ? "is-active" : null)" aria-pressed="@(Active ? "true" : "false")" @onclick="OnClick">@ChildContent</button>
+
+@code {
+    /// <summary>One choice of a small set of presets. The active one is filled.</summary>
+    [Parameter] public bool Active { get; set; }
+    [Parameter] public EventCallback<MouseEventArgs> OnClick { get; set; }
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+}

@@ -1,0 +1,2 @@
+.ox-brand { display: flex; align-items: center; gap: var(--ox-space-4); font-size: var(--ox-fs-xl); font-weight: var(--ox-fw-semibold); }
+.ox-brand img { width: var(--ox-size-ctl-sm); height: var(--ox-size-ctl-sm); border-radius: var(--ox-radius-sm); }

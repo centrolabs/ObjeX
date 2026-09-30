@@ -1,0 +1,35 @@
+@implements IAsyncDisposable
+@inject IJSRuntime JS
+
+<div class="ox-file-drop" @ref="_zone">
+    <OxIcon Name="upload" />
+    <span>@ChildContent</span>
+    <InputFile @ref="_input" OnChange="OnChange" multiple="@Multiple" aria-label="Choose files" />
+</div>
+
+@code {
+    ElementReference _zone;
+    InputFile? _input;
+    IJSObjectReference? _module;
+
+    /// <summary>The area a user clicks or drops files on. The text inside says so.</summary>
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+    [Parameter] public bool Multiple { get; set; } = true;
+    [Parameter] public EventCallback<InputFileChangeEventArgs> OnChange { get; set; }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender || _input?.Element is null) return;
+        _module = await JS.InvokeAsync<IJSObjectReference>("import", "./_content/ObjeX.Web/Components/Ui/OxDropZone.razor.js");
+        await _module.InvokeVoidAsync("initDropZone", _zone, _input.Element);
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        try
+        {
+            if (_module is not null) await _module.DisposeAsync();
+        }
+        catch (JSDisconnectedException) { }
+    }
+}

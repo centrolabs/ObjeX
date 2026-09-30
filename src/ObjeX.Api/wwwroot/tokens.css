@@ -99,6 +99,11 @@
     --ox-size-chart: 220px;
     --ox-size-form: 360px;
     --ox-size-table-min: 860px;
+    --ox-size-field-xs: 72px;
+    --ox-size-field-sm: 110px;
+    --ox-size-label: 120px;
+    --ox-size-drop: 120px;
+    --ox-size-preview: 70vh;
 
     --ox-border: 1px;
     --ox-border-check: 1.5px;
