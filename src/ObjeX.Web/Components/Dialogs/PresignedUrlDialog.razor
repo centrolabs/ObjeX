@@ -42,6 +42,10 @@
         </RadzenText>
     }
 
+    <RadzenText TextStyle="TextStyle.Caption" Style="color:var(--rz-text-secondary-color)">
+        Signed with your S3 credential "@CredentialName". The link stops working when you delete that credential.
+    </RadzenText>
+
     <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.End" Gap="0.5rem">
         <RadzenButton Text="Cancel" ButtonStyle="ButtonStyle.Light" Click="@(() => DialogService.Close(null))" />
         <RadzenButton Text="Copy Link" ButtonStyle="ButtonStyle.Primary"
@@ -84,6 +88,7 @@
 @code {
     [Parameter] public int DefaultSeconds { get; set; } = 3600;
     [Parameter] public int MaxSeconds { get; set; } = 604800;
+    [Parameter] public string CredentialName { get; set; } = "";
 
     int _value = 1;
     string _unit = "hours";

@@ -29,7 +29,9 @@ public static class PresignEndpoints
                 return Results.Problem("You do not own this bucket.", statusCode: 403);
             var credential = await db.S3Credentials
                 .AsNoTracking()
-                .FirstOrDefaultAsync(c => c.UserId == userId);
+                .Where(c => c.UserId == userId)
+                .OrderBy(c => c.CreatedAt)
+                .FirstOrDefaultAsync();
 
             if (credential is null)
                 return Results.BadRequest(new { error = "No S3 credential found. Create one in Settings." });

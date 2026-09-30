@@ -717,7 +717,9 @@
         await using (var db = await DbFactory.CreateDbContextAsync())
         {
             credential = await db.S3Credentials.AsNoTracking()
-                .FirstOrDefaultAsync(c => c.UserId == userId);
+                .Where(c => c.UserId == userId)
+                .OrderBy(c => c.CreatedAt)
+                .FirstOrDefaultAsync();
 
             var settings  = await db.SystemSettings.FindAsync(1);
             defaultExpiry = settings?.PresignedUrlDefaultExpirySeconds ?? 3600;
@@ -736,6 +738,7 @@
             {
                 { "DefaultSeconds", defaultExpiry },
                 { "MaxSeconds",     maxExpiry },
+                { "CredentialName", credential.Name },
             },
             new DialogOptions { Width = "440px", CloseDialogOnOverlayClick = true });
 
