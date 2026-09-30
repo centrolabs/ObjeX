@@ -58,7 +58,7 @@ h1:focus { outline: none; }
 .rz-data-grid .rz-grid-table tbody tr.ox-row-selected > td,
 .rz-data-grid .rz-grid-table tbody tr.ox-row-selected:hover > td { background: var(--ox-surface-selected); }
 
-.rz-grid-table td.ox-col-muted { color: var(--ox-text-muted); }
+.rz-grid-table td.ox-col-muted, .rz-grid-table td.ox-col-muted .rz-cell-data { color: var(--ox-text-muted); }
 
 /* Cells that hold controls must not clip focus rings. */
 .rz-grid-table td.ox-col-check .rz-cell-data,
@@ -79,6 +79,8 @@ h1:focus { outline: none; }
 .rz-grid-table td.rz-datatable-emptymessage { color: var(--ox-text-muted); }
 
 .rz-pager { padding: var(--ox-space-4) 0; font-size: var(--ox-fs-sm); }
+
+.rz-pager .rz-button { border-color: transparent; background: transparent; box-shadow: none; }
 
 /* ---- Dialog ---------------------------------------------------------------------------- */
 .rz-dialog {

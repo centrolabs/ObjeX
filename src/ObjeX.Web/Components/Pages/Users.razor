@@ -18,16 +18,20 @@
 
 <PageTitle>Users — ObjeX</PageTitle>
 
-<OxPageHeader Title="Users" Meta="@($"{_users.Count:N0} users")">
+<OxPageHeader Title="Users" Meta="@(_users.Count == 1 ? "1 user" : $"{_users.Count:N0} users")">
     <OxButton Variant="OxButtonVariant.Primary" Icon="person_add" OnClick="CreateUser">New user</OxButton>
 </OxPageHeader>
 
 <RadzenDataGrid Data="_users" TItem="UserRow" AllowSorting="true" AllowAlternatingRows="false">
     <Columns>
-        <RadzenDataGridColumn TItem="UserRow" Property="Username" Title="Username">
-            <Template Context="row"><OxText Truncate="true"><strong>@row.Username</strong></OxText></Template>
+        <RadzenDataGridColumn TItem="UserRow" Property="Username" Title="User">
+            <Template Context="row">
+                <OxStack Row="true" Gap="5" Align="OxAlign.Baseline">
+                    <OxText><strong>@row.Username</strong></OxText>
+                    <OxText Variant="OxTextVariant.Small" Truncate="true" title="@row.Email">@row.Email</OxText>
+                </OxStack>
+            </Template>
         </RadzenDataGridColumn>
-        <RadzenDataGridColumn TItem="UserRow" Property="Email" Title="Email" CssClass="ox-col-muted" />
         <RadzenDataGridColumn TItem="UserRow" Property="Role" Title="Role" Width="@OxSizes.NumberColumn">
             <Template Context="row"><OxBadge Tone="@(row.Role == "Admin" ? OxTone.Accent : OxTone.Default)">@row.Role</OxBadge></Template>
         </RadzenDataGridColumn>
@@ -65,7 +69,7 @@
         <RadzenDataGridColumn TItem="UserRow" Property="CreatedAt" Title="Created" Width="@OxSizes.DateColumn" CssClass="ox-col-muted">
             <Template Context="row">@Tz.Format(row.CreatedAt)</Template>
         </RadzenDataGridColumn>
-        <RadzenDataGridColumn TItem="UserRow" Title="" Width="@OxSizes.ActionsColumn" Sortable="false" CssClass="ox-col-actions">
+        <RadzenDataGridColumn TItem="UserRow" Title="" Width="@OxSizes.MenuColumn" Sortable="false" CssClass="ox-col-actions">
             <Template Context="row">
                 <OxRowActions>
                     <OxMenuButton Label="@($"More actions for {row.Username}")">

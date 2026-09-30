@@ -1,5 +1,5 @@
 .ox-setting { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--ox-space-4) var(--ox-space-8); min-height: var(--ox-size-ctl); }
-.ox-setting-text { display: flex; flex-direction: column; gap: var(--ox-space-1); min-width: 0; }
+.ox-setting-text { flex: 1 1 var(--ox-size-search); display: flex; flex-direction: column; gap: var(--ox-space-1); min-width: 0; }
 .ox-setting-label { font-weight: var(--ox-fw-medium); }
 .ox-setting-hint { font-size: var(--ox-fs-sm); color: var(--ox-text-muted); }
-.ox-setting-control { display: flex; align-items: center; gap: var(--ox-space-4); }
+.ox-setting-control { flex: none; display: flex; align-items: center; gap: var(--ox-space-4); }
