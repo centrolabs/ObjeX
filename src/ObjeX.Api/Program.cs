@@ -100,6 +100,16 @@ else
         await context.Response.WriteAsJsonAsync(new { error = "An error occurred" });
     }));
 }
+// /styleguide documents the Ui library and exists in Development only. Placed ahead of the status code
+// pages, so the answer is a plain 404 and not a redirect.
+if (!app.Environment.IsDevelopment())
+    app.UseWhen(
+        ctx => ctx.Request.Path.StartsWithSegments("/styleguide"),
+        branch => branch.Run(ctx =>
+        {
+            ctx.Response.StatusCode = StatusCodes.Status404NotFound;
+            return Task.CompletedTask;
+        }));
 app.UseWhen(
     ctx => !ctx.Request.Path.StartsWithSegments("/api")
         && !ctx.Request.Path.StartsWithSegments("/metrics")

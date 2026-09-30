@@ -1,0 +1,229 @@
+@page "/styleguide"
+@layout EmptyLayout
+@attribute [AllowAnonymous]
+@using Microsoft.Extensions.Hosting
+@inject IHostEnvironment Environment
+@inject NavigationManager Navigation
+
+<PageTitle>Styleguide — ObjeX</PageTitle>
+
+@if (Environment.IsDevelopment())
+{
+    <OxContainer>
+        <OxStack Gap="2">
+            <OxText Variant="OxTextVariant.Title">ObjeX Ui — styleguide</OxText>
+            <OxText Variant="OxTextVariant.Muted">Every component of Components/Ui in light and dark. Hover and focus states show with the pointer and the Tab key. Development only.</OxText>
+        </OxStack>
+        <OxStack Row="true" Gap="8" Wrap="true" Align="OxAlign.Start">
+            <OxStack Grow="true"><OxThemeScope>@Samples("Light")</OxThemeScope></OxStack>
+            <OxStack Grow="true"><OxThemeScope Dark="true">@Samples("Dark")</OxThemeScope></OxStack>
+        </OxStack>
+    </OxContainer>
+}
+
+@code {
+    record SampleRow(string Name, string Type, long Size, OxFileKind Kind);
+
+    static readonly (string Token, string Use)[] Roles =
+    [
+        ("--ox-surface", "Content area"), ("--ox-surface-side", "Sidebar"), ("--ox-surface-raised", "Menu, dialog"),
+        ("--ox-surface-field", "Input"), ("--ox-surface-hover", "Row and button hover"), ("--ox-surface-hover-strong", "Icon button, menu item hover"),
+        ("--ox-surface-nav-hover", "Navigation hover"), ("--ox-surface-nav-active", "Navigation, active"), ("--ox-surface-selected", "Selected row"),
+        ("--ox-surface-track", "Meter track"), ("--ox-text", "Text"), ("--ox-text-muted", "Secondary text"),
+        ("--ox-text-side-muted", "Secondary text, sidebar"), ("--ox-text-faint", "Separator, disabled"), ("--ox-line", "Row line"),
+        ("--ox-line-strong", "Control border"), ("--ox-line-side", "Sidebar border"), ("--ox-accent", "Primary button"),
+        ("--ox-accent-hover", "Primary button hover"), ("--ox-accent-text", "Accent as text, focus ring"), ("--ox-danger", "Destructive, error"),
+        ("--ox-warning", "Warning"), ("--ox-icon-folder", "Folder icon"), ("--ox-icon-image", "Image icon"), ("--ox-icon-video", "Video icon"),
+    ];
+
+    static readonly string[] Chart =
+        ["--ox-chart-1", "--ox-chart-2", "--ox-chart-3", "--ox-chart-4", "--ox-chart-5", "--ox-chart-6", "--ox-chart-7", "--ox-chart-8", "--ox-chart-other"];
+
+    static readonly List<SampleRow> Rows =
+    [
+        new("raw/", "—", 0, OxFileKind.Folder),
+        new("IMG_01.jpg", "image/jpeg", 849_612, OxFileKind.Image),
+        new("drone-footage.mp4", "video/mp4", 3_355_443, OxFileKind.Video),
+        new("notes.txt", "text/plain", 6, OxFileKind.Text),
+    ];
+
+    static readonly IReadOnlyList<OxCrumb> Crumbs = [new("Buckets", "/buckets"), new("photos", "/buckets/photos"), new("2024")];
+
+    string _text = "photos";
+    string _search = string.Empty;
+    bool _checked = true;
+    bool _switch = true;
+    readonly HashSet<SampleRow> _selected = [Rows[1]];
+
+    protected override void OnInitialized()
+    {
+        // Outside Development the route does not exist; the host answers 404 before this page is reached.
+        if (!Environment.IsDevelopment())
+            Navigation.NotFound();
+    }
+
+    void OnRowRender(RowRenderEventArgs<SampleRow> args)
+    {
+        if (args.Data is not null && _selected.Contains(args.Data))
+            args.Attributes["class"] = OxSizes.SelectedRowClass;
+    }
+
+    RenderFragment Samples(string mode) => @<text>
+        <OxText Variant="OxTextVariant.Heading">@mode</OxText>
+
+        <OxText Variant="OxTextVariant.Label">Colour roles</OxText>
+        <OxStack Row="true" Wrap="true" Gap="6">
+            @foreach (var (token, use) in Roles)
+            {
+                <OxStack Row="true" Gap="4" Align="OxAlign.Center"><OxSwatch Token="@token" /><OxStack Gap="0"><OxText Variant="OxTextVariant.Mono">@token</OxText><OxText Variant="OxTextVariant.Small">@use</OxText></OxStack></OxStack>
+            }
+        </OxStack>
+
+        <OxText Variant="OxTextVariant.Label">Chart colours, slots 1 to 8 and "Other"</OxText>
+        <OxStack Row="true" Gap="1">
+            @foreach (var token in Chart)
+            {
+                <OxSwatch Token="@token" />
+            }
+        </OxStack>
+
+        <OxText Variant="OxTextVariant.Label">Type scale</OxText>
+        <OxStack Gap="3">
+            <OxText Variant="OxTextVariant.Figure">24 Figure 12.2 GB</OxText>
+            <OxText Variant="OxTextVariant.Title">17 Title photos / 2024</OxText>
+            <OxText Variant="OxTextVariant.Heading">15 Heading Storage by bucket</OxText>
+            <OxText>14 Body IMG_01.jpg</OxText>
+            <OxText Variant="OxTextVariant.Muted">14 Muted image/jpeg</OxText>
+            <OxText Variant="OxTextVariant.Label">13 Label Name</OxText>
+            <OxText Variant="OxTextVariant.Small">13 Small 12 objects · 6.4 MB</OxText>
+            <OxText Variant="OxTextVariant.Mono">13 Mono s3://photos/2024/trip/IMG_01.jpg</OxText>
+        </OxStack>
+
+        <OxText Variant="OxTextVariant.Label">Space scale, steps 1 to 9</OxText>
+        <OxStack Gap="2">
+            @for (var step = 1; step <= 9; step++)
+            {
+                var gap = step;
+                <OxStack Row="true" Gap="@gap" Align="OxAlign.Center"><OxSwatch Token="--ox-accent" /><OxSwatch Token="--ox-accent" /><OxText Variant="OxTextVariant.Small">@gap</OxText></OxStack>
+            }
+        </OxStack>
+
+        <OxText Variant="OxTextVariant.Label">Buttons</OxText>
+        <OxStack Row="true" Wrap="true" Gap="4" Align="OxAlign.Center">
+            <OxButton Icon="create_new_folder">New folder</OxButton>
+            <OxButton Variant="OxButtonVariant.Primary" Icon="upload">Upload</OxButton>
+            <OxButton Variant="OxButtonVariant.Danger" Icon="delete">Delete</OxButton>
+            <OxButton Disabled="true">Disabled</OxButton>
+            <OxButton Variant="OxButtonVariant.Primary" Disabled="true">Disabled</OxButton>
+            <OxButton Href="/styleguide" Icon="link">Link button</OxButton>
+        </OxStack>
+        <OxStack Row="true" Wrap="true" Gap="4" Align="OxAlign.Center">
+            <OxIconButton Icon="download" Label="Download" />
+            <OxIconButton Icon="link" Label="Share link" />
+            <OxIconButton Icon="more_horiz" Label="Active" Active="true" />
+            <OxIconButton Icon="delete" Label="Disabled" Disabled="true" />
+            <OxMenuButton>
+                <OxMenuItem Icon="visibility">Preview</OxMenuItem>
+                <OxMenuItem Icon="info">Metadata</OxMenuItem>
+                <OxMenuItem Icon="content_copy" Disabled="true">Disabled</OxMenuItem>
+                <OxMenuDivider />
+                <OxMenuItem Icon="delete" Danger="true">Delete</OxMenuItem>
+            </OxMenuButton>
+            <OxLink Href="/styleguide">Link</OxLink>
+            <OxSpinner />
+        </OxStack>
+
+        <OxText Variant="OxTextVariant.Label">Inputs</OxText>
+        <OxStack Row="true" Wrap="true" Gap="6" Align="OxAlign.Start">
+            <OxField Label="Bucket name" Hint="3 to 63 characters"><OxTextInput @bind-Value="_text" /></OxField>
+            <OxField Label="Invalid" Error="Bucket name is too short"><OxTextInput Value="ab" Invalid="true" /></OxField>
+            <OxField Label="Disabled"><OxTextInput Value="read only" Disabled="true" /></OxField>
+        </OxStack>
+        <OxStack Row="true" Wrap="true" Gap="6" Align="OxAlign.Center">
+            <OxSearch @bind-Value="_search" OnClear="@(() => _search = string.Empty)" />
+            <OxCheckbox @bind-Checked="_checked">Stay signed in</OxCheckbox>
+            <OxCheckbox Checked="false" Disabled="true">Disabled</OxCheckbox>
+            <OxSwitch @bind-Checked="_switch">Dark mode</OxSwitch>
+        </OxStack>
+
+        <OxText Variant="OxTextVariant.Label">Meter, badge, alert</OxText>
+        <OxStack Gap="4">
+            <OxMeter Value="42" Label="Normal" />
+            <OxMeter Value="91" Tone="OxTone.Warning" Label="Near minimum" />
+            <OxMeter Value="98" Tone="OxTone.Danger" Label="Below minimum" />
+        </OxStack>
+        <OxStack Row="true" Wrap="true" Gap="4" Align="OxAlign.Center">
+            <OxBadge>User</OxBadge>
+            <OxBadge Tone="OxTone.Accent">Admin</OxBadge>
+            <OxBadge Tone="OxTone.Warning">Temporary</OxBadge>
+            <OxBadge Tone="OxTone.Danger">Locked</OxBadge>
+            <OxAvatar Name="admin" />
+        </OxStack>
+        <OxAlert>The default expiry applies when a link is created without one.</OxAlert>
+        <OxAlert Tone="OxTone.Accent">Password changed.</OxAlert>
+        <OxAlert Tone="OxTone.Warning">Save your secret access key now. It is not shown again.</OxAlert>
+        <OxAlert Tone="OxTone.Danger">The disk is below its minimum free space. Uploads are refused.</OxAlert>
+
+        <OxText Variant="OxTextVariant.Label">Navigation and sidebar</OxText>
+        <OxStack Gap="1">
+            <OxNavItem Href="/styleguide" Icon="inventory_2">Active entry</OxNavItem>
+            <OxNavItem Href="/buckets" Icon="dashboard">Other entry</OxNavItem>
+        </OxStack>
+        <OxSideInfo>
+            <ChildContent><b>104.9 GB</b> free of 460.4 GB</ChildContent>
+            <Meter><OxMeter Value="77" Label="Disk used" /></Meter>
+        </OxSideInfo>
+        <OxUserBar Name="admin" Version="ObjeX 0.0.0" />
+
+        <OxText Variant="OxTextVariant.Label">Page header, selection bar, table</OxText>
+        <OxPageHeader Meta="12 objects · 6.4 MB">
+            <Heading><OxBreadcrumbs Items="@Crumbs" /></Heading>
+            <ChildContent>
+                <OxButton Icon="create_new_folder">New folder</OxButton>
+                <OxButton Variant="OxButtonVariant.Primary" Icon="upload">Upload</OxButton>
+            </ChildContent>
+        </OxPageHeader>
+        <OxSelectionBar Count="@_selected.Count" OnClear="@(() => _selected.Clear())">
+            <OxButton Icon="download">Download ZIP</OxButton>
+            <OxButton Variant="OxButtonVariant.Danger" Icon="delete">Delete</OxButton>
+        </OxSelectionBar>
+        <RadzenDataGrid Data="@Rows" TItem="SampleRow" AllowSorting="true" AllowAlternatingRows="false" RowRender="OnRowRender">
+            <Columns>
+                <RadzenDataGridColumn TItem="SampleRow" Width="@OxSizes.CheckColumn" Sortable="false" CssClass="ox-col-check">
+                    <Template Context="row">
+                        <OxCheckbox Label="@($"Select {row.Name}")" Checked="@_selected.Contains(row)"
+                                    CheckedChanged="@(v => { if (v) _selected.Add(row); else _selected.Remove(row); })" />
+                    </Template>
+                </RadzenDataGridColumn>
+                <RadzenDataGridColumn TItem="SampleRow" Title="Name" Property="Name">
+                    <Template Context="row"><OxFileName Kind="@row.Kind" Href="@(row.Kind == OxFileKind.Folder ? "/styleguide" : null)">@row.Name</OxFileName></Template>
+                </RadzenDataGridColumn>
+                <RadzenDataGridColumn TItem="SampleRow" Title="Type" Property="Type" CssClass="ox-col-muted" />
+                <RadzenDataGridColumn TItem="SampleRow" Title="Size" Property="Size" TextAlign="TextAlign.End">
+                    <Template Context="row">@(row.Kind == OxFileKind.Folder ? "—" : FileHelper.FormatBytes(row.Size))</Template>
+                </RadzenDataGridColumn>
+                <RadzenDataGridColumn TItem="SampleRow" Title="" Width="@OxSizes.ActionsColumn" Sortable="false" CssClass="ox-col-actions">
+                    <Template Context="row">
+                        <OxRowActions>
+                            <OxIconButton Icon="download" Label="Download" />
+                            <OxIconButton Icon="link" Label="Share link" />
+                            <OxMenuButton><OxMenuItem Icon="info">Metadata</OxMenuItem></OxMenuButton>
+                        </OxRowActions>
+                    </Template>
+                </RadzenDataGridColumn>
+            </Columns>
+        </RadzenDataGrid>
+
+        <OxText Variant="OxTextVariant.Label">Card and empty state</OxText>
+        <OxCard Title="Storage by bucket">
+            <OxText Variant="OxTextVariant.Figure">12.2 GB</OxText>
+            <OxText Variant="OxTextVariant.Small">5 buckets</OxText>
+        </OxCard>
+        <OxCard>
+            <OxEmptyState Icon="inventory_2" Title="No buckets yet">
+                <ChildContent>Create a bucket to store objects.</ChildContent>
+                <Action><OxButton Variant="OxButtonVariant.Primary" Icon="add">New bucket</OxButton></Action>
+            </OxEmptyState>
+        </OxCard>
+    </text>;
+}
