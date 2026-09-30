@@ -19,6 +19,9 @@ namespace ObjeX.Api.Startup;
 /// </summary>
 public static class BackgroundJobs
 {
+    /// <summary>How long succeeded and deleted runs stay in storage. Hangfire keeps them one day, which empties the Jobs page between weekly runs; failed runs never expire.</summary>
+    public static readonly TimeSpan RunRetention = TimeSpan.FromDays(30);
+
     public static IServiceCollection AddObjeXBackgroundJobs(this IServiceCollection services, DatabaseOptions database)
     {
         // Per host: AddHangfire's default is the static JobStorage.Current, shared by every host in the process.
@@ -34,7 +37,8 @@ public static class BackgroundJobs
         services.AddHangfire((provider, config) => config
             .UseSimpleAssemblyNameTypeSerializer()
             .UseRecommendedSerializerSettings()
-            .UseStorage(provider.GetRequiredService<JobStorage>()));
+            .UseStorage(provider.GetRequiredService<JobStorage>())
+            .WithJobExpirationTimeout(RunRetention));
         services.AddHangfireServer();
         services.AddSingleton<IJobMonitor, HangfireJobMonitor>();
 
