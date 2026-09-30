@@ -138,6 +138,9 @@ public static class S3MultipartEndpoint
         if (requestedParts.Count == 0)
             return S3Xml.Error(S3Errors.MalformedXML, "You must specify at least one part.");
 
+        if (Preconditions.HasWriteConditions(request) && Preconditions.CheckWrite(request, await metadata.GetObjectAsync(bucket, key)) is { } conditionFailed)
+            return conditionFailed;
+
         // Validate order (must be strictly ascending)
         for (var i = 1; i < requestedParts.Count; i++)
         {
