@@ -125,10 +125,13 @@ app.UseAuthentication();
 app.UseAuthorization();
 app.UseAntiforgery();
 
-app.UseHangfireDashboard("/hangfire", new DashboardOptions
-{
-    Authorization = [new HangfireAuthorizationFilter()]
-});
+// The Jobs page (/jobs) is the admin view of the background jobs. The Hangfire dashboard stays a Development tool;
+// elsewhere /hangfire is an unknown path like any other.
+if (app.Environment.IsDevelopment())
+    app.UseHangfireDashboard("/hangfire", new DashboardOptions
+    {
+        Authorization = [new HangfireAuthorizationFilter()]
+    });
 BackgroundJobs.RegisterRecurringJobs(app.Services);
 
 if (metrics.Enabled)
