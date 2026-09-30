@@ -71,13 +71,15 @@ public class EfCoreMetadataService(ObjeXDbContext ctx) : IMetadataService
         var countDelta = existing is null ? 1 : 0;
         if (existing is not null)
         {
+            existing = Tracked(existing);
             existing.Size = blobObject.Size;
             existing.ETag = blobObject.ETag;
             existing.ContentType = blobObject.ContentType;
             existing.StoragePath = blobObject.StoragePath;
             existing.CustomMetadata = blobObject.CustomMetadata;
             existing.UpdatedAt = DateTime.UtcNow;
-            ctx.BlobObjects.Update(existing);
+            if (ctx.Entry(existing).State == EntityState.Detached)
+                ctx.BlobObjects.Update(existing);
         }
         else
         {
@@ -243,7 +245,7 @@ public class EfCoreMetadataService(ObjeXDbContext ctx) : IMetadataService
         var obj = await GetObjectAsync(bucketName, key, ctk);
         if (obj is not null)
         {
-            ctx.BlobObjects.Remove(obj);
+            ctx.BlobObjects.Remove(Tracked(obj));
             if (auditUserId is not null)
                 ctx.AuditEntries.Add(new AuditEntry { UserId = auditUserId, Action = "DeleteObject", BucketName = bucketName, Key = key });
 
@@ -284,6 +286,10 @@ public class EfCoreMetadataService(ObjeXDbContext ctx) : IMetadataService
     }
 
     /// <summary>Set-based so two writers on the same bucket cannot lose each other's delta.</summary>
+    // Reads are untracked, but a long-lived context (one per Blazor circuit) may still track the row from an earlier write.
+    // Attaching a second instance with the same key throws and leaves the context unable to save anything afterwards.
+    private BlobObject Tracked(BlobObject obj) => ctx.BlobObjects.Local.FirstOrDefault(o => o.Id == obj.Id) ?? obj;
+
     private Task AdjustBucketStatsAsync(string bucketName, long countDelta, long sizeDelta, CancellationToken ctk) =>
         ctx.Buckets
             .Where(b => b.Name == bucketName)
