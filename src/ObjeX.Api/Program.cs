@@ -130,7 +130,8 @@ app.UseAntiforgery();
 if (app.Environment.IsDevelopment())
     app.UseHangfireDashboard("/hangfire", new DashboardOptions
     {
-        Authorization = [new HangfireAuthorizationFilter()]
+        Authorization = [new HangfireAuthorizationFilter()],
+        AppPath = "/jobs"
     });
 BackgroundJobs.RegisterRecurringJobs(app.Services);
 

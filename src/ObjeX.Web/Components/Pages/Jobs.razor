@@ -7,10 +7,17 @@
 @inject DialogService DialogService
 @inject NotificationService NotificationService
 @inject BrowserTimeZone Tz
+@inject Microsoft.Extensions.Hosting.IHostEnvironment Environment
 
 <PageTitle>Jobs — ObjeX</PageTitle>
 
-<OxPageHeader Title="Jobs" />
+<OxPageHeader Title="Jobs">
+    @* The host maps the Hangfire dashboard in Development only, so the link exists only there. target leaves the circuit: /hangfire is no Blazor page. *@
+    @if (Environment.EnvironmentName == "Development")
+    {
+        <OxButton Icon="open_in_new" Href="/hangfire" target="_top">Hangfire dashboard</OxButton>
+    }
+</OxPageHeader>
 
 <OxCard Title="Recurring jobs" Flush="true">
     <RadzenDataGrid class="@OxSizes.RoomyGridClass" Data="_jobs" TItem="RecurringJobStatus" AllowSorting="false" AllowAlternatingRows="false" EmptyText="No recurring jobs.">

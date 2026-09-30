@@ -212,7 +212,7 @@ EF Core `.ValueGeneratedNever()` on `Id`. Unique index on `AccessKeyId`.
 
 ### Hangfire Dashboard Auth
 
-The Hangfire dashboard is mapped at `/hangfire` in Development only (`Program.cs`). Outside Development `/hangfire` is an unknown path: the status code pages redirect it to `/not-found`, for the admin too. Admins use the Jobs page (`/jobs`) instead. `HangfireAuthorizationFilter` (`ObjeX.Api/Auth/`) requires `IsInRole("Admin")` on the cookie-authenticated user; there is no localhost bypass. Covered by `HangfireDashboardTests`.
+The Hangfire dashboard is mapped at `/hangfire` in Development only (`Program.cs`). Outside Development `/hangfire` is an unknown path: the status code pages redirect it to `/not-found`, for the admin too. Admins use the Jobs page (`/jobs`) instead; in Development its header has a "Hangfire dashboard" button, and the dashboard's "Back to site" returns to `/jobs` (`AppPath`). `HangfireAuthorizationFilter` (`ObjeX.Api/Auth/`) requires `IsInRole("Admin")` on the cookie-authenticated user; there is no localhost bypass. Covered by `HangfireDashboardTests`.
 
 ---
 
