@@ -21,6 +21,15 @@ public static class S3ObjectEndpoint
     static bool IsPrivileged(HttpContext ctx) =>
         ctx.User.IsInRole("Admin") || ctx.User.IsInRole("Manager");
 
+    /// <summary>x-amz-copy-source is "bucket/key", URL-encoded, optionally with ?versionId=; ObjeX has one version per key.</summary>
+    static bool TryParseCopySource(string header, out string bucket, out string key)
+    {
+        var decoded = Uri.UnescapeDataString(header.Split('?')[0]).TrimStart('/');
+        var slash = decoded.IndexOf('/');
+        (bucket, key) = slash < 1 ? ("", "") : (decoded[..slash], decoded[(slash + 1)..]);
+        return slash >= 1;
+    }
+
     public static void MapS3ObjectEndpoints(this RouteGroupBuilder s3)
     {
         s3.MapPut("/{bucket}/{*key}", async (
@@ -62,7 +71,29 @@ public static class S3ObjectEndpoint
                 if (!ContentMd5.TryParse(request.Headers.ContentMD5, out var expectedPartMd5))
                     return S3Xml.Error(S3Errors.InvalidDigest, "The Content-MD5 you specified is not valid.");
 
-                await using var stagedPart = await fs.StagePartAsync(uploadId, partNumber, S3RequestBody.Decoded(request), request.HttpContext.RequestAborted);
+                // UploadPartCopy: the part comes from an existing object, optionally a byte range of it.
+                var partCopySource = request.Headers["x-amz-copy-source"].ToString();
+                LimitedStream? copiedRange = null;
+                if (partCopySource.Length > 0)
+                {
+                    if (!TryParseCopySource(partCopySource, out var srcBucket, out var srcKey))
+                        return S3Xml.Error(S3Errors.InvalidArgument, "Invalid x-amz-copy-source format.");
+                    if (await metadata.GetBucketAsync(srcBucket, IsPrivileged(ctx) ? null : GetCallerId(ctx)) is null)
+                        return S3Xml.Error(S3Errors.NoSuchBucket, $"Source bucket '{srcBucket}' does not exist.", 404);
+                    if (await metadata.GetObjectAsync(srcBucket, srcKey) is not { } srcObj)
+                        return S3Xml.Error(S3Errors.NoSuchKey, "The specified source key does not exist.", 404);
+                    if (Preconditions.CheckCopySource(request, srcObj) is { } partConditionFailed)
+                        return partConditionFailed;
+                    if (CopySourceRange.TryParse(request.Headers["x-amz-copy-source-range"], srcObj.Size, out var first, out var length) is { } rangeError)
+                        return rangeError;
+
+                    var source = await storage.RetrieveAsync(srcBucket, srcKey, ctx.RequestAborted);
+                    source.Seek(first, SeekOrigin.Begin);
+                    copiedRange = new LimitedStream(source, length);
+                }
+
+                await using var copiedRangeScope = copiedRange;
+                await using var stagedPart = await fs.StagePartAsync(uploadId, partNumber, copiedRange ?? S3RequestBody.Decoded(request), request.HttpContext.RequestAborted);
                 var partEtag = stagedPart.ETag;
 
                 if (!ContentMd5.Matches(expectedPartMd5, partEtag))
@@ -96,6 +127,9 @@ public static class S3ObjectEndpoint
 
                 await db.SaveChangesAsync();
 
+                if (copiedRange is not null)
+                    return S3Xml.CopyPartResult(partEtag, DateTime.UtcNow);
+
                 request.HttpContext.Response.Headers.ETag = $"\"{partEtag}\"";
                 return Results.StatusCode(200);
             }
@@ -107,13 +141,8 @@ public static class S3ObjectEndpoint
                 if (ObjectKeyValidator.GetValidationError(key) is { } destKeyError)
                     return S3Xml.Error(S3Errors.InvalidArgument, destKeyError);
 
-                var decoded = Uri.UnescapeDataString(copySource).TrimStart('/');
-                var slashIdx = decoded.IndexOf('/');
-                if (slashIdx < 1)
+                if (!TryParseCopySource(copySource, out var srcBucket, out var srcKey))
                     return S3Xml.Error(S3Errors.InvalidArgument, "Invalid x-amz-copy-source format.");
-
-                var srcBucket = decoded[..slashIdx];
-                var srcKey = decoded[(slashIdx + 1)..];
                 var replaceMetadata = string.Equals(request.Headers["x-amz-metadata-directive"], "REPLACE", StringComparison.OrdinalIgnoreCase);
 
                 if (srcBucket == bucket && srcKey == key && !replaceMetadata)

@@ -317,6 +317,57 @@ public class S3ConformanceTests(ObjeXFactory factory) : IClassFixture<ObjeXFacto
         Assert.Equal(HttpStatusCode.NotFound, (await SendAsync(HttpMethod.Head, $"/{bucket}/dst")).StatusCode);
     }
 
+    private async Task<HttpResponseMessage> UploadPartCopyAsync(string bucket, string uploadId, string source, string? range) =>
+        await SendAsync(HttpMethod.Put, $"/{bucket}/dst?partNumber=1&uploadId={uploadId}", configure: r =>
+        {
+            r.Headers.Add("x-amz-copy-source", $"{bucket}/{source}");
+            if (range is not null)
+                r.Headers.Add("x-amz-copy-source-range", range);
+        });
+
+    private async Task<string> InitiateAsync(string bucket, string key)
+    {
+        var init = await SendAsync(HttpMethod.Post, $"/{bucket}/{key}?uploads");
+        return System.Xml.Linq.XDocument.Parse(await init.Content.ReadAsStringAsync()).Descendants().Single(e => e.Name.LocalName == "UploadId").Value;
+    }
+
+    [Theory]
+    [InlineData("bytes=2-5", "2345")]
+    [InlineData(null, "0123456789")]
+    public async Task UploadPartCopy_CopiesTheSourceRangeIntoThePart(string? range, string expected)
+    {
+        var bucket = await NewBucketAsync();
+        await PutAsync(bucket, "src", "0123456789");
+        var uploadId = await InitiateAsync(bucket, "dst");
+
+        var copy = await UploadPartCopyAsync(bucket, uploadId, "src", range);
+        Assert.Equal(HttpStatusCode.OK, copy.StatusCode);
+        var etag = System.Xml.Linq.XDocument.Parse(await copy.Content.ReadAsStringAsync()).Descendants().Single(e => e.Name.LocalName == "ETag").Value;
+
+        var complete = await SendAsync(HttpMethod.Post, $"/{bucket}/dst?uploadId={uploadId}",
+            $"<CompleteMultipartUpload><Part><PartNumber>1</PartNumber><ETag>{etag}</ETag></Part></CompleteMultipartUpload>");
+        Assert.Equal(HttpStatusCode.OK, complete.StatusCode);
+        Assert.Equal(expected, await (await SendAsync(HttpMethod.Get, $"/{bucket}/dst")).Content.ReadAsStringAsync());
+    }
+
+    [Theory]
+    [InlineData("bytes=0-21", "InvalidRange")]
+    [InlineData("bytes=5-2", "InvalidRange")]
+    [InlineData("0-2", "InvalidArgument")]
+    [InlineData("bytes=hello-", "InvalidArgument")]
+    [InlineData("bytes=0-2,3-5", "InvalidArgument")]
+    public async Task UploadPartCopy_RejectsBadRanges(string range, string code)
+    {
+        var bucket = await NewBucketAsync();
+        await PutAsync(bucket, "src", "0123456789");
+        var uploadId = await InitiateAsync(bucket, "dst");
+
+        var response = await UploadPartCopyAsync(bucket, uploadId, "src", range);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Contains($"<Code>{code}</Code>", await response.Content.ReadAsStringAsync());
+    }
+
     [Fact]
     public async Task KeyWithLiteralPercent_SignsAndRoundTrips()
     {
