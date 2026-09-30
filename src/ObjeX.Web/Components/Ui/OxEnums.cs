@@ -37,5 +37,6 @@ public static class OxSizes
     public const string SelectedRowClass = "rz-data-row ox-row-selected";
     public const string DialogSmall = "440px";
     public const string DialogMedium = "480px";
+    public const string DialogWide = "640px";
     public const string DialogLarge = "860px";
 }

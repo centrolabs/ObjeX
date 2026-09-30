@@ -3,4 +3,13 @@
 @code {
     /// <summary>Frame for one RadzenChart: fixes the height and lets the chart fill it. Series take the chart colour tokens in order.</summary>
     [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    /// <summary>The surface colour, for the gap between two slices.</summary>
+    public const string Surface = "var(--ox-surface)";
+
+    /// <summary>The eight chart colour slots in order, for a series that has no entity to follow.</summary>
+    public static readonly IReadOnlyList<string> Slots = Enumerable.Range(0, 8).Select(Slot).ToList();
+
+    /// <summary>The colour of one slot, from zero. Anything past the eighth is "Other".</summary>
+    public static string Slot(int index) => index is >= 0 and < 8 ? $"var(--ox-chart-{index + 1})" : "var(--ox-chart-other)";
 }

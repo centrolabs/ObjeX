@@ -12,236 +12,141 @@
 
 <PageTitle>Dashboard — ObjeX</PageTitle>
 
-<RadzenStack Gap="1.5rem">
-    <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center"
-                 JustifyContent="JustifyContent.SpaceBetween">
-        <RadzenText TextStyle="TextStyle.H4">Dashboard</RadzenText>
-        <RadzenText TextStyle="TextStyle.Caption" Style="color:var(--rz-text-secondary-color)">
-            Updated @Tz.FormatSeconds(_lastUpdated)
-        </RadzenText>
-    </RadzenStack>
+<OxPageHeader Title="Dashboard" Meta="@($"Updated {Tz.FormatSeconds(_lastUpdated)}")" />
 
-    <RadzenStack Orientation="Orientation.Horizontal" Gap="1rem" Style="flex-wrap:wrap">
-        <RadzenCard class="stat-card">
-            <RadzenStack Gap="0.4rem">
-                <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" JustifyContent="JustifyContent.SpaceBetween">
-                    <RadzenText TextStyle="TextStyle.Overline">Buckets</RadzenText>
-                    <RadzenIcon Icon="folder" class="stat-icon" />
-                </RadzenStack>
-                <RadzenText TextStyle="TextStyle.H4" class="stat-value">@_buckets.Count</RadzenText>
-            </RadzenStack>
-        </RadzenCard>
-        <RadzenCard class="stat-card">
-            <RadzenStack Gap="0.4rem">
-                <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" JustifyContent="JustifyContent.SpaceBetween">
-                    <RadzenText TextStyle="TextStyle.Overline">Objects</RadzenText>
-                    <RadzenIcon Icon="description" class="stat-icon" />
-                </RadzenStack>
-                <RadzenText TextStyle="TextStyle.H4" class="stat-value">@_totalObjects.ToString("N0")</RadzenText>
-                @if (_totalObjects > 0)
-                {
-                    <RadzenText TextStyle="TextStyle.Caption">avg @FileHelper.FormatBytes(_totalSize / _totalObjects)</RadzenText>
-                }
-            </RadzenStack>
-        </RadzenCard>
+@if (_disk is { IsBelowMinimum: true })
+{
+    <OxAlert Tone="OxTone.Danger">The disk has @FileHelper.FormatBytes(_disk.FreeBytes) free, below the minimum of @FileHelper.FormatBytes(_disk.MinimumFreeBytes). Uploads are rejected.</OxAlert>
+}
+else if (_disk is { IsNearMinimum: true })
+{
+    <OxAlert Tone="OxTone.Warning">The disk has @FileHelper.FormatBytes(_disk.FreeBytes) free. Uploads stop below @FileHelper.FormatBytes(_disk.MinimumFreeBytes).</OxAlert>
+}
+
+<OxCard>
+    <OxStack Row="true" Wrap="true" Gap="9">
         @if (_isPrivileged)
         {
-            <RadzenCard class="stat-card">
-                <RadzenStack Gap="0.4rem">
-                    <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" JustifyContent="JustifyContent.SpaceBetween">
-                        <RadzenText TextStyle="TextStyle.Overline">Storage Used</RadzenText>
-                        <RadzenIcon Icon="save" class="stat-icon" />
-                    </RadzenStack>
-                    <RadzenText TextStyle="TextStyle.H4" class="stat-value">@FileHelper.FormatBytes(_totalSize)</RadzenText>
-                    <RadzenText TextStyle="TextStyle.Caption">all buckets</RadzenText>
-                </RadzenStack>
-            </RadzenCard>
+            <OxStat Label="Storage used" Value="@FileHelper.FormatBytes(_totalSize)" Hint="all buckets" />
         }
-        <RadzenCard class="stat-card">
-            <RadzenStack Gap="0.4rem">
-                <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" JustifyContent="JustifyContent.SpaceBetween">
-                    <RadzenText TextStyle="TextStyle.Overline">My Storage</RadzenText>
-                    <RadzenIcon Icon="person" class="stat-icon" />
-                </RadzenStack>
-                <RadzenText TextStyle="TextStyle.H4" class="stat-value">@FileHelper.FormatBytes(_myStorage?.UsedBytes ?? 0)</RadzenText>
-                @if (_myStorage is { HasQuota: true })
-                {
-                    <RadzenText TextStyle="TextStyle.Caption">of @FileHelper.FormatBytes(_myStorage.QuotaBytes!.Value)</RadzenText>
-                    <RadzenProgressBar Value="@_myStorage.UsedPercent" Max="100" ShowValue="false" Style="height:4px"
-                                       ProgressBarStyle="@(_myStorage.UsedPercent > 90 ? ProgressBarStyle.Danger : ProgressBarStyle.Primary)" />
-                }
-                else
-                {
-                    <RadzenText TextStyle="TextStyle.Caption">no quota</RadzenText>
-                }
-            </RadzenStack>
-        </RadzenCard>
-        <RadzenCard class="stat-card">
-            <RadzenStack Gap="0.4rem">
-                <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" JustifyContent="JustifyContent.SpaceBetween">
-                    <RadzenText TextStyle="TextStyle.Overline">Disk</RadzenText>
-                    <RadzenIcon Icon="storage" class="stat-icon" />
-                </RadzenStack>
-                <RadzenText TextStyle="TextStyle.H4" class="stat-value">@FileHelper.FormatBytes(_disk?.FreeBytes ?? 0)</RadzenText>
-                @if (_disk is not null)
-                {
-                    <RadzenText TextStyle="TextStyle.Caption">free of @FileHelper.FormatBytes(_disk.TotalBytes)</RadzenText>
-                    <RadzenProgressBar Value="@_disk.UsedPercent" Max="100" ShowValue="false" Style="height:4px"
-                                       ProgressBarStyle="@(_disk.IsBelowMinimum ? ProgressBarStyle.Danger : _disk.IsNearMinimum ? ProgressBarStyle.Warning : ProgressBarStyle.Primary)" />
-                    @if (_disk.IsBelowMinimum)
-                    {
-                        <RadzenText TextStyle="TextStyle.Caption" Style="color:var(--rz-danger)">Uploads rejected</RadzenText>
-                    }
-                    else if (_disk.IsNearMinimum)
-                    {
-                        <RadzenText TextStyle="TextStyle.Caption" Style="color:var(--rz-warning)">Uploads stop below @FileHelper.FormatBytes(_disk.MinimumFreeBytes)</RadzenText>
-                    }
-                }
-            </RadzenStack>
-        </RadzenCard>
-    </RadzenStack>
-
-    @if (_buckets.Count >= 2)
-    {
-        <RadzenStack Orientation="Orientation.Horizontal" Gap="1rem" Style="flex-wrap:wrap">
-            <RadzenCard Style="flex:1;min-width:260px;overflow:visible">
-                <RadzenStack Gap="0.75rem">
-                    <RadzenStack Gap="0.1rem">
-                        <RadzenText TextStyle="TextStyle.H6">Storage by Bucket</RadzenText>
-                        <RadzenText TextStyle="TextStyle.Caption" Style="color:var(--rz-text-secondary-color)">Top 5 by size</RadzenText>
-                    </RadzenStack>
-                    <RadzenChart Style="height:240px;overflow:visible">
-                        <RadzenDonutSeries Data="@_topBySize" CategoryProperty="Name" ValueProperty="TotalSize"
-                                           TItem="Bucket" InnerRadius="60">
-                            <TooltipTemplate Context="data">
-                                <div>
-                                    <div style="font-weight:600;margin-bottom:2px">@data.Name</div>
-                                    <div>@FileHelper.FormatBytes(data.TotalSize)</div>
-                                    @if (_totalSize > 0)
-                                    {
-                                        <div style="opacity:0.7;font-size:0.85em">@($"{(double)data.TotalSize / _totalSize * 100:F1}%")</div>
-                                    }
-                                </div>
-                            </TooltipTemplate>
-                        </RadzenDonutSeries>
-                    </RadzenChart>
-                </RadzenStack>
-            </RadzenCard>
-            <RadzenCard Style="flex:1;min-width:260px;overflow:visible">
-                <RadzenStack Gap="0.75rem">
-                    <RadzenStack Gap="0.1rem">
-                        <RadzenText TextStyle="TextStyle.H6">Objects by Bucket</RadzenText>
-                        <RadzenText TextStyle="TextStyle.Caption" Style="color:var(--rz-text-secondary-color)">Top 5 by count</RadzenText>
-                    </RadzenStack>
-                    <RadzenChart Style="height:240px;overflow:visible">
-                        <RadzenDonutSeries Data="@_topByCount" CategoryProperty="Name" ValueProperty="ObjectCount"
-                                           TItem="Bucket" InnerRadius="60">
-                            <TooltipTemplate Context="data">
-                                <div>
-                                    <div style="font-weight:600;margin-bottom:2px">@data.Name</div>
-                                    <div>@data.ObjectCount.ToString("N0") objects</div>
-                                    @if (_totalObjects > 0)
-                                    {
-                                        <div style="opacity:0.7;font-size:0.85em">@($"{(double)data.ObjectCount / _totalObjects * 100:F1}%")</div>
-                                    }
-                                </div>
-                            </TooltipTemplate>
-                        </RadzenDonutSeries>
-                    </RadzenChart>
-                </RadzenStack>
-            </RadzenCard>
-            @if (_fileTypeStats.Count >= 2)
+        <OxStat Label="My storage" Value="@FileHelper.FormatBytes(_myStorage?.UsedBytes ?? 0)"
+                Hint="@(_myStorage is { HasQuota: true } ? $"of {FileHelper.FormatBytes(_myStorage.QuotaBytes!.Value)}" : "no quota")">
+            @if (_myStorage is { HasQuota: true })
             {
-                <RadzenCard Style="flex:1;min-width:260px;overflow:visible">
-                    <RadzenStack Gap="0.75rem">
-                    <RadzenStack Gap="0.1rem">
-                        <RadzenText TextStyle="TextStyle.H6">File Types</RadzenText>
-                        <RadzenText TextStyle="TextStyle.Caption" Style="color:var(--rz-text-secondary-color)">Top 8 by extension</RadzenText>
-                    </RadzenStack>
-                        <RadzenChart Style="height:240px;overflow:visible">
-                            <RadzenDonutSeries Data="@_fileTypeStats" CategoryProperty="Label" ValueProperty="Count"
-                                               TItem="FileTypeStat" InnerRadius="60">
+                <OxMeter Value="@_myStorage.UsedPercent" Label="Quota used" Tone="@(_myStorage.UsedPercent > 90 ? OxTone.Danger : OxTone.Default)" />
+            }
+        </OxStat>
+        <OxStat Label="Objects" Value="@_totalObjects.ToString("N0")"
+                Hint="@(_totalObjects > 0 ? $"avg {FileHelper.FormatBytes(_totalSize / _totalObjects)}" : null)" />
+        <OxStat Label="Buckets" Value="@_buckets.Count.ToString("N0")" />
+    </OxStack>
+</OxCard>
+
+@if (_buckets.Count >= 2)
+{
+    <OxStack Row="true" Wrap="true" Gap="7">
+        <OxStack Grow="true">
+            <OxCard Title="Storage by bucket">
+                <OxText Variant="OxTextVariant.Small">Top 5 by size</OxText>
+                <OxChart>
+                    <RadzenChart>
+                        <RadzenDonutSeries Data="@_topBySize" CategoryProperty="Name" ValueProperty="TotalSize" TItem="Bucket" InnerRadius="60"
+                                           Fills="@_topBySize.Select(SlotOf)" Strokes="@SurfaceStrokes" StrokeWidth="2">
+                            <TooltipTemplate Context="data">
+                                <OxStack Gap="1">
+                                    <OxText><strong>@data.Name</strong></OxText>
+                                    <OxText Variant="OxTextVariant.Small">@FileHelper.FormatBytes(data.TotalSize)@(_totalSize > 0 ? $" · {(double)data.TotalSize / _totalSize * 100:F1}%" : null)</OxText>
+                                </OxStack>
+                            </TooltipTemplate>
+                        </RadzenDonutSeries>
+                    </RadzenChart>
+                </OxChart>
+            </OxCard>
+        </OxStack>
+        <OxStack Grow="true">
+            <OxCard Title="Objects by bucket">
+                <OxText Variant="OxTextVariant.Small">Top 5 by count</OxText>
+                <OxChart>
+                    <RadzenChart>
+                        <RadzenDonutSeries Data="@_topByCount" CategoryProperty="Name" ValueProperty="ObjectCount" TItem="Bucket" InnerRadius="60"
+                                           Fills="@_topByCount.Select(SlotOf)" Strokes="@SurfaceStrokes" StrokeWidth="2">
+                            <TooltipTemplate Context="data">
+                                <OxStack Gap="1">
+                                    <OxText><strong>@data.Name</strong></OxText>
+                                    <OxText Variant="OxTextVariant.Small">@data.ObjectCount.ToString("N0") objects@(_totalObjects > 0 ? $" · {(double)data.ObjectCount / _totalObjects * 100:F1}%" : null)</OxText>
+                                </OxStack>
+                            </TooltipTemplate>
+                        </RadzenDonutSeries>
+                    </RadzenChart>
+                </OxChart>
+            </OxCard>
+        </OxStack>
+        @if (_fileTypeStats.Count >= 2)
+        {
+            <OxStack Grow="true">
+                <OxCard Title="File types">
+                    <OxText Variant="OxTextVariant.Small">Top 8 by extension</OxText>
+                    <OxChart>
+                        <RadzenChart>
+                            <RadzenDonutSeries Data="@_fileTypeStats" CategoryProperty="Label" ValueProperty="Count" TItem="FileTypeStat" InnerRadius="60"
+                                               Fills="@OxChart.Slots" Strokes="@SurfaceStrokes" StrokeWidth="2">
                                 <TooltipTemplate Context="data">
-                                    <div>
-                                        <div style="font-weight:600;margin-bottom:2px">@data.Label</div>
-                                        <div>@data.Count files</div>
-                                        @if (_totalFileTypeCount > 0)
-                                        {
-                                            <div style="opacity:0.7;font-size:0.85em">@($"{(double)data.Count / _totalFileTypeCount * 100:F1}%")</div>
-                                        }
-                                    </div>
+                                    <OxStack Gap="1">
+                                        <OxText><strong>@data.Label</strong></OxText>
+                                        <OxText Variant="OxTextVariant.Small">@data.Count.ToString("N0") files@(_totalFileTypeCount > 0 ? $" · {(double)data.Count / _totalFileTypeCount * 100:F1}%" : null)</OxText>
+                                    </OxStack>
                                 </TooltipTemplate>
                             </RadzenDonutSeries>
                         </RadzenChart>
-                    </RadzenStack>
-                </RadzenCard>
-            }
-        </RadzenStack>
-    }
+                    </OxChart>
+                </OxCard>
+            </OxStack>
+        }
+    </OxStack>
+}
 
-
-    @if (_buckets.Count > 0)
-    {
-        <RadzenCard>
-            <RadzenStack Gap="1rem">
-                <RadzenText TextStyle="TextStyle.H6">Buckets</RadzenText>
-                <div style="overflow-x:auto">
-                <RadzenDataGrid Data="@_buckets" TItem="Bucket" AllowSorting="true">
-                    <Columns>
-                        <RadzenDataGridColumn TItem="Bucket" Property="Name" Title="Name">
-                            <Template Context="b">
-                                <a href="/buckets/@b.Name" style="color:var(--rz-primary);text-decoration:none">@b.Name</a>
-                            </Template>
-                        </RadzenDataGridColumn>
-                        <RadzenDataGridColumn TItem="Bucket" Property="ObjectCount" Title="Objects">
-                            <Template Context="b">@b.ObjectCount.ToString("N0")</Template>
-                        </RadzenDataGridColumn>
-                        <RadzenDataGridColumn TItem="Bucket" Property="TotalSize" Title="Size">
-                            <Template Context="b">@FileHelper.FormatBytes(b.TotalSize)</Template>
-                        </RadzenDataGridColumn>
-                        <RadzenDataGridColumn TItem="Bucket" Title="Share" Sortable="false">
-                            <Template Context="b">
-                                @if (_totalSize > 0)
-                                {
-                                    var pct = (double)b.TotalSize / _totalSize * 100;
-                                    <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
-                                        <div style="flex:1;background:var(--rz-base-300);border-radius:4px;height:6px;overflow:hidden">
-                                            <div style="width:@(pct.ToString("F1"))%;background:var(--rz-primary);height:100%"></div>
-                                        </div>
-                                        <span style="min-width:3rem;text-align:right;font-size:0.8rem">@pct.ToString("F1")%</span>
-                                    </RadzenStack>
-                                }
-                            </Template>
-                        </RadzenDataGridColumn>
-                        <RadzenDataGridColumn TItem="Bucket" Property="CreatedAt" Title="Created">
-                            <Template Context="b">@Tz.Format(b.CreatedAt)</Template>
-                        </RadzenDataGridColumn>
-                    </Columns>
-                </RadzenDataGrid>
-                </div>
-            </RadzenStack>
-        </RadzenCard>
-    }
-</RadzenStack>
-
-<style>
-    .rz-data-grid-data td { height: 44px !important; padding-top: 0 !important; padding-bottom: 0 !important; }
-
-    .stat-card {
-        flex: 1 1 170px;
-        border-left: 3px solid var(--rz-primary);
-    }
-    .stat-value {
-        white-space: nowrap;
-        font-variant-numeric: tabular-nums;
-    }
-    .stat-icon {
-        font-size: 1.4rem;
-        color: var(--rz-primary);
-        opacity: 0.8;
-    }
-
-</style>
+@if (_buckets.Count > 0)
+{
+    <OxCard Title="Buckets" Flush="true">
+        <RadzenDataGrid Data="@_buckets" TItem="Bucket" AllowSorting="true" AllowAlternatingRows="false">
+            <Columns>
+                <RadzenDataGridColumn TItem="Bucket" Property="Name" Title="Name">
+                    <Template Context="b"><OxFileName Kind="OxFileKind.Bucket" Href="@($"/buckets/{b.Name}")">@b.Name</OxFileName></Template>
+                </RadzenDataGridColumn>
+                <RadzenDataGridColumn TItem="Bucket" Property="ObjectCount" Title="Objects" Width="@OxSizes.NumberColumn" TextAlign="TextAlign.End">
+                    <Template Context="b">@b.ObjectCount.ToString("N0")</Template>
+                </RadzenDataGridColumn>
+                <RadzenDataGridColumn TItem="Bucket" Property="TotalSize" Title="Size" Width="@OxSizes.SizeColumn" TextAlign="TextAlign.End">
+                    <Template Context="b">@FileHelper.FormatBytes(b.TotalSize)</Template>
+                </RadzenDataGridColumn>
+                <RadzenDataGridColumn TItem="Bucket" Title="Share" Width="@OxSizes.NameColumn" Sortable="false">
+                    <Template Context="b">
+                        @if (_totalSize > 0)
+                        {
+                            var pct = (double)b.TotalSize / _totalSize * 100;
+                            <OxStack Row="true" Align="OxAlign.Center" Gap="4">
+                                <OxStack Grow="true"><OxMeter Value="@pct" Label="@($"Share of {b.Name}")" /></OxStack>
+                                <OxBox Width="OxWidth.Xs"><OxText Variant="OxTextVariant.Small">@pct.ToString("F1")%</OxText></OxBox>
+                            </OxStack>
+                        }
+                    </Template>
+                </RadzenDataGridColumn>
+                <RadzenDataGridColumn TItem="Bucket" Property="CreatedAt" Title="Created" Width="@OxSizes.DateColumn" CssClass="ox-col-muted">
+                    <Template Context="b">@Tz.Format(b.CreatedAt)</Template>
+                </RadzenDataGridColumn>
+            </Columns>
+        </RadzenDataGrid>
+    </OxCard>
+}
+else
+{
+    <OxCard>
+        <OxEmptyState Icon="inventory_2" Title="No buckets yet">
+            <ChildContent>Create a bucket to store objects.</ChildContent>
+            <Action><OxButton Variant="OxButtonVariant.Primary" Icon="add" Href="/buckets">Go to Buckets</OxButton></Action>
+        </OxEmptyState>
+    </OxCard>
+}
 
 @code {
     record FileTypeStat(string Label, int Count);
@@ -358,6 +263,11 @@
                 .Split('+', ';')[0]
             : contentType
     };
+
+    // A bucket keeps its chart colour in both bucket charts: the slot comes from its rank by size, not from its place in one chart.
+    string SlotOf(Bucket bucket) => OxChart.Slot(_buckets.IndexOf(bucket));
+
+    static readonly IEnumerable<string> SurfaceStrokes = Enumerable.Repeat(OxChart.Surface, 9);
 
     public void Dispose() => _timer?.Dispose();
 }
