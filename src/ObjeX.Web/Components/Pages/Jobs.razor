@@ -7,16 +7,12 @@
 @inject DialogService DialogService
 @inject NotificationService NotificationService
 @inject BrowserTimeZone Tz
-@inject Microsoft.Extensions.Hosting.IHostEnvironment Environment
 
 <PageTitle>Jobs — ObjeX</PageTitle>
 
 <OxPageHeader Title="Jobs">
-    @* The host maps the Hangfire dashboard in Development only, so the link exists only there. target leaves the circuit: /hangfire is no Blazor page. *@
-    @if (Environment.EnvironmentName == "Development")
-    {
-        <OxButton Icon="open_in_new" Href="/hangfire" target="_top">Hangfire dashboard</OxButton>
-    }
+    @* target leaves the circuit: /hangfire is no Blazor page. *@
+    <OxButton Icon="open_in_new" Href="/hangfire" target="_top">Hangfire dashboard</OxButton>
 </OxPageHeader>
 
 <OxCard Title="Recurring jobs" Flush="true">
@@ -52,7 +48,9 @@
                 <Template Context="job">
                     @if (job.LastJob is { } last)
                     {
-                        <OxText Truncate="true" Tone="@(last.Error is null ? OxTone.Default : OxTone.Danger)" title="@(last.Error ?? last.Result)">@(last.Error ?? last.Result)</OxText>
+                        <OxLink Href="@JobRunText.DetailsUrl(last.Id)" title="@(last.Error ?? last.Result ?? "Details")">
+                            <OxText Truncate="true" Tone="@(last.Error is null ? OxTone.Default : OxTone.Danger)">@(last.Error ?? last.Result ?? "Details")</OxText>
+                        </OxLink>
                     }
                 </Template>
             </RadzenDataGridColumn>
@@ -78,7 +76,7 @@
                     <Template Context="run">@(run.StartedAt is { } started ? Tz.FormatSeconds(started) : "—")</Template>
                 </RadzenDataGridColumn>
                 <RadzenDataGridColumn TItem="JobRun" Property="Name" Title="Job" Width="@OxSizes.NameColumn">
-                    <Template Context="run"><OxText Truncate="true">@run.Name</OxText></Template>
+                    <Template Context="run"><OxLink Href="@JobRunText.DetailsUrl(run.Id)">@run.Name</OxLink></Template>
                 </RadzenDataGridColumn>
                 <RadzenDataGridColumn TItem="JobRun" Title="Status" Width="@OxSizes.NumberColumn">
                     <Template Context="run"><OxBadge Tone="@ToneOf(run.State)">@LabelOf(run.State)</OxBadge></Template>
@@ -89,6 +87,24 @@
                 <RadzenDataGridColumn TItem="JobRun" Title="Result" CssClass="ox-col-muted">
                     <Template Context="run">
                         <OxText Truncate="true" Tone="@(run.Error is null ? OxTone.Default : OxTone.Danger)" title="@(run.Error ?? run.Result)">@(run.Error ?? run.Result)</OxText>
+                    </Template>
+                </RadzenDataGridColumn>
+                <RadzenDataGridColumn TItem="JobRun" Title="" Width="@OxSizes.ActionsColumn" CssClass="ox-col-actions">
+                    <Template Context="run">
+                        <OxRowActions>
+                            @if (JobRunText.CanRetry(run.State))
+                            {
+                                <OxIconButton Icon="replay" Label="Retry" OnClick="@(() => Retry(run))" />
+                            }
+                            <OxMenuButton Label="@($"More actions for run {run.Id}")">
+                                <OxMenuItem Icon="info" Href="@JobRunText.DetailsUrl(run.Id)">Details</OxMenuItem>
+                                @if (JobRunText.CanDelete(run.State))
+                                {
+                                    <OxMenuDivider />
+                                    <OxMenuItem Icon="delete" Danger="true" OnClick="@(() => Delete(run))">Delete</OxMenuItem>
+                                }
+                            </OxMenuButton>
+                        </OxRowActions>
                     </Template>
                 </RadzenDataGridColumn>
             </Columns>
@@ -129,10 +145,29 @@
         _ = PollWhileActiveAsync();
     }
 
+    async Task Retry(JobRun run)
+    {
+        if (!Monitor.Retry(run.Id))
+            NotificationService.Notify(NotificationSeverity.Error, "Retry failed", "The run no longer exists.");
+        else
+            NotificationService.Notify(NotificationSeverity.Success, "Queued", $"\"{run.Name}\" runs again.");
+        Load();
+        await PollWhileActiveAsync();
+    }
+
+    async Task Delete(JobRun run)
+    {
+        if (!await ConfirmDialog.AskAsync(DialogService, "Delete run", $"Delete run #{run.Id} of \"{run.Name}\"? A queued or retrying run will not run.", "Delete", danger: true)) return;
+
+        if (!Monitor.Delete(run.Id))
+            NotificationService.Notify(NotificationSeverity.Error, "Delete failed", "The run no longer exists.");
+        Load();
+    }
+
     // Reloads while a run is queued or running, so its result shows up without a page reload.
     async Task PollWhileActiveAsync()
     {
-        if (_polling || !_jobs.Any(j => IsActive(j.LastJob)))
+        if (_polling || !AnyActive)
             return;
 
         _polling = true;
@@ -146,7 +181,7 @@
                     Load();
                     StateHasChanged();
                 });
-                if (!_jobs.Any(j => IsActive(j.LastJob)))
+                if (!AnyActive)
                     break;
             }
         }
@@ -159,30 +194,15 @@
         }
     }
 
-    static bool IsActive(JobRun? run) => run?.State is JobRunState.Queued or JobRunState.Processing;
+    bool AnyActive => _jobs.Any(j => IsActive(j.LastJob)) || _runs.Any(r => IsActive(r));
 
-    static OxTone ToneOf(JobRunState state) => state switch
-    {
-        JobRunState.Succeeded => OxTone.Accent,
-        JobRunState.Failed => OxTone.Danger,
-        JobRunState.Retrying => OxTone.Warning,
-        JobRunState.Other => OxTone.Muted,
-        _ => OxTone.Default,
-    };
+    static bool IsActive(JobRun? run) => JobRunText.IsActive(run?.State);
 
-    static string LabelOf(JobRunState state) => state switch
-    {
-        JobRunState.Processing => "Running",
-        _ => state.ToString(),
-    };
+    static OxTone ToneOf(JobRunState state) => JobRunText.ToneOf(state);
 
-    static string FormatDuration(TimeSpan d) => d.TotalSeconds switch
-    {
-        < 1 => $"{d.TotalMilliseconds:0} ms",
-        < 60 => $"{d.TotalSeconds:0.0} s",
-        < 3600 => $"{(int)d.TotalMinutes} min {d.Seconds} s",
-        _ => $"{(int)d.TotalHours} h {d.Minutes} min",
-    };
+    static string LabelOf(JobRunState state) => JobRunText.LabelOf(state);
+
+    static string FormatDuration(TimeSpan d) => JobRunText.FormatDuration(d);
 
     public void Dispose() => _disposed.Cancel();
 }

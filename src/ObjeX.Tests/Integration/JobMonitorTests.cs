@@ -69,6 +69,75 @@ public class JobMonitorTests(ObjeXFactory factory) : IClassFixture<ObjeXFactory>
         Assert.Equal("Abandoned multipart cleanup", job.LastJob.Name);
     }
 
+    [Fact]
+    public void FailedRun_Details_CarryTheExceptionAndTheHistory()
+    {
+        var id = Client.Create(Job.FromExpression<VerifyBlobIntegrityJob>(j => j.ExecuteAsync()),
+            new FailedState(new InvalidOperationException("disk gone")));
+
+        var details = Monitor.GetRun(id);
+
+        Assert.NotNull(details);
+        Assert.Equal(JobRunState.Failed, details.Run.State);
+        Assert.Equal("VerifyBlobIntegrityJob.ExecuteAsync", details.Method);
+        Assert.Equal("System.InvalidOperationException", details.ExceptionType);
+        Assert.Contains("disk gone", details.ExceptionDetails);
+        Assert.NotNull(details.FinishedAt);
+        Assert.Equal("Failed", details.History[0].State);
+    }
+
+    [Fact]
+    public void SucceededRun_Details_CarryTheRawResult()
+    {
+        var id = Client.Create(Job.FromExpression<CleanupOrphanedBlobsJob>(j => j.ExecuteAsync()),
+            new SucceededState(new CleanupResult(3, 0, 0.1, DateTime.UtcNow), latency: 5, performanceDuration: 20));
+
+        var details = Monitor.GetRun(id);
+
+        Assert.NotNull(details);
+        Assert.Contains("\"FilesChecked\":3", details.RawResult);
+        Assert.Equal("3 blob files checked, 0 orphans deleted", details.Run.Result);
+    }
+
+    [Fact]
+    public void UnknownRun_HasNoDetails() => Assert.Null(Monitor.GetRun("999999"));
+
+    [Fact]
+    public void Retry_EnqueuesAFailedRunAgain()
+    {
+        var id = Client.Create(Job.FromExpression<VerifyBlobIntegrityJob>(j => j.ExecuteAsync()),
+            new FailedState(new InvalidOperationException("disk gone")));
+
+        Assert.True(Monitor.Retry(id));
+
+        Assert.Equal(JobRunState.Queued, Monitor.GetRun(id)!.Run.State);
+    }
+
+    [Fact]
+    public void Delete_MovesARunToDeleted()
+    {
+        var id = Client.Create(Job.FromExpression<VerifyBlobIntegrityJob>(j => j.ExecuteAsync()),
+            new FailedState(new InvalidOperationException("disk gone")));
+
+        Assert.True(Monitor.Delete(id));
+
+        var details = Monitor.GetRun(id);
+        Assert.NotNull(details);
+        Assert.Equal("Deleted", details.History[0].State);
+        Assert.DoesNotContain(Monitor.GetRecentRuns(50), r => r.Id == id);
+    }
+
+    [Fact]
+    public void RetryingRun_IsListed()
+    {
+        var id = Client.Create(Job.FromExpression<VerifyBlobIntegrityJob>(j => j.ExecuteAsync()),
+            new ScheduledState(TimeSpan.FromMinutes(5)) { Reason = "Retry attempt 1 of 10: disk gone" });
+
+        var run = Assert.Single(Monitor.GetRecentRuns(50), r => r.Id == id);
+
+        Assert.Equal(JobRunState.Retrying, run.State);
+    }
+
     [Theory]
     [MemberData(nameof(Results))]
     public void Results_ReadAsWords(object result, string expected)
