@@ -76,7 +76,24 @@ public class S3PostObjectTests(ObjeXFactory factory) : IClassFixture<ObjeXFactor
         Assert.Contains("SignatureDoesNotMatch", await response.Content.ReadAsStringAsync());
     }
 
-    private async Task<HttpResponseMessage> PostAsync(string key, string policyJson, bool corruptSignature = false)
+    [Fact]
+    public async Task FieldWithoutPolicyCondition_IsRejected()
+    {
+        var response = await PostAsync("post-extra.txt", PolicyJson(DateTime.UtcNow.AddMinutes(5).ToString("o")), extraField: "x-amz-meta-owner");
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        Assert.Contains("x-amz-meta-owner", await response.Content.ReadAsStringAsync());
+    }
+
+    [Fact]
+    public async Task IgnoredField_NeedsNoPolicyCondition()
+    {
+        var response = await PostAsync("post-ignored.txt", PolicyJson(DateTime.UtcNow.AddMinutes(5).ToString("o")), extraField: "x-ignore-note");
+
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+    }
+
+    private async Task<HttpResponseMessage> PostAsync(string key, string policyJson, bool corruptSignature = false, string? extraField = null)
     {
         var policyB64 = Convert.ToBase64String(Encoding.UTF8.GetBytes(policyJson));
         var (credential, signature) = S3RequestSigner.SignPolicy(factory.AccessKeyId, factory.SecretAccessKey, policyB64);
@@ -91,6 +108,8 @@ public class S3PostObjectTests(ObjeXFactory factory) : IClassFixture<ObjeXFactor
             { new StringContent(credential), "X-Amz-Credential" },
             { new StringContent(signature), "X-Amz-Signature" }
         };
+        if (extraField is not null)
+            content.Add(new StringContent("value"), extraField);
         content.Add(new ByteArrayContent("hello"u8.ToArray()), "file", key);
 
         return await factory.CreateS3Client().PostAsync($"/{Bucket}", content);

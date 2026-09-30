@@ -218,6 +218,8 @@ public static class S3PostObjectEndpoint
         if (!policy.RootElement.TryGetProperty("conditions", out var conditions))
             return "Policy missing conditions.";
 
+        var covered = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
         foreach (var condition in conditions.EnumerateArray())
         {
             if (condition.ValueKind == JsonValueKind.Object)
@@ -226,6 +228,7 @@ public static class S3PostObjectEndpoint
                 {
                     var fieldName = prop.Name;
                     var expected = prop.Value.GetString() ?? "";
+                    covered.Add(fieldName);
 
                     var actual = fieldName.Equals("bucket", StringComparison.OrdinalIgnoreCase)
                         ? bucket
@@ -259,6 +262,7 @@ public static class S3PostObjectEndpoint
                 var value = items[2].GetString() ?? "";
 
                 var field = fieldRef.StartsWith('$') ? fieldRef[1..] : fieldRef;
+                covered.Add(field);
                 var actual = field.Equals("bucket", StringComparison.OrdinalIgnoreCase)
                     ? bucket
                     : field.Equals("key", StringComparison.OrdinalIgnoreCase)
@@ -278,6 +282,12 @@ public static class S3PostObjectEndpoint
             }
         }
 
-        return null;
+        // As on S3, a field the policy does not mention is refused, so a signed form cannot carry extra settings.
+        var unconditioned = form.Keys.FirstOrDefault(f => !covered.Contains(f) && !IsExemptFromPolicy(f));
+        return unconditioned is null ? null : $"Form field '{unconditioned}' is not covered by a policy condition.";
     }
+
+    private static bool IsExemptFromPolicy(string field) =>
+        field.StartsWith("x-ignore-", StringComparison.OrdinalIgnoreCase)
+        || field.ToLowerInvariant() is "policy" or "x-amz-signature" or "x-amz-algorithm" or "x-amz-credential" or "x-amz-date";
 }
