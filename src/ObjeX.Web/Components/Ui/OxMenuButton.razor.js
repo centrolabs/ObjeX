@@ -1,4 +1,5 @@
-let onScroll = null;
+// One entry per open menu, keyed by its anchor, so closing or disposing one menu never touches another.
+const open = new Map();
 
 // Puts the panel under the button, right edges aligned; above it when the viewport has no room below.
 export function place(anchor, panel, owner) {
@@ -21,20 +22,27 @@ export function place(anchor, panel, owner) {
         list[(next + list.length) % list.length]?.focus();
     });
 
-    stopListening();
-    onScroll = () => { stopListening(); owner.invokeMethodAsync("CloseFromScroll"); };
-    window.addEventListener("scroll", onScroll, { capture: true, passive: true });
-    window.addEventListener("resize", onScroll);
+    stop(anchor);
+    const close = () => { stop(anchor); owner.invokeMethodAsync("CloseFromBrowser"); };
+    // Tab or a click elsewhere moves the focus out of the panel; the menu must not stay open behind it.
+    const onFocusOut = e => { if (!panel.contains(e.relatedTarget)) close(); };
+    panel.addEventListener("focusout", onFocusOut);
+    window.addEventListener("scroll", close, { capture: true, passive: true });
+    window.addEventListener("resize", close);
+    open.set(anchor, () => {
+        panel.removeEventListener("focusout", onFocusOut);
+        window.removeEventListener("scroll", close, { capture: true });
+        window.removeEventListener("resize", close);
+    });
 }
 
+// Closing through the menu itself hands the focus back to its button.
 export function release(anchor) {
-    stopListening();
+    stop(anchor);
     anchor?.querySelector("button")?.focus();
 }
 
-function stopListening() {
-    if (!onScroll) return;
-    window.removeEventListener("scroll", onScroll, { capture: true });
-    window.removeEventListener("resize", onScroll);
-    onScroll = null;
+export function stop(anchor) {
+    open.get(anchor)?.();
+    open.delete(anchor);
 }
