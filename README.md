@@ -8,7 +8,7 @@ Self-hosted object storage with an S3-compatible API and a web UI. One container
 [![Release](https://img.shields.io/github/v/release/centrolabs/ObjeX)](https://github.com/centrolabs/ObjeX/releases)
 [![License](https://img.shields.io/github/license/centrolabs/ObjeX)](LICENSE)
 
-<img width="800" alt="ObjeX web UI" src="https://github.com/user-attachments/assets/8cadcd71-de33-4554-a5a0-320362b35e68" />
+<img width="800" alt="ObjeX web UI" src="https://github.com/user-attachments/assets/2c8f056d-b11f-4bdd-8f93-2ff4f520f64c" />
 
 ## Features
 
