@@ -48,9 +48,8 @@ builder.WebHost.ConfigureKestrel(o =>
 {
     o.Limits.MaxRequestBodySize = storage.MaxUploadBytes;
     o.AddServerHeader = false;
-    // Clients send non-ASCII x-amz-meta-* values as Latin-1 bytes; answering in Latin-1 returns them unchanged
-    // instead of failing the response, since Kestrel would otherwise accept them in but not out.
-    o.RequestHeaderEncodingSelector = _ => System.Text.Encoding.Latin1;
+    // Kestrel reads a non-ASCII x-amz-meta-* value but refuses to write it back, failing the response. SDKs read
+    // response headers as Latin-1, so that is what goes out; characters outside Latin-1 become "?".
     o.ResponseHeaderEncodingSelector = _ => System.Text.Encoding.Latin1;
     o.ListenAnyIP(server.UiPort);
     o.ListenAnyIP(server.S3Port);
