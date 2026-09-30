@@ -48,6 +48,10 @@ builder.WebHost.ConfigureKestrel(o =>
 {
     o.Limits.MaxRequestBodySize = storage.MaxUploadBytes;
     o.AddServerHeader = false;
+    // Clients send non-ASCII x-amz-meta-* values as Latin-1 bytes; answering in Latin-1 returns them unchanged
+    // instead of failing the response, since Kestrel would otherwise accept them in but not out.
+    o.RequestHeaderEncodingSelector = _ => System.Text.Encoding.Latin1;
+    o.ResponseHeaderEncodingSelector = _ => System.Text.Encoding.Latin1;
     o.ListenAnyIP(server.UiPort);
     o.ListenAnyIP(server.S3Port);
 });
