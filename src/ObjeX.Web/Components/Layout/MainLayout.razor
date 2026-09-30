@@ -1,6 +1,5 @@
 @inherits LayoutComponentBase
 @implements IDisposable
-@inject IJSRuntime JS
 @inject NavigationManager Navigation
 @inject AuthenticationStateProvider AuthStateProvider
 @inject UserManager<ObjeX.Core.Models.User> UserManager
@@ -8,27 +7,11 @@
 
 <AuthorizeView>
     <Authorized>
-        <RadzenLayout>
-            <RadzenHeader>
-                <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem" Style="padding: 0 1rem; height:100%">
-                    <RadzenButton Icon="menu" ButtonStyle="ButtonStyle.Light" Variant="Variant.Text"
-                                  Click="@(() => _sidebarExpanded = !_sidebarExpanded)" />
-                    <img src="favicon.svg" width="24" alt="ObjeX" style="display:block" />
-                    <RadzenText TextStyle="TextStyle.H6" Style="margin:0">ObjeX</RadzenText>
-                </RadzenStack>
-            </RadzenHeader>
-
-            <RadzenSidebar @bind-Expanded="_sidebarExpanded">
-                <NavMenu/>
-            </RadzenSidebar>
-
-            <RadzenBody>
-                <RadzenContentContainer>
-                    @Body
-                </RadzenContentContainer>
-            </RadzenBody>
-        </RadzenLayout>
-        <span class="app-version">@AppVersion.Display</span>
+        <OxShell>
+            <Nav><NavMenu /></Nav>
+            <SideFooter><SidebarFooter /></SideFooter>
+            <ChildContent>@Body</ChildContent>
+        </OxShell>
 
         <RadzenComponents />
     </Authorized>
@@ -38,8 +21,6 @@
 </AuthorizeView>
 
 @code {
-    bool _sidebarExpanded = true;
-
     protected override void OnInitialized()
     {
         Navigation.LocationChanged += OnLocationChanged;
@@ -48,12 +29,6 @@
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (!firstRender) return;
-        var width = await JS.InvokeAsync<int>("ObjeX.getWindowWidth");
-        if (width < 768)
-        {
-            _sidebarExpanded = false;
-            StateHasChanged();
-        }
         await CheckDeactivatedAsync();
     }
 

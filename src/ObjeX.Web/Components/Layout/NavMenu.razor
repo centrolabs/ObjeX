@@ -1,41 +1,28 @@
-@inject NavigationManager Navigation
 @inject AuthenticationStateProvider AuthStateProvider
-@using Microsoft.AspNetCore.Components.Authorization
 
-<RadzenStack Style="height:100%; padding:0.5rem 0" JustifyContent="JustifyContent.SpaceBetween">
-    <RadzenPanelMenu>
-        <RadzenPanelMenuItem Text="Dashboard" Path="/" Icon="dashboard" />
-        <RadzenPanelMenuItem Text="Buckets" Path="/buckets" Icon="storage" />
-        <RadzenPanelMenuItem Text="Settings" Path="/settings" Icon="build" />
-        @if (_isAdmin)
-        {
-            <RadzenPanelMenuItem Text="Audit Log" Path="/audit" Icon="history" />
-            <RadzenPanelMenuItem Text="Hangfire" Path="/hangfire" Icon="schedule" />
-        }
-        @if (_isAdmin || _isManager)
-        {
-            <RadzenPanelMenuItem Text="Users" Path="/users" Icon="group" />
-        }
-    </RadzenPanelMenu>
-
-    <div style="border-top:1px solid var(--rz-border-disabled-color)">
-        <RadzenPanelMenu>
-            <RadzenPanelMenuItem Text="@_username" Path="/profile" Icon="manage_accounts" />
-            <RadzenPanelMenuItem Text="Sign out" Icon="logout"
-                                 Click="@(() => Navigation.NavigateTo("/account/logout", forceLoad: true))" />
-        </RadzenPanelMenu>
-    </div>
-</RadzenStack>
+<OxNavItem Href="/" Icon="dashboard">Dashboard</OxNavItem>
+<OxNavItem Href="/buckets" Icon="inventory_2">Buckets</OxNavItem>
+@if (_isAdmin)
+{
+    <OxNavItem Href="/audit" Icon="history">Audit Log</OxNavItem>
+}
+@if (_isAdmin || _isManager)
+{
+    <OxNavItem Href="/users" Icon="group">Users</OxNavItem>
+}
+@if (_isAdmin)
+{
+    <OxNavItem Href="/hangfire" Icon="schedule" FullLoad="true">Jobs</OxNavItem>
+}
+<OxNavItem Href="/settings" Icon="settings">Settings</OxNavItem>
 
 @code {
-    string _username = string.Empty;
     bool _isAdmin;
     bool _isManager;
 
     protected override async Task OnInitializedAsync()
     {
         var auth = await AuthStateProvider.GetAuthenticationStateAsync();
-        _username = auth.User.Identity?.Name ?? "Unknown";
         _isAdmin = auth.User.IsInRole("Admin");
         _isManager = auth.User.IsInRole("Manager");
     }
