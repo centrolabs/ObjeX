@@ -446,6 +446,7 @@ public class S3ConformanceTests(ObjeXFactory factory) : IClassFixture<ObjeXFacto
 
         Assert.Equal(HttpStatusCode.OK, (await SendAsync(HttpMethod.Put, $"/{bucket}")).StatusCode);
         Assert.Equal(HttpStatusCode.OK, (await SendAsync(HttpMethod.Head, $"/{bucket}/foo")).StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict, (await SendAsync(HttpMethod.Put, $"/{bucket}", configure: r => r.Headers.Add("x-amz-acl", "public-read"))).StatusCode);
 
         var other = await SendAsAsync(await OtherUserAsync(), HttpMethod.Put, $"/{bucket}");
         Assert.Equal(HttpStatusCode.Conflict, other.StatusCode);
