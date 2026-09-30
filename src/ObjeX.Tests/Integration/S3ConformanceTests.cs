@@ -168,6 +168,56 @@ public class S3ConformanceTests(ObjeXFactory factory) : IClassFixture<ObjeXFacto
     }
 
     [Fact]
+    public async Task SystemHeaders_AreStoredAndReturned()
+    {
+        var bucket = await NewBucketAsync();
+        await SendAsync(HttpMethod.Put, $"/{bucket}/foo", "bar", r =>
+        {
+            r.Headers.CacheControl = new() { NoCache = true };
+            r.Content!.Headers.ContentDisposition = new("attachment");
+            r.Content.Headers.ContentEncoding.Add("gzip");
+            r.Content.Headers.ContentLanguage.Add("esperanto");
+            r.Content.Headers.Expires = new DateTimeOffset(2030, 1, 1, 0, 0, 0, TimeSpan.Zero);
+        });
+
+        foreach (var method in new[] { HttpMethod.Head, HttpMethod.Get })
+        {
+            var response = await SendAsync(method, $"/{bucket}/foo");
+            Assert.Equal("no-cache", response.Headers.CacheControl?.ToString());
+            Assert.Equal("attachment", response.Content.Headers.ContentDisposition?.ToString());
+            Assert.Equal(["gzip"], response.Content.Headers.ContentEncoding);
+            Assert.Equal(["esperanto"], response.Content.Headers.ContentLanguage);
+            Assert.Equal(new DateTimeOffset(2030, 1, 1, 0, 0, 0, TimeSpan.Zero), response.Content.Headers.Expires);
+        }
+    }
+
+    [Fact]
+    public async Task AwsChunkedToken_IsNotStoredAsContentEncoding()
+    {
+        var bucket = await NewBucketAsync();
+        await SendAsync(HttpMethod.Put, $"/{bucket}/foo", "bar", r => r.Content!.Headers.ContentEncoding.Add("aws-chunked"));
+        await SendAsync(HttpMethod.Put, $"/{bucket}/bar", "bar", r => r.Content!.Headers.TryAddWithoutValidation("Content-Encoding", "gzip, aws-chunked"));
+
+        Assert.Empty((await SendAsync(HttpMethod.Head, $"/{bucket}/foo")).Content.Headers.ContentEncoding);
+        Assert.Equal(["gzip"], (await SendAsync(HttpMethod.Head, $"/{bucket}/bar")).Content.Headers.ContentEncoding);
+    }
+
+    [Fact]
+    public async Task ResponseOverrideParameters_ReplaceTheStoredHeaders()
+    {
+        var bucket = await NewBucketAsync();
+        await SendAsync(HttpMethod.Put, $"/{bucket}/foo", "bar");
+
+        var response = await SendAsync(HttpMethod.Get,
+            $"/{bucket}/foo?response-content-type=foo%2Fbar&response-cache-control=no-cache&response-content-disposition=bla&response-content-language=esperanto");
+
+        Assert.Equal("foo/bar", response.Content.Headers.ContentType?.MediaType);
+        Assert.Equal("no-cache", response.Headers.CacheControl?.ToString());
+        Assert.Equal("bla", response.Content.Headers.GetValues("Content-Disposition").Single());
+        Assert.Equal(["esperanto"], response.Content.Headers.ContentLanguage);
+    }
+
+    [Fact]
     public async Task KeyWithLiteralPercent_SignsAndRoundTrips()
     {
         var bucket = await NewBucketAsync();
