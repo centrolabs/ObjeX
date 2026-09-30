@@ -17,6 +17,9 @@ wwwroot/*.map
 # Blob storage
 data/
 
+# Local publish output
+/out/
+
 # dotenv files
 .env
 
