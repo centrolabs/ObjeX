@@ -1,13 +1,12 @@
 ﻿@inject IHttpContextAccessor HttpContextAccessor
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="@ThemeMode.CssClass(ThemeCookie)">
 
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <base href="/" />
     <ResourcePreloader />
-    <link rel="stylesheet" href="@Assets["ObjeX.Api.styles.css"]" />
     <ImportMap />
     <link rel="icon" href="favicon.ico" sizes="48x48" />
     <link rel="icon" href="favicon.svg" type="image/svg+xml" />
@@ -15,10 +14,12 @@
     <link rel="apple-touch-icon" href="apple-touch-icon.png" />
     <link rel="manifest" href="site.webmanifest" />
     <HeadOutlet @rendermode="InteractiveServer" />
-    <script>if (!document.cookie.includes('objex-theme=')) { document.cookie = 'objex-theme=material-dark; path=/; max-age=31536000'; }
+    <script>if (!document.cookie.includes('objex-theme=')) { var d = matchMedia('(prefers-color-scheme: dark)').matches; document.cookie = 'objex-theme=' + (d ? '@ThemeMode.Dark' : '@ThemeMode.Light') + '; path=/; max-age=31536000'; if (d) location.reload(); }
         document.cookie = 'objex-tz=' + encodeURIComponent(Intl.DateTimeFormat().resolvedOptions().timeZone) + '; path=/; max-age=31536000; SameSite=Lax';</script>
-    <RadzenTheme Theme="@(HttpContextAccessor.HttpContext?.Request.Cookies["objex-theme"] ?? "material-dark")" />
+    <RadzenTheme Theme="@ThemeMode.Radzen(ThemeCookie)" />
+    <link rel="stylesheet" href="@Assets["tokens.css"]" />
     <link rel="stylesheet" href="@Assets["app.css"]" />
+    <link rel="stylesheet" href="@Assets["ObjeX.Api.styles.css"]" />
 </head>
 
 <body>
@@ -26,7 +27,11 @@
     <ReconnectModal />
     <script src="@Assets["_framework/blazor.web.js"]"></script>
     <script src="_content/Radzen.Blazor/Radzen.Blazor.js?v=@(typeof(Colors).Assembly.GetName().Version)"></script>
-    <script>window.ObjeX={triggerDownload:function(u,n){var a=document.createElement('a');a.href=u;a.download=n;document.body.appendChild(a);a.click();document.body.removeChild(a);},getCookie:function(k){var m=document.cookie.split('; ').find(function(r){return r.startsWith(k+'=')});return m?m.split('=')[1]:'';},setCookie:function(k,v){document.cookie=k+'='+v+';path=/;max-age=31536000';},getWindowWidth:function(){return window.innerWidth;}}</script>
+    <script>window.ObjeX={triggerDownload:function(u,n){var a=document.createElement('a');a.href=u;a.download=n;document.body.appendChild(a);a.click();document.body.removeChild(a);},getCookie:function(k){var m=document.cookie.split('; ').find(function(r){return r.startsWith(k+'=')});return m?m.split('=')[1]:'';},setCookie:function(k,v){document.cookie=k+'='+v+';path=/;max-age=31536000';},setTheme:function(dark){document.documentElement.className=dark?'ox-dark':'ox-light';}}</script>
 </body>
 
 </html>
+
+@code {
+    string? ThemeCookie => HttpContextAccessor.HttpContext?.Request.Cookies[ThemeMode.CookieName];
+}

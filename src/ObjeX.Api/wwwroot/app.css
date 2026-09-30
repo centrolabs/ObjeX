@@ -1,30 +1,164 @@
+/* Global styles: fonts, document base, and the Radzen components that stay (grid, dialog, notification,
+   context menu, tooltip, dropdown, numeric, charts). Loaded after the Radzen theme and tokens.css.
+   Every value comes from tokens.css; the Ui components carry their own scoped CSS. */
+
 /* Inter — self-hosted */
-@font-face { font-family: 'Inter'; src: url('fonts/inter-300.ttf') format('truetype'); font-weight: 300; font-display: swap; }
 @font-face { font-family: 'Inter'; src: url('fonts/inter-400.ttf') format('truetype'); font-weight: 400; font-display: swap; }
 @font-face { font-family: 'Inter'; src: url('fonts/inter-500.ttf') format('truetype'); font-weight: 500; font-display: swap; }
 @font-face { font-family: 'Inter'; src: url('fonts/inter-600.ttf') format('truetype'); font-weight: 600; font-display: swap; }
-@font-face { font-family: 'Inter'; src: url('fonts/inter-700.ttf') format('truetype'); font-weight: 700; font-display: swap; }
 
-/* Inter font — Radzen Material reads --rz-text-font-family for all component text */
-:root { --rz-text-font-family: 'Inter', sans-serif; }
-body { font-family: 'Inter', sans-serif; }
+/* ---- Document -------------------------------------------------------------------------- */
+*, *::before, *::after { box-sizing: border-box; }
 
-/* ObjeX teal primary — applies to both light and dark */
-:root {
-    --rz-primary: #14B8A6;
-    --rz-primary-light: #2DD4BF;
-    --rz-primary-lighter: rgba(20, 184, 166, 0.15);
-    --rz-primary-dark: #0F766E;
-    --rz-primary-darker: #0A6658;
-    --rz-on-primary: #0D1117;
-    --rz-on-primary-light: #0D1117;
-    --rz-on-primary-lighter: #14B8A6;
-    --rz-on-primary-dark: #ffffff;
-    --rz-on-primary-darker: #ffffff;
+html, body { height: 100%; }
+
+body {
+    margin: 0;
+    background: var(--ox-surface);
+    color: var(--ox-text);
+    font: var(--ox-fw-regular) var(--ox-fs-md)/var(--ox-lh) var(--ox-font);
+    font-variant-numeric: tabular-nums;
 }
 
+h1, h2, h3, h4, p { margin: 0; }
+
+::selection { background: var(--ox-accent); color: var(--ox-on-accent); }
+
+h1:focus { outline: none; }
+
+/* ---- DataGrid -------------------------------------------------------------------------- */
+.rz-data-grid { border: 0; border-radius: 0; background: var(--ox-surface); }
+
+.rz-grid-table { font-variant-numeric: tabular-nums; }
+
+.rz-grid-table thead th {
+    height: var(--ox-size-row);
+    border-bottom: var(--ox-border) solid var(--ox-line-strong);
+    background: var(--ox-surface);
+    white-space: nowrap;
+}
+
+.rz-grid-table thead th .rz-column-title { font-weight: var(--ox-fw-medium); color: var(--ox-text-muted); }
+
+.rz-grid-table td {
+    height: var(--ox-size-row);
+    border-bottom: var(--ox-border) solid var(--ox-line);
+    white-space: nowrap;
+}
+
+.rz-grid-table tbody tr:last-child td { border-bottom: 0; }
+
+.rz-grid-table tbody tr.rz-data-row:hover > td { background: var(--ox-surface-hover); }
+
+.rz-grid-table tbody tr.ox-row-selected > td,
+.rz-grid-table tbody tr.ox-row-selected:hover > td { background: var(--ox-surface-selected); }
+
+.rz-grid-table td.ox-col-muted { color: var(--ox-text-muted); }
+
+/* Cells that hold controls must not clip focus rings. */
+.rz-grid-table td.ox-col-check .rz-cell-data,
+.rz-grid-table td.ox-col-actions .rz-cell-data { overflow: visible; }
+
+/* Row actions: on hover and keyboard focus, always on touch devices. */
+.ox-row-actions { opacity: 0; }
+
+.rz-data-row:hover .ox-row-actions,
+.rz-data-row:focus-within .ox-row-actions,
+.ox-row-actions.is-open { opacity: 1; }
+
+@media (hover: none) {
+    .ox-row-actions { opacity: 1; }
+}
+
+.rz-datatable-emptymessage td,
+.rz-grid-table td.rz-datatable-emptymessage { color: var(--ox-text-muted); }
+
+.rz-pager { padding: var(--ox-space-4) 0; font-size: var(--ox-fs-sm); }
+
+/* ---- Dialog ---------------------------------------------------------------------------- */
+.rz-dialog {
+    border: var(--ox-border) solid var(--ox-line-strong);
+    color: var(--ox-text);
+}
+
+.rz-dialog-confirm-buttons,
+.rz-dialog-alert-buttons {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--ox-space-4);
+    margin-top: var(--ox-space-8);
+}
+
+/* Buttons that Radzen renders itself (confirm and alert dialogs, grid filters) follow the Ui button. */
+.rz-button {
+    height: var(--ox-size-ctl);
+    min-height: 0;
+    padding: 0 var(--ox-space-6);
+    border: var(--ox-border) solid var(--ox-line-strong);
+    border-radius: var(--ox-radius-md);
+    background: var(--ox-surface);
+    color: var(--ox-text);
+    font-weight: var(--ox-fw-medium);
+    text-transform: none;
+    letter-spacing: normal;
+    box-shadow: var(--ox-shadow-ctl);
+}
+
+.rz-button:hover:not(.rz-state-disabled) { background: var(--ox-surface-hover); color: var(--ox-text); }
+
+.rz-button.rz-primary {
+    border-color: var(--ox-accent);
+    background: var(--ox-accent);
+    color: var(--ox-on-accent);
+}
+
+.rz-button.rz-primary:hover:not(.rz-state-disabled) {
+    border-color: var(--ox-accent-hover);
+    background: var(--ox-accent-hover);
+    color: var(--ox-on-accent);
+}
+
+.rz-button:focus-visible { outline: var(--ox-ring) solid var(--ox-accent-text); outline-offset: var(--ox-ring); }
+
+/* ---- Notification ---------------------------------------------------------------------- */
 .rz-notification {
     top: auto !important;
-    bottom: 1rem !important;
-    right: 1rem !important;
+    bottom: var(--ox-space-8) !important;
+    right: var(--ox-space-8) !important;
 }
+
+.rz-notification-item-wrapper,
+.rz-growl-item-container {
+    border: var(--ox-border) solid var(--ox-line-strong);
+    border-radius: var(--ox-radius-md);
+    box-shadow: var(--ox-shadow-pop);
+}
+
+.rz-notification-title, .rz-growl-title { font-size: var(--ox-fs-md); font-weight: var(--ox-fw-semibold); }
+
+.rz-notification-content, .rz-growl-message p { font-size: var(--ox-fs-sm); color: var(--ox-text-muted); }
+
+/* ---- Context menu, dropdown panel, tooltip ---------------------------------------------- */
+.rz-context-menu, .rz-dropdown-panel {
+    border: var(--ox-border) solid var(--ox-line-strong);
+    border-radius: var(--ox-radius-md);
+    background: var(--ox-surface-raised);
+    box-shadow: var(--ox-shadow-pop);
+}
+
+.rz-context-menu .rz-menu { padding: var(--ox-space-2); border-radius: var(--ox-radius-md); }
+
+/* ---- Blazor error bar ------------------------------------------------------------------- */
+#blazor-error-ui {
+    display: none;
+    position: fixed;
+    inset: auto 0 0 0;
+    z-index: var(--ox-z-popup);
+    padding: var(--ox-space-5) var(--ox-space-9);
+    border-top: var(--ox-border) solid var(--ox-line-strong);
+    background: var(--ox-surface-raised);
+    color: var(--ox-danger);
+    box-shadow: var(--ox-shadow-pop);
+}
+
+#blazor-error-ui .dismiss { position: absolute; right: var(--ox-space-6); cursor: pointer; }

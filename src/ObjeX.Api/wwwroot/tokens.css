@@ -1,0 +1,405 @@
+/* ObjeX design tokens, style "Papier". The only file that holds colour values.
+   Layer 1: base values (palette, scales). Layer 2: semantic roles, one set per mode.
+   Layer 3: the Radzen variables, derived from the roles. Components read layer 2 and the scales only. */
+
+/* ---- Layer 1: base values ---------------------------------------------------------------- */
+:root {
+    --ox-paper-0: #ffffff;
+    --ox-paper-25: #f8f7f4;
+    --ox-paper-50: #f6f5f1;
+    --ox-paper-100: #efede8;
+    --ox-paper-150: #ecebe5;
+    --ox-paper-200: #e8e5de;
+    --ox-paper-250: #e6e4dc;
+    --ox-paper-300: #e2dfd7;
+    --ox-paper-350: #dcd9d2;
+    --ox-paper-400: #b5b1a8;
+    --ox-paper-450: #a8a49b;
+    --ox-paper-600: #67645e;
+    --ox-paper-650: #5d5a54;
+    --ox-paper-700: #3d3a35;
+    --ox-paper-800: #2c2a27;
+    --ox-paper-850: #242320;
+    --ox-paper-900: #1d1c1a;
+    --ox-paper-950: #161513;
+
+    --ox-teal-50: #e7f3f1;
+    --ox-teal-400: #4dbfb2;
+    --ox-teal-500: #118077;
+    --ox-teal-600: #0f766e;
+    --ox-teal-700: #0c625b;
+    --ox-teal-900: #143531;
+    --ox-violet-400: #a78bfa;
+    --ox-violet-600: #7c3aed;
+    --ox-orange-400: #fb923c;
+    --ox-orange-700: #c2410c;
+    --ox-red-400: #f97066;
+    --ox-red-700: #b42318;
+    --ox-amber-400: #fbbf24;
+    --ox-amber-700: #b45309;
+
+    /* Chart hues: one step per mode, validated as a set for colour-blind separation and 3:1 against the surface. */
+    --ox-viz-teal-light: #099b8f;
+    --ox-viz-teal-dark: #02a99b;
+    --ox-viz-orange-light: #ad5002;
+    --ox-viz-orange-dark: #cb6620;
+    --ox-viz-plum-light: #93285c;
+    --ox-viz-plum-dark: #ae4273;
+    --ox-viz-ochre-light: #9a7403;
+    --ox-viz-ochre-dark: #a97f05;
+    --ox-viz-violet-light: #5c42a3;
+    --ox-viz-violet-dark: #725abd;
+    --ox-viz-green-light: #1d6a00;
+    --ox-viz-green-dark: #368223;
+    --ox-viz-blue-light: #0059a2;
+    --ox-viz-blue-dark: #1870c2;
+    --ox-viz-red-light: #9a2929;
+    --ox-viz-red-dark: #b64340;
+
+    --ox-font: 'Inter', system-ui, sans-serif;
+    --ox-font-icon: 'Material Symbols';
+    --ox-font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    --ox-fs-xs: 12px;
+    --ox-fs-sm: 13px;
+    --ox-fs-md: 14px;
+    --ox-fs-lg: 15px;
+    --ox-fs-xl: 17px;
+    --ox-fs-2xl: 24px;
+    --ox-fw-regular: 400;
+    --ox-fw-medium: 500;
+    --ox-fw-semibold: 600;
+    --ox-lh: 1.4;
+
+    --ox-space-0: 0px;
+    --ox-space-1: 2px;
+    --ox-space-2: 4px;
+    --ox-space-3: 6px;
+    --ox-space-4: 8px;
+    --ox-space-5: 10px;
+    --ox-space-6: 12px;
+    --ox-space-7: 14px;
+    --ox-space-8: 18px;
+    --ox-space-9: 26px;
+
+    --ox-radius-sm: 4px;
+    --ox-radius-md: 8px;
+    --ox-radius-full: 999px;
+
+    --ox-size-ctl-sm: 28px;
+    --ox-size-ctl: 34px;
+    --ox-size-row: 40px;
+    --ox-size-icon-sm: 13px;
+    --ox-size-icon: 19px;
+    --ox-size-check: 15px;
+    --ox-size-avatar: 24px;
+    --ox-size-meter: 4px;
+    --ox-size-search: 230px;
+    --ox-size-menu: 200px;
+    --ox-size-sidebar: 236px;
+    --ox-size-chart: 220px;
+    --ox-size-form: 360px;
+
+    --ox-border: 1px;
+    --ox-border-check: 1.5px;
+    --ox-ring: 2px;
+
+    --ox-z-drawer: 900;
+    --ox-z-popup: 1100;
+}
+
+/* ---- Layer 2: semantic roles ------------------------------------------------------------- */
+:root, .ox-light {
+    color-scheme: light;
+    --ox-surface: var(--ox-paper-0);
+    --ox-surface-side: var(--ox-paper-50);
+    --ox-surface-raised: var(--ox-paper-0);
+    --ox-surface-field: var(--ox-paper-0);
+    --ox-surface-hover: var(--ox-paper-25);
+    --ox-surface-hover-strong: var(--ox-paper-100);
+    --ox-surface-nav-hover: var(--ox-paper-150);
+    --ox-surface-nav-active: var(--ox-paper-250);
+    --ox-surface-selected: var(--ox-teal-50);
+    --ox-surface-track: var(--ox-paper-300);
+    --ox-overlay: rgba(29, 28, 26, .4);
+    --ox-text: var(--ox-paper-900);
+    --ox-text-muted: var(--ox-paper-600);
+    --ox-text-side-muted: var(--ox-paper-650);
+    --ox-text-faint: var(--ox-paper-400);
+    --ox-line: var(--ox-paper-100);
+    --ox-line-strong: var(--ox-paper-350);
+    --ox-line-side: var(--ox-paper-200);
+    --ox-accent: var(--ox-teal-600);
+    --ox-accent-hover: var(--ox-teal-700);
+    --ox-on-accent: var(--ox-paper-0);
+    --ox-accent-text: var(--ox-teal-600);
+    --ox-danger: var(--ox-red-700);
+    --ox-warning: var(--ox-amber-700);
+    --ox-icon-folder: var(--ox-teal-600);
+    --ox-icon-image: var(--ox-violet-600);
+    --ox-icon-video: var(--ox-orange-700);
+    --ox-chart-1: var(--ox-viz-teal-light);
+    --ox-chart-2: var(--ox-viz-orange-light);
+    --ox-chart-3: var(--ox-viz-plum-light);
+    --ox-chart-4: var(--ox-viz-ochre-light);
+    --ox-chart-5: var(--ox-viz-violet-light);
+    --ox-chart-6: var(--ox-viz-green-light);
+    --ox-chart-7: var(--ox-viz-blue-light);
+    --ox-chart-8: var(--ox-viz-red-light);
+    --ox-chart-other: var(--ox-paper-400);
+    --ox-shadow-ctl: 0 1px 1.5px rgba(40, 36, 28, .08);
+    --ox-shadow-pop: 0 10px 28px -8px rgba(40, 36, 28, .22), 0 1px 2px rgba(40, 36, 28, .08);
+}
+
+.ox-dark {
+    color-scheme: dark;
+    --ox-surface: var(--ox-paper-900);
+    --ox-surface-side: var(--ox-paper-950);
+    --ox-surface-raised: var(--ox-paper-850);
+    --ox-surface-field: var(--ox-paper-950);
+    --ox-surface-hover: var(--ox-paper-850);
+    --ox-surface-hover-strong: var(--ox-paper-800);
+    --ox-surface-nav-hover: var(--ox-paper-850);
+    --ox-surface-nav-active: var(--ox-paper-800);
+    --ox-surface-selected: var(--ox-teal-900);
+    --ox-surface-track: var(--ox-paper-700);
+    --ox-overlay: rgba(0, 0, 0, .6);
+    --ox-text: var(--ox-paper-100);
+    --ox-text-muted: var(--ox-paper-450);
+    --ox-text-side-muted: var(--ox-paper-450);
+    --ox-text-faint: var(--ox-paper-600);
+    --ox-line: var(--ox-paper-800);
+    --ox-line-strong: var(--ox-paper-700);
+    --ox-line-side: var(--ox-paper-800);
+    --ox-accent: var(--ox-teal-600);
+    --ox-accent-hover: var(--ox-teal-500);
+    --ox-on-accent: var(--ox-paper-0);
+    --ox-accent-text: var(--ox-teal-400);
+    --ox-danger: var(--ox-red-400);
+    --ox-warning: var(--ox-amber-400);
+    --ox-icon-folder: var(--ox-teal-400);
+    --ox-icon-image: var(--ox-violet-400);
+    --ox-icon-video: var(--ox-orange-400);
+    --ox-chart-1: var(--ox-viz-teal-dark);
+    --ox-chart-2: var(--ox-viz-orange-dark);
+    --ox-chart-3: var(--ox-viz-plum-dark);
+    --ox-chart-4: var(--ox-viz-ochre-dark);
+    --ox-chart-5: var(--ox-viz-violet-dark);
+    --ox-chart-6: var(--ox-viz-green-dark);
+    --ox-chart-7: var(--ox-viz-blue-dark);
+    --ox-chart-8: var(--ox-viz-red-dark);
+    --ox-chart-other: var(--ox-paper-350);
+    --ox-shadow-ctl: 0 1px 1.5px rgba(0, 0, 0, .4);
+    --ox-shadow-pop: 0 12px 30px -8px rgba(0, 0, 0, .65), 0 1px 2px rgba(0, 0, 0, .4);
+}
+
+/* ---- Layer 3: Radzen variables, derived from the roles ----------------------------------- */
+/* Repeated on the mode classes so a nested .ox-light / .ox-dark scope (styleguide) re-resolves them. */
+:root, .ox-light, .ox-dark {
+    --rz-text-font-family: var(--ox-font);
+    --rz-body-font-size: var(--ox-fs-md);
+    --rz-body-line-height: var(--ox-lh);
+    --rz-icon-size: var(--ox-size-icon);
+    --rz-border-radius: var(--ox-radius-md);
+
+    --rz-base-50: var(--ox-paper-0);
+    --rz-base-100: var(--ox-paper-50);
+    --rz-base-200: var(--ox-paper-200);
+    --rz-base-300: var(--ox-paper-350);
+    --rz-base-400: var(--ox-paper-400);
+    --rz-base-500: var(--ox-paper-450);
+    --rz-base-600: var(--ox-paper-600);
+    --rz-base-700: var(--ox-paper-700);
+    --rz-base-800: var(--ox-paper-850);
+    --rz-base-900: var(--ox-paper-950);
+    --rz-base: var(--ox-line-strong);
+    --rz-base-light: var(--ox-surface-hover-strong);
+    --rz-base-lighter: var(--ox-surface-hover);
+    --rz-base-dark: var(--ox-text-muted);
+    --rz-base-darker: var(--ox-text);
+    --rz-on-base: var(--ox-text);
+    --rz-on-base-light: var(--ox-text);
+    --rz-on-base-lighter: var(--ox-text);
+    --rz-on-base-dark: var(--ox-surface);
+    --rz-on-base-darker: var(--ox-surface);
+
+    --rz-primary: var(--ox-accent);
+    --rz-primary-light: var(--ox-accent-text);
+    --rz-primary-lighter: var(--ox-surface-hover-strong);
+    --rz-primary-dark: var(--ox-accent-hover);
+    --rz-primary-darker: var(--ox-accent-hover);
+    --rz-on-primary: var(--ox-on-accent);
+    --rz-on-primary-light: var(--ox-surface);
+    --rz-on-primary-lighter: var(--ox-text);
+    --rz-on-primary-dark: var(--ox-on-accent);
+    --rz-on-primary-darker: var(--ox-on-accent);
+
+    --rz-secondary: var(--ox-text-muted);
+    --rz-secondary-light: var(--ox-text-muted);
+    --rz-secondary-lighter: var(--ox-surface-hover-strong);
+    --rz-secondary-dark: var(--ox-text);
+    --rz-secondary-darker: var(--ox-text);
+    --rz-on-secondary: var(--ox-surface);
+    --rz-on-secondary-lighter: var(--ox-text);
+
+    --rz-danger: var(--ox-danger);
+    --rz-danger-light: var(--ox-danger);
+    --rz-danger-lighter: var(--ox-surface-hover-strong);
+    --rz-danger-dark: var(--ox-danger);
+    --rz-danger-darker: var(--ox-danger);
+    --rz-on-danger: var(--ox-surface);
+    --rz-on-danger-lighter: var(--ox-danger);
+    --rz-warning: var(--ox-warning);
+    --rz-on-warning: var(--ox-surface);
+    --rz-success: var(--ox-accent-text);
+    --rz-on-success: var(--ox-surface);
+    --rz-info: var(--ox-text-muted);
+    --rz-on-info: var(--ox-surface);
+
+    --rz-text-title-color: var(--ox-text);
+    --rz-text-color: var(--ox-text);
+    --rz-text-secondary-color: var(--ox-text-muted);
+    --rz-text-tertiary-color: var(--ox-text-muted);
+    --rz-text-disabled-color: var(--ox-text-faint);
+    --rz-text-contrast-color: var(--ox-on-accent);
+    --rz-link-color: var(--ox-accent-text);
+    --rz-link-hover-color: var(--ox-accent-text);
+
+    --rz-body-background-color: var(--ox-surface);
+    --rz-base-background-color: var(--ox-surface);
+    --rz-border-normal: var(--ox-border) solid var(--ox-line-strong);
+    --rz-border-hover: var(--ox-border) solid var(--ox-line-strong);
+    --rz-border-focus: var(--ox-border) solid var(--ox-accent-text);
+    --rz-border-disabled: var(--ox-border) solid var(--ox-line);
+    --rz-outline-width: var(--ox-ring);
+    --rz-outline-offset: var(--ox-ring);
+    --rz-outline-color: var(--ox-accent-text);
+
+    --rz-series-1: var(--ox-chart-1);
+    --rz-series-2: var(--ox-chart-2);
+    --rz-series-3: var(--ox-chart-3);
+    --rz-series-4: var(--ox-chart-4);
+    --rz-series-5: var(--ox-chart-5);
+    --rz-series-6: var(--ox-chart-6);
+    --rz-series-7: var(--ox-chart-7);
+    --rz-series-8: var(--ox-chart-8);
+    --rz-series-9: var(--ox-chart-other);
+    --rz-chart-axis-color: var(--ox-line-strong);
+    --rz-chart-axis-label-color: var(--ox-text-muted);
+    --rz-chart-axis-font-size: var(--ox-fs-sm);
+    --rz-chart-legend-font-size: var(--ox-fs-sm);
+    --rz-chart-tooltip-background: var(--ox-surface-raised);
+    --rz-chart-tooltip-color: var(--ox-text);
+    --rz-chart-marker-stroke: var(--ox-surface);
+
+    --rz-grid-background-color: var(--ox-surface);
+    --rz-grid-cell-color: var(--ox-text);
+    --rz-grid-cell-font-size: var(--ox-fs-md);
+    --rz-grid-cell-padding: 0 var(--ox-space-6);
+    --rz-grid-cell-border: none;
+    --rz-grid-right-cell-border: none;
+    --rz-grid-bottom-cell-border: var(--ox-border) solid var(--ox-line);
+    --rz-grid-data-border-shadow: none;
+    --rz-grid-hover-background-color: var(--ox-surface-hover);
+    --rz-grid-hover-color: var(--ox-text);
+    --rz-grid-cell-focus-background-color: transparent;
+    --rz-grid-cell-focus-color: var(--ox-text);
+    --rz-grid-selected-background-color: var(--ox-surface-selected);
+    --rz-grid-selected-color: var(--ox-text);
+    --rz-grid-stripe-background-color: var(--ox-surface);
+    --rz-grid-stripe-odd-background-color: var(--ox-surface);
+    --rz-grid-header-background-color: var(--ox-surface);
+    --rz-grid-header-sorted-background-color: var(--ox-surface);
+    --rz-grid-header-color: var(--ox-text-muted);
+    --rz-grid-header-font-size: var(--ox-fs-sm);
+    --rz-grid-header-font-weight: var(--ox-fw-medium);
+    --rz-grid-header-cell-border: none;
+    --rz-grid-header-cell-border-bottom: var(--ox-border) solid var(--ox-line-strong);
+    --rz-grid-header-cell-padding: 0;
+    --rz-grid-header-title-padding-inline: var(--ox-space-6) 0;
+    --rz-grid-sort-icon-color: var(--ox-text-muted);
+    --rz-grid-loading-indicator-background-color: var(--ox-overlay);
+    --rz-grid-loading-indicator-color: var(--ox-on-accent);
+
+    --rz-pager-numeric-button-background-color: transparent;
+    --rz-pager-numeric-button-hover-background-color: var(--ox-surface-hover-strong);
+    --rz-pager-numeric-button-selected-background-color: var(--ox-surface-nav-active);
+    --rz-pager-back-button-background-color: transparent;
+    --rz-pager-next-button-background-color: transparent;
+    --rz-pager-summary-color: var(--ox-text-muted);
+
+    --rz-input-height: var(--ox-size-ctl);
+    --rz-input-font-size: var(--ox-fs-md);
+    --rz-input-background-color: var(--ox-surface-field);
+    --rz-input-hover-background-color: var(--ox-surface-field);
+    --rz-input-focus-background-color: var(--ox-surface-field);
+    --rz-input-disabled-background-color: var(--ox-surface-hover);
+    --rz-input-value-color: var(--ox-text);
+    --rz-input-placeholder-color: var(--ox-text-muted);
+    --rz-input-border: var(--ox-border) solid var(--ox-line-strong);
+    --rz-input-border-block-end: var(--ox-border) solid var(--ox-line-strong);
+    --rz-input-hover-border: var(--ox-border) solid var(--ox-line-strong);
+    --rz-input-focus-border: var(--ox-border) solid var(--ox-accent-text);
+    --rz-input-focus-shadow: 0 0 0 var(--ox-border) var(--ox-accent-text);
+    --rz-input-border-radius: var(--ox-radius-md);
+    --rz-input-padding-inline: var(--ox-space-5);
+    --rz-dropdown-open-background-color: var(--ox-surface-raised);
+    --rz-dropdown-panel-border: var(--ox-border) solid var(--ox-line-strong);
+    --rz-dropdown-panel-shadow: var(--ox-shadow-pop);
+    --rz-dropdown-item-hover-background-color: var(--ox-surface-hover-strong);
+    --rz-dropdown-item-selected-background-color: var(--ox-surface-selected);
+    --rz-dropdown-item-selected-hover-background-color: var(--ox-surface-selected);
+    --rz-numeric-button-background-color: transparent;
+    --rz-numeric-button-color: var(--ox-text-muted);
+
+    --rz-dialog-background-color: var(--ox-surface-raised);
+    --rz-dialog-title-background-color: var(--ox-surface-raised);
+    --rz-dialog-title-color: var(--ox-text);
+    --rz-dialog-title-font-size: var(--ox-fs-xl);
+    --rz-dialog-title-font-weight: var(--ox-fw-semibold);
+    --rz-dialog-title-letter-spacing: normal;
+    --rz-dialog-title-padding-block: var(--ox-space-8) var(--ox-space-4);
+    --rz-dialog-title-padding-inline: var(--ox-space-8);
+    --rz-dialog-content-padding: var(--ox-space-4) var(--ox-space-8) var(--ox-space-8);
+    --rz-dialog-close-color: var(--ox-text-muted);
+    --rz-dialog-close-hover-color: var(--ox-text);
+    --rz-dialog-border-radius: var(--ox-radius-md);
+    --rz-dialog-shadow: var(--ox-shadow-pop);
+    --rz-dialog-mask-background-color: var(--ox-overlay);
+
+    --rz-menu-background-color: var(--ox-surface-raised);
+    --rz-menu-item-color: var(--ox-text);
+    --rz-menu-item-hover-color: var(--ox-text);
+    --rz-menu-item-hover-background-color: var(--ox-surface-hover-strong);
+    --rz-menu-item-icon-color: var(--ox-text-muted);
+    --rz-menu-item-icon-hover-color: var(--ox-text);
+    --rz-menu-item-border-radius: var(--ox-radius-sm);
+    --rz-context-menu-box-shadow: var(--ox-shadow-pop);
+
+    --rz-tooltip-background-color: var(--ox-text);
+    --rz-tooltip-color: var(--ox-surface);
+    --rz-tooltip-font-size: var(--ox-fs-xs);
+    --rz-tooltip-border-radius: var(--ox-radius-sm);
+
+    --rz-notification-border-radius: var(--ox-radius-md);
+    --rz-notification-shadow: var(--ox-shadow-pop);
+    --rz-notification-success-background-color: var(--ox-surface-raised);
+    --rz-notification-success-color: var(--ox-text);
+    --rz-notification-success-icon-color: var(--ox-accent-text);
+    --rz-notification-warning-background-color: var(--ox-surface-raised);
+    --rz-notification-warning-color: var(--ox-text);
+    --rz-notification-warning-icon-color: var(--ox-warning);
+    --rz-notification-error-background-color: var(--ox-surface-raised);
+    --rz-notification-error-color: var(--ox-text);
+    --rz-notification-error-icon-color: var(--ox-danger);
+    --rz-notification-info-background-color: var(--ox-surface-raised);
+    --rz-notification-info-color: var(--ox-text);
+    --rz-notification-info-icon-color: var(--ox-text-muted);
+
+    --rz-button-border-radius: var(--ox-radius-md);
+    --rz-button-font-size: var(--ox-fs-md);
+    --rz-button-font-weight: var(--ox-fw-medium);
+    --rz-button-line-height: var(--ox-lh);
+    --rz-button-shadow: var(--ox-shadow-ctl);
+    --rz-button-hover-shadow: var(--ox-shadow-ctl);
+    --rz-button-focus-shadow: var(--ox-shadow-ctl);
+}
