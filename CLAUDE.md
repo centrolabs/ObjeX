@@ -16,7 +16,7 @@ src/
 │   ├── Options/         # ServerOptions (ports), ReverseProxyOptions, AuthOptions (lockout, RememberMeDays), DatabaseOptions, StorageOptions (blob root, upload cap, min free disk), SeedOptions
 │   ├── Startup/         # ServiceCollectionExtensions (AddObjeX* per concern), DatabaseInitializer (migrate, pragmas, legacy blob paths, roles, admin, seeding), BackgroundJobs (Hangfire wiring, recurring schedule, stale-job prune)
 │   ├── Components/      # App.razor (host document), _Imports.razor
-│   ├── wwwroot/         # app.css, favicons, fonts/, site.webmanifest
+│   ├── wwwroot/         # tokens.css (design tokens, the only file with colour values), app.css (fonts, document base, Radzen grid/dialog/notification styles), favicons, fonts/, site.webmanifest
 │   ├── S3/              # S3Pipeline (the S3 port's request pipeline), SigV4Parser, SigV4Signer, S3Xml, S3Errors, S3Subresources (501 for unsupported ?acl, ?tagging, …), ObjectHeaders (stored x-amz-meta-* and system headers), Preconditions (conditional writes), ContinuationToken, CopySourceRange, LimitedStream (UploadPartCopy), S3RequestBody, AwsChunkedStream, ObjectDeletion, StorageQuota, ContentMd5
 │   └── Metrics/         # ObjeXMetrics, BucketMetricsSyncJob
 ├── ObjeX.Core/          # Domain — zero framework dependencies
@@ -35,15 +35,16 @@ src/
 │   └── Storage/         # FileSystemStorageService, StorageSpaceService (free disk of the blob volume), LegacyKeyPathMigration (moves pre-1.2.5 alias blobs to their raw-key path at startup)
 ├── ObjeX.Migrations.PostgreSql/  # PostgreSQL-specific EF Core migrations
 ├── ObjeX.Tests/         # xUnit — unit (Core validators, hashing) + integration (WebApplicationFactory, real SQLite, or PostgreSQL with OBJEX_TEST_POSTGRES)
-│   ├── Unit/            # BucketNameValidator, ObjectKeyValidator, HashingStream, Sha256HashService, StorageSpaceStatus, ETags, CustomMetadata, InlineMediaTypes, S3ClientSnippets, TextPreview, BrowserTimeZone, SearchPattern
-│   └── Integration/     # S3 API round-trips, S3 conformance and pagination, auth, multipart, quotas, storage space, resilience, cookie auth, health
+│   ├── Unit/            # BucketNameValidator, ObjectKeyValidator, HashingStream, Sha256HashService, StorageSpaceStatus, ETags, CustomMetadata, InlineMediaTypes, S3ClientSnippets, TextPreview, BrowserTimeZone, SearchPattern, UiRules (design rules, reads the UI sources as text), ThemeMode
+│   └── Integration/     # S3 API round-trips, S3 conformance and pagination, auth, multipart, quotas, storage space, resilience, cookie auth, health, styleguide
 └── ObjeX.Web/           # Razor class library: components, pages, dialogs, layout — no host, no wwwroot
     ├── Helpers/         # FileHelper, AppVersion, S3ClientSnippets, TextPreview, CustomMetadata
-    ├── Services/        # BrowserTimeZone (the circuit's browser zone, set by Routes from the objex-tz cookie)
+    ├── Services/        # ThemeMode (objex-theme cookie → Radzen theme and token mode class), BrowserTimeZone (the circuit's browser zone, set by Routes from the objex-tz cookie)
     └── Components/      # Routes, RedirectToLogin, S3ConnectSnippets
-        ├── Pages/       # Dashboard, Buckets, Objects, Settings, Login, NotFound, Users, ChangePassword, AuditLog, Error, Profile
-        ├── Dialogs/     # CreateBucketDialog, UploadObjectDialog, CreateS3CredentialDialog, ShowS3CredentialDialog, CreateFolderDialog, CreateUserDialog, ShowUserPasswordDialog, ChangeOwnerDialog, FilePreviewDialog, FileMetadataDialog, PresignedUrlDialog, S3ConnectDialog
-        └── Layout/      # MainLayout, NavMenu, EmptyLayout
+        ├── Pages/       # Dashboard, Buckets, Objects, Settings, Login, NotFound, Users, ChangePassword, AuditLog, Error, Profile, Styleguide (Development only)
+        ├── Dialogs/     # CreateBucketDialog, UploadObjectDialog, CreateS3CredentialDialog, ShowS3CredentialDialog, CreateFolderDialog, CreateUserDialog, ShowUserPasswordDialog, ChangeOwnerDialog, FilePreviewDialog, FileMetadataDialog, PresignedUrlDialog, S3ConnectDialog, ConfirmDialog, SetQuotaDialog
+        ├── Layout/      # MainLayout, NavMenu, SidebarFooter, EmptyLayout, ReconnectModal
+        └── Ui/          # the UI library: Ox* components with scoped CSS, OxEnums.cs (enums, OxSizes)
 ```
 
 Outside `src/`: `tests/s3-conformance/` (harness that runs ceph/s3-tests against the checkout), `deploy/` (compose files, Helm chart), `docs/` (configuration, API, architecture).
@@ -96,6 +97,7 @@ S3 pipeline (ObjeX.Api/S3/S3Pipeline.cs — own ApplicationBuilder, own routing,
 
 UI pipeline (everything else)
   UseExceptionHandler      ← JSON 500 (Development: developer exception page)
+  UseWhen(/styleguide)     ← outside Development only: plain 404, ahead of the status code pages
   UseWhen(!api, !metrics)  ← UseStatusCodePagesWithRedirects("/not-found") — only browser paths, never /api or /metrics
   UseResponseCompression
   UseStaticFiles
@@ -174,7 +176,7 @@ GET  /account/logout  ← clears Identity cookie; redirects to /login
 
 The login endpoint accepts `login` (username or email — detected by `@` presence), `password`, and `returnUrl` form fields. On failure it redirects back to `/login?error=1&login={value}` so the form can pre-fill the username; `&msg=` carries a specific reason for locked, deactivated, or temporary-password-expired accounts. A ticked "Stay signed in" checkbox sends `rememberMe=true`. The endpoint checks the password with `CheckPasswordSignInAsync`, then calls `SignInAsync` with `IsPersistent = rememberMe` and `ExpiresUtc = now + Auth:RememberMeDays`. Unticked logins get a session cookie on the 60-minute sliding lifetime. Sliding renewal reuses the ticket's own lifetime (`ExpiresUtc - IssuedUtc`), so remembered sessions keep renewing at `RememberMeDays`. Every login POST also sets the `objex-remember` cookie (`1` or `0`, one year, HttpOnly) with the last choice; `Login.razor` reads it while prerendering and carries the value into the interactive render through `PersistentComponentState`, because `HttpContext` is null inside the circuit.
 
-`Login.razor` uses `@layout EmptyLayout` and `[AllowAnonymous]`. It renders a plain HTML `<form method="post" action="/account/login">` — not a Blazor event handler. It shows a Radzen toast notification on error (detected via `?error=1` query param in `OnAfterRenderAsync`).
+`Login.razor` uses `@layout EmptyLayout` and `[AllowAnonymous]`. It renders a plain HTML `<form method="post" action="/account/login">` — not a Blazor event handler. The fields are `OxTextInput` without `ValueChanged`, so they are plain form inputs and the password never travels over the circuit. It shows a Radzen toast notification on error (detected via `?error=1` query param in `OnAfterRenderAsync`).
 
 ### Blazor Global Route Protection
 
@@ -427,20 +429,28 @@ External S3 clients → HTTP → ObjeX.Api endpoints → same services
 
 **Render mode:** Set globally on `<Routes @rendermode="InteractiveServer" />` in `ObjeX.Api/Components/App.razor`. Do NOT add `@rendermode` per-page — the global setting covers all pages.
 
-**UI library:** Radzen Blazor. Registered via `AddRadzenComponents()` in `Startup/ServiceCollectionExtensions.AddObjeXBlazor`. `<RadzenComponents />` in `MainLayout.razor` hosts dialog, notification, context menu, tooltip and chart tooltip. Do not add a separate `<RadzenDialog />`, `<RadzenNotification />` or `<RadzenContextMenu />` next to it — each host subscribes to the service unguarded, so a second one renders every popup twice.
+**Layout:** `MainLayout` renders `OxShell`: sidebar with `NavMenu` (Dashboard, Buckets, Audit Log, Users, Jobs, Settings; Jobs is the Hangfire dashboard and leaves the circuit with a full page load) and `SidebarFooter` (disk meter, user, sign out, version). Below 900 px the sidebar is a drawer. Page content starts with `OxPageHeader`; its title or `OxBreadcrumbs` is the `<h1>` that `FocusOnNavigate` targets.
+
+**UI library:** `ObjeX.Web/Components/Ui/`, style "Papier". Pages, dialogs and layout use only `Ox*` components plus the Radzen components that stay: `RadzenDataGrid`, charts, `RadzenComponents` (dialog, notification, context menu, tooltip), `RadzenDropDown`, `RadzenNumeric`. No `RadzenStack`, `RadzenText`, `RadzenButton`, `RadzenCard`, `RadzenLayout`, `RadzenSidebar`, `RadzenPanelMenu`, `RadzenBadge`, `RadzenFormField`. When a value or a component is missing, add it to the tokens or to `Ui/` first, then use it. Radzen is registered via `AddRadzenComponents()` in `Startup/ServiceCollectionExtensions.AddObjeXBlazor`. `<RadzenComponents />` in `MainLayout.razor` hosts dialog, notification, context menu, tooltip and chart tooltip. Do not add a separate `<RadzenDialog />`, `<RadzenNotification />` or `<RadzenContextMenu />` next to it — each host subscribes to the service unguarded, so a second one renders every popup twice. `EmptyLayout` (login, change password, styleguide) has its own `<RadzenDialog />` and `<RadzenNotification />`, because it never renders together with `MainLayout`.
+
+**Design tokens:** `ObjeX.Api/wwwroot/tokens.css`, three layers. Layer 1 is base values: the palette (`--ox-paper-*`, `--ox-teal-*`, `--ox-viz-*`) and the scales for font size, space, radius and control size. Layer 2 is semantic roles (`--ox-surface`, `--ox-text`, `--ox-line`, `--ox-accent`, `--ox-chart-1…8`, …), one set on `:root, .ox-light` and one on `.ox-dark`. Layer 3 derives the `--rz-*` variables from the roles, so Radzen follows the tokens. Components read layer 2 and the scales only. Colour values exist in `tokens.css` only. `App.razor` loads `<RadzenTheme>`, then `tokens.css`, then `app.css`, then the scoped CSS bundle; the order decides. Every `Ox*` component has a scoped `.razor.css`; styles that reach into Radzen markup from outside (grid rows, row actions on hover, dialog, notification) are global in `app.css`.
+
+**Ui rules, enforced by `UiRulesTests`:** no `style="…"` attribute and no `<style>` block in a `.razor` file outside `Components/Ui/`; no hex, `rgb()` or `hsl()` value in `.razor`, `.css` or `.razor.js` outside `tokens.css`; no Radzen layout component; every other Radzen component must be on the allow list in the test. Sizes a page hands to a Radzen parameter (column widths, dialog widths) are constants in `OxSizes`. A control gets a width through `OxBox`.
+
+**Styleguide:** `/styleguide` renders every `Ui/` component in light and dark side by side (`OxThemeScope`). Development only: outside Development the host answers 404 (`Program.cs`, ahead of the status code pages) and the page calls `NavigationManager.NotFound()`. No page links to it.
 
 **Validation pattern:**
 - **Enforcement** → service layer only (`EfCoreMetadataService` calls `BucketNameValidator`, throws `ArgumentException` on invalid input)
 - **UX feedback** → Blazor dialogs use the same `BucketNameValidator` from Core for inline errors as the user types
 - **API endpoints** → do NOT duplicate validation; catch `ArgumentException` from the service and return `400 BadRequest`
 
-**Input reactivity:** Use native `<input @oninput="...">` with `class="rz-textbox"` instead of `<RadzenTextBox>` when you need per-keystroke updates. Radzen's `ValueChanged` fires on `onchange` (blur), not `oninput`.
+**Input reactivity:** `OxTextInput` and `OxSearch` wrap a native `<input>` and fire `ValueChanged` on every keystroke (`@bind-Value` works). `OxTextInput` attaches its handlers only when someone listens: a handler that ignores the event would make Blazor reset the input to its rendered value. Without `ValueChanged` it is a plain form field (login).
 
 **EF Core + `init` properties:** Both `Bucket` and `BlobObject` use `Guid Id { get; init; } = Guid.NewGuid()`. EF Core 10 must be told not to generate its own value — both entities have `.ValueGeneratedNever()` configured in `ObjeXDbContext`. Do not remove this — removing it causes "Unexpected entry.EntityState: Detached" on insert. Same applies to `S3Credential.Id`.
 
 **Dialogs:** Use `DialogService.OpenAsync<TComponent>("Title")` — returns the value passed to `DialogService.Close(value)`, or `null` if cancelled. Always null-check the return before acting on it. For complex return types, define a nested `public record` inside the dialog's `@code` block and reference it as `DialogComponent.RecordType` from the caller. Use `OpenAsync` (not `Alert`) when the dialog body needs rendered HTML — `Alert` renders plain text only.
 
-Keyboard handling: text-input dialogs (`CreateBucketDialog`, `CreateS3CredentialDialog`) bind `@onkeydown` on the `<input>` — Enter submits (if valid), Escape cancels. `ShowS3CredentialDialog` binds `@onkeydown` on the container `<RadzenStack tabindex="-1">`. `CreateFolderDialog` follows the same pattern. Do NOT rely on Radzen's built-in Enter-to-submit — it doesn't exist.
+Keyboard handling: text-input dialogs (`CreateBucketDialog`, `CreateS3CredentialDialog`, `CreateFolderDialog`, `CreateUserDialog`) use `OnEnter` and `OnEscape` of `OxTextInput` — Enter submits (if valid), Escape cancels. `ShowS3CredentialDialog` binds `@onkeydown` on the container `<OxStack tabindex="-1">`. Yes-or-no questions go through `ConfirmDialog.AskAsync(DialogService, title, message, confirmText, danger)`, not `DialogService.Confirm`; dialog widths come from `OxSizes.Dialog*`. Do NOT rely on Radzen's built-in Enter-to-submit — it doesn't exist.
 
 `FileMetadataDialog` renders the stored `x-amz-meta-*` headers as a "Custom metadata" section via `Helpers/CustomMetadata.Parse` — prefix stripped, ordinal key order, malformed or empty JSON treated as no entries.
 
@@ -448,25 +458,27 @@ Keyboard handling: text-input dialogs (`CreateBucketDialog`, `CreateS3Credential
 
 **File downloads are the exception to "no API calls from Blazor":** Blazor Server runs on the server and cannot push file bytes to the browser's download manager through SignalR. Download buttons use a plain `<a href="/api/objects/..." download>` pointing at the API endpoint. This is not an architecture violation — it's a browser constraint.
 
-**Clickable links in grids:** Use `<a href="..." style="color:var(--rz-primary);text-decoration:none">` — do NOT use `<RadzenLink>` which renders red in the Material theme. This applies to bucket name links in `Buckets.razor` and `Dashboard.razor`.
+**Clickable links in grids:** `OxFileName` (icon plus name, a link when `Href` is set) for buckets, folders and objects; `OxLink` for any other link. Row actions sit in `OxRowActions`: at most two direct `OxIconButton`s and one `OxMenuButton` with `OxMenuItem`s for the rest, destructive entries last. They show on row hover and keyboard focus, always on touch devices. A selected row gets `OxSizes.SelectedRowClass` through `RowRender`.
 
-**Virtual folder navigation:** `Objects.razor` tracks `_currentPrefix` (e.g. `"photos/2024/"`) as component state. Calls `ListObjectsAsync` with `delimiter: "/"` — folders render as clickable rows, files as regular rows in a unified `RadzenDataGrid`. Breadcrumb segments are `<span @onclick>` (not `RadzenLink`) to avoid full-page navigation. Folder create writes a zero-byte placeholder object with key `prefix/` and `ContentType: application/x-directory`. Upload prepends `_currentPrefix` to the file name. Placeholder objects (key ends with `/`) are filtered from file rows. File rows carry a `content_copy` button that opens a `ContextMenuService` menu with "Copy key" and "Copy S3 URI" (`s3://{bucket}/{key}`); feedback is a Success notification, not the icon flip used outside grids. Folder rows get a hidden placeholder button to keep the actions aligned. A search box in the toolbar (hidden while the bucket is empty) filters with a 300 ms debounce over `_currentPrefix` and everything below it — the grid then shows file rows only, keyed relative to the prefix, capped at 500 with a "N results · first 500 shown" caption; Escape, the clear button and breadcrumb navigation restore the folder view.
+**Virtual folder navigation:** `Objects.razor` tracks `_currentPrefix` (e.g. `"photos/2024/"`) as component state. Calls `ListObjectsAsync` with `delimiter: "/"` — folders render as links, files as regular rows in a unified `RadzenDataGrid`. Breadcrumb segments and folder names are real links (`?prefix=`); the router keeps the circuit and `OnParametersSetAsync` loads the folder, so Back and Forward work. Folder create writes a zero-byte placeholder object with key `prefix/` and `ContentType: application/x-directory`. Upload prepends `_currentPrefix` to the file name. Placeholder objects (key ends with `/`) are filtered from file rows. File rows show Download and Share link; the More menu holds Preview, Metadata, "Copy key", "Copy S3 URI" (`s3://{bucket}/{key}`) and Delete. Folder rows have the menu only (Download ZIP, Delete). Copy feedback is a Success notification. The selection bar (`OxSelectionBar`) exists only while a row is selected. The "Modified" column shows `UpdatedAt`. A search box in the toolbar (hidden while the bucket is empty) filters with a 300 ms debounce over `_currentPrefix` and everything below it — the grid then shows file rows only, keyed relative to the prefix, capped at 500 with a "N results · first 500 shown" caption; Escape, the clear button and breadcrumb navigation restore the folder view.
 
-**Dashboard "Disk" card:** free of total space of the blob volume via `IStorageSpaceService`, visible to every role because the 507 hits every role. `Warning` at or below twice `Storage:MinimumFreeDiskBytes`, `Danger` at or below it. The disk read in `LoadStats` has its own change label, because free space moves without any bucket changing.
+**Disk space:** free of total space of the blob volume via `IStorageSpaceService`, in the sidebar footer (`SidebarFooter.razor`) for every role, because the 507 hits every role; re-read on each navigation. The meter turns `Warning` at or below twice `Storage:MinimumFreeDiskBytes` and `Danger` at or below it. The Dashboard has no Disk card; it shows an alert in those two states. The disk read in `LoadStats` has its own change label, because free space moves without any bucket changing.
+
+**Dashboard charts:** `RadzenChart` inside `OxChart`. Slices take `OxChart.Slot(n)` (`--ox-chart-1…8`, then `--ox-chart-other`) with a 2 px surface stroke as the gap. A bucket keeps its colour in both bucket charts: the slot comes from its rank by size. The chart colours are validated as a set for colour-blind separation and 3:1 against the surface; do not add a ninth hue.
 
 **Global search on `/buckets`:** `Buckets.razor` has a 300 ms debounced search box (hidden when the user has no buckets) that calls `SearchAllObjectsAsync(_isPrivileged ? null : userId, term, 501)` and swaps the bucket grid for a result grid — Bucket link, Key linking to its folder (`?prefix=`, per-segment encoded), Size, Modified, download; Escape or the clear button restores the bucket grid.
 
-**Dark mode:** Theme stored in `objex-theme` cookie. `App.razor` reads cookie via `IHttpContextAccessor` server-side and passes to `<RadzenTheme>` — no flash on load. An inline `<script>` in `<head>` sets the cookie from `prefers-color-scheme` on first visit. Toggle in Settings page uses `ThemeService.SetTheme()` + JS cookie write. `ThemeService` is registered as `AddScoped<ThemeService>()` — do NOT use `AddRadzenCookieThemeService` (it fights the server-side rendering). Read initial switch state from cookie via JS in `OnAfterRenderAsync`, not from `ThemeService.Theme` (which is null on Blazor init).
+**Dark mode:** Theme stored in the `objex-theme` cookie (`standard` or `standard-dark`; `ThemeMode` also reads the older `material` and `material-dark`). `App.razor` reads the cookie via `IHttpContextAccessor` server-side, passes `ThemeMode.Radzen(...)` to `<RadzenTheme>` and sets `ox-light` or `ox-dark` on `<html>` — no flash on load. An inline `<script>` in `<head>` sets the cookie from `prefers-color-scheme` on the first visit and reloads once when that is dark. The toggle in Settings uses `ThemeService.SetTheme()`, a JS cookie write and `ObjeX.setTheme()` for the class on `<html>`. `ThemeService` is registered as `AddScoped<ThemeService>()` — do NOT use `AddRadzenCookieThemeService` (it fights the server-side rendering). Read the initial switch state from the cookie via JS in `OnAfterRenderAsync`, not from `ThemeService.Theme` (which is null on Blazor init).
 
 **Time zone:** All stored timestamps are UTC; the browser's zone comes from the `objex-tz` cookie. An inline `<script>` in `App.razor` writes it on every load (`Intl.DateTimeFormat().resolvedOptions().timeZone`), unconditionally, because a laptop may change zones. `App.razor` reads the cookie via `IHttpContextAccessor` and passes it as `<Routes TimeZoneId="..." />`; `Routes.OnParametersSet` calls `BrowserTimeZone.Set()`. `BrowserTimeZone` is scoped, registered in `AddObjeXBlazor` next to `ThemeService`, so it lives as long as the circuit. Pages and dialogs inject `BrowserTimeZone Tz` and render `Tz.Format(...)` (`yyyy-MM-dd HH:mm`, invariant culture) or `Tz.FormatSeconds(...)` only where seconds were already shown. Never use `ToLocalTime()` or `DateTime.Now` in the UI: both give the server's zone. `ToLocal` stamps `DateTimeKind.Utc` first, because SQLite returns `Kind == Unspecified`. An unknown, empty or over-long id falls back to UTC. The first server render before the cookie exists is UTC; the login redirect is a full page load, so every page after login carries the cookie. The Debian `mcr.microsoft.com/dotnet/aspnet` base image ships tzdata; an Alpine base would need `apk add tzdata`.
 
-**Font:** Inter, self-hosted in `ObjeX.Api/wwwroot/fonts/` (weights 300–700). Applied globally via `:root { --rz-body-font-family: 'Inter' }` + `*:not(.material-icons):not(.material-icons-outlined):not([class*="rz-icon"]):not(i)` — the `:not()` exclusions are critical to prevent Material Icons from rendering as text.
+**Font:** Inter, self-hosted in `ObjeX.Api/wwwroot/fonts/` (weights 400, 500, 600 are declared). Set on `body` and as `--rz-text-font-family` through `--ox-font`. Icons are Material Symbols Outlined from the font Radzen ships (`--ox-font-icon`), rendered by `OxIcon`; no second icon set.
 
-**Theme colors:** Teal primary via CSS variable overrides in `app.css` loaded after `<RadzenTheme>` in `App.razor` — load order matters, loading before causes Radzen to overwrite the overrides. Overrides only `--rz-primary*` variables; do NOT override base background/text colors as they break light mode.
+**Theme colors:** teal `--ox-accent` for the primary action, warm greys for everything else, colour on the folder, image and video icons. All of it is in `tokens.css`; the Radzen base theme is `standard` / `standard-dark`.
 
 **Server-side paging with Radzen + prerender:** Radzen DataGrid's `LoadData` event does NOT fire after the interactive WebSocket reconnects — the prerender phase consumes the initial trigger. Fix: call `_grid.Reload()` in `OnAfterRenderAsync(firstRender)`. See `AuditLog.razor` for the pattern.
 
-**Profile page** (`/profile`): username (alphanumeric only, no spaces, validated per-keystroke via `@oninput`), email, and password change sections. Uses `visibility: hidden` (not `@if`) for error messages to prevent layout shift. After username save: `forceLoad: true` reload to refresh NavMenu. After password change: forced logout (`Navigation.NavigateTo("/account/logout", forceLoad: true)`).
+**Profile page** (`/profile`): username (alphanumeric only, no spaces, validated per-keystroke via `@oninput`), email, and password change sections. Error messages use `OxField` with `ReserveError`, which keeps the line so the form does not jump. After username save: `forceLoad: true` reload to refresh NavMenu. After password change: forced logout (`Navigation.NavigateTo("/account/logout", forceLoad: true)`).
 
 ---
 
@@ -487,6 +499,7 @@ GET    /health/ready      → readiness (checks DB connectivity + blob storage w
 GET    /metrics           → Prometheus metrics (HTTP request stats + per-bucket storage gauges, synced every 30s, deleted buckets dropped); open unless Metrics:Token is set (Bearer)
 GET    /audit             → Audit log (Admin only); server-side paginated table of bucket/object operations
 GET    /hangfire          → Hangfire dashboard (Admin role only)
+GET    /styleguide        → Ui library styleguide (Development only, 404 otherwise)
 
 # S3-Compatible API — Server:S3Port, default 9000 (AWS Signature V4 required)
 # Own pipeline (ObjeX.Api/S3/S3Pipeline.cs): MapGroup("/").RequireAuthorization() inside its own routing.
