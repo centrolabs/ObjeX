@@ -1,0 +1,6 @@
+<div class="ox-row-actions">@ChildContent</div>
+
+@code {
+    /// <summary>At most three controls: two direct actions and the menu. Visibility is a grid rule in app.css.</summary>
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+}

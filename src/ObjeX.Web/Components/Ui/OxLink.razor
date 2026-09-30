@@ -1,0 +1,16 @@
+@if (Href is null)
+{
+    <button type="button" class="ox-link" @onclick="OnClick" @attributes="Attributes">@ChildContent</button>
+}
+else
+{
+    <a href="@Href" class="ox-link" @attributes="Attributes">@ChildContent</a>
+}
+
+@code {
+    /// <summary>Without an address the link is a button that looks like a link.</summary>
+    [Parameter] public string? Href { get; set; }
+    [Parameter] public EventCallback<MouseEventArgs> OnClick { get; set; }
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+    [Parameter(CaptureUnmatchedValues = true)] public Dictionary<string, object>? Attributes { get; set; }
+}

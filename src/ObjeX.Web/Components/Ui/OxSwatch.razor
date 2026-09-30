@@ -1,0 +1,6 @@
+<span class="ox-swatch" style="background:var(@Token)"></span>
+
+@code {
+    /// <summary>Name of a colour token, for example "--ox-accent". Shows the value of the enclosing mode.</summary>
+    [Parameter, EditorRequired] public string Token { get; set; } = string.Empty;
+}

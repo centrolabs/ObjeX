@@ -1,0 +1,14 @@
+.ox-nav-item {
+    display: flex;
+    align-items: center;
+    gap: var(--ox-space-5);
+    height: var(--ox-size-ctl);
+    padding: 0 var(--ox-space-5);
+    border-radius: var(--ox-radius-md);
+    color: var(--ox-text-side-muted);
+    text-decoration: none;
+}
+
+.ox-nav-item:hover { background: var(--ox-surface-nav-hover); color: var(--ox-text); }
+.ox-nav-item.is-active { background: var(--ox-surface-nav-active); color: var(--ox-text); font-weight: var(--ox-fw-semibold); }
+.ox-nav-item:focus-visible { outline: var(--ox-ring) solid var(--ox-accent-text); outline-offset: calc(-1 * var(--ox-ring)); }

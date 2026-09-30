@@ -1,0 +1,7 @@
+<div class="ox-theme-scope @(Dark ? "ox-dark" : "ox-light")">@ChildContent</div>
+
+@code {
+    /// <summary>Renders its content in one mode regardless of the page's mode. Used by the styleguide.</summary>
+    [Parameter] public bool Dark { get; set; }
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+}

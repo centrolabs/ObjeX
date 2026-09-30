@@ -1,0 +1,23 @@
+<h1 class="ox-crumbs" tabindex="-1">
+    @for (var i = 0; i < Items.Count; i++)
+    {
+        var item = Items[i];
+        if (i > 0)
+        {
+            <span class="ox-crumbs-sep" aria-hidden="true">/</span>
+        }
+        if (item.Href is not null && i < Items.Count - 1)
+        {
+            <a href="@item.Href">@item.Text</a>
+        }
+        else
+        {
+            <span aria-current="page">@item.Text</span>
+        }
+    }
+</h1>
+
+@code {
+    /// <summary>From the root to the current location. Only entries before the last one link.</summary>
+    [Parameter, EditorRequired] public IReadOnlyList<OxCrumb> Items { get; set; } = [];
+}

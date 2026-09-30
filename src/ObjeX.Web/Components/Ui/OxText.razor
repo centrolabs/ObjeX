@@ -1,0 +1,35 @@
+@switch (Variant)
+{
+    case OxTextVariant.Title:
+        <h1 class="@Css" @attributes="Attributes">@ChildContent</h1>
+        break;
+    case OxTextVariant.Heading:
+        <h2 class="@Css" @attributes="Attributes">@ChildContent</h2>
+        break;
+    case OxTextVariant.Mono:
+        <code class="@Css" @attributes="Attributes">@ChildContent</code>
+        break;
+    default:
+        <span class="@Css" @attributes="Attributes">@ChildContent</span>
+        break;
+}
+
+@code {
+    [Parameter] public OxTextVariant Variant { get; set; }
+    [Parameter] public OxTone Tone { get; set; }
+    /// <summary>Cuts the text with an ellipsis instead of wrapping.</summary>
+    [Parameter] public bool Truncate { get; set; }
+    /// <summary>Keeps its box while invisible, so an error message does not shift the layout.</summary>
+    [Parameter] public bool Hidden { get; set; }
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+    [Parameter(CaptureUnmatchedValues = true)] public Dictionary<string, object>? Attributes { get; set; }
+
+    string Css => string.Join(' ', new[]
+    {
+        "ox-text",
+        $"ox-text--{Variant.ToString().ToLowerInvariant()}",
+        Tone == OxTone.Default ? null : $"ox-text--tone-{Tone.ToString().ToLowerInvariant()}",
+        Truncate ? "ox-text--truncate" : null,
+        Hidden ? "ox-text--hidden" : null
+    }.Where(c => c is not null));
+}

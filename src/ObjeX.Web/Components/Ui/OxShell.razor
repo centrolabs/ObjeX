@@ -1,0 +1,40 @@
+@implements IDisposable
+@inject NavigationManager Navigation
+
+<div class="ox-shell @(_drawerOpen ? "is-drawer-open" : null)">
+    <header class="ox-shell-bar">
+        <OxIconButton Icon="menu" Label="Menu" OnClick="@(() => _drawerOpen = !_drawerOpen)" aria-expanded="@(_drawerOpen ? "true" : "false")" />
+        <a class="ox-shell-brand" href="/"><img src="favicon.svg" alt="" />@Brand</a>
+    </header>
+    <div class="ox-shell-scrim" @onclick="@(() => _drawerOpen = false)"></div>
+    <aside class="ox-shell-side">
+        <a class="ox-shell-brand" href="/"><img src="favicon.svg" alt="" />@Brand</a>
+        <nav class="ox-shell-nav" aria-label="Main">@Nav</nav>
+        <div class="ox-shell-grow"></div>
+        @SideFooter
+    </aside>
+    <main class="ox-shell-main">@ChildContent</main>
+</div>
+
+@code {
+    bool _drawerOpen;
+
+    [Parameter] public string Brand { get; set; } = "ObjeX";
+    /// <summary><see cref="OxNavItem"/> entries.</summary>
+    [Parameter] public RenderFragment? Nav { get; set; }
+    /// <summary>Bottom of the sidebar: disk meter, user, version.</summary>
+    [Parameter] public RenderFragment? SideFooter { get; set; }
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    protected override void OnInitialized() => Navigation.LocationChanged += OnLocationChanged;
+
+    // Below 900 px the sidebar is a drawer; a navigation closes it.
+    void OnLocationChanged(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e)
+    {
+        if (!_drawerOpen) return;
+        _drawerOpen = false;
+        InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose() => Navigation.LocationChanged -= OnLocationChanged;
+}

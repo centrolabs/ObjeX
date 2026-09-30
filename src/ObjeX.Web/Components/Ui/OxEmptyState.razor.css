@@ -1,0 +1,12 @@
+.ox-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--ox-space-4);
+    padding: var(--ox-space-9);
+    color: var(--ox-text-muted);
+    text-align: center;
+}
+
+.ox-empty strong { font-size: var(--ox-fs-lg); font-weight: var(--ox-fw-semibold); color: var(--ox-text); }
+.ox-empty ::deep .ox-icon { font-size: var(--ox-fs-2xl); }

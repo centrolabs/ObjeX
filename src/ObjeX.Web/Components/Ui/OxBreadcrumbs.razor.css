@@ -1,0 +1,17 @@
+.ox-crumbs {
+    display: flex;
+    align-items: center;
+    gap: var(--ox-space-3);
+    min-width: 0;
+    margin: 0;
+    font-size: var(--ox-fs-xl);
+    font-weight: var(--ox-fw-semibold);
+    white-space: nowrap;
+}
+
+.ox-crumbs:focus { outline: none; }
+.ox-crumbs a { border-radius: var(--ox-radius-sm); color: var(--ox-text-muted); text-decoration: none; }
+.ox-crumbs a:hover { color: var(--ox-text); }
+.ox-crumbs a:focus-visible { outline: var(--ox-ring) solid var(--ox-accent-text); outline-offset: var(--ox-ring); }
+.ox-crumbs span[aria-current] { overflow: hidden; text-overflow: ellipsis; }
+.ox-crumbs-sep { color: var(--ox-text-faint); }

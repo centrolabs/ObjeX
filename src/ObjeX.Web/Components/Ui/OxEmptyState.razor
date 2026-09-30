@@ -1,0 +1,16 @@
+<div class="ox-empty">
+    <OxIcon Name="@Icon" />
+    <strong>@Title</strong>
+    @if (ChildContent is not null)
+    {
+        <span>@ChildContent</span>
+    }
+    @Action
+</div>
+
+@code {
+    [Parameter] public string Icon { get; set; } = "inbox";
+    [Parameter, EditorRequired] public string Title { get; set; } = string.Empty;
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+    [Parameter] public RenderFragment? Action { get; set; }
+}

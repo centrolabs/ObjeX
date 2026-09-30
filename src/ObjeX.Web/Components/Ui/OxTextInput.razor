@@ -1,0 +1,38 @@
+<input @ref="_input" class="ox-input @(Invalid ? "is-invalid" : null) @(Mono ? "ox-input--mono" : null)" type="@Type" value="@Value"
+       placeholder="@Placeholder" disabled="@Disabled" readonly="@ReadOnly" aria-invalid="@(Invalid ? "true" : null)"
+       @oninput="@(e => ValueChanged.InvokeAsync(e.Value?.ToString() ?? string.Empty))" @onkeydown="OnKeyDown" @attributes="Attributes" />
+
+@code {
+    ElementReference _input;
+
+    [Parameter] public string? Value { get; set; }
+    /// <summary>Fires on every keystroke.</summary>
+    [Parameter] public EventCallback<string> ValueChanged { get; set; }
+    [Parameter] public string Type { get; set; } = "text";
+    [Parameter] public string? Placeholder { get; set; }
+    [Parameter] public bool Disabled { get; set; }
+    [Parameter] public bool ReadOnly { get; set; }
+    [Parameter] public bool Invalid { get; set; }
+    [Parameter] public bool Mono { get; set; }
+    /// <summary>Takes the keyboard focus when it first renders, for the first field of a dialog.</summary>
+    [Parameter] public bool AutoFocus { get; set; }
+    [Parameter] public EventCallback OnEnter { get; set; }
+    [Parameter] public EventCallback OnEscape { get; set; }
+    /// <summary>Lands on the input: name, autocomplete, maxlength, required.</summary>
+    [Parameter(CaptureUnmatchedValues = true)] public Dictionary<string, object>? Attributes { get; set; }
+
+    public ValueTask FocusAsync() => _input.FocusAsync();
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && AutoFocus)
+            await _input.FocusAsync();
+    }
+
+    Task OnKeyDown(KeyboardEventArgs e) => e.Key switch
+    {
+        "Enter" => OnEnter.InvokeAsync(),
+        "Escape" => OnEscape.InvokeAsync(),
+        _ => Task.CompletedTask
+    };
+}

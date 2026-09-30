@@ -1,0 +1,11 @@
+.ox-theme-scope {
+    display: flex;
+    flex-direction: column;
+    gap: var(--ox-space-7);
+    min-width: 0;
+    padding: var(--ox-space-8);
+    border: var(--ox-border) solid var(--ox-line-strong);
+    border-radius: var(--ox-radius-md);
+    background: var(--ox-surface);
+    color: var(--ox-text);
+}

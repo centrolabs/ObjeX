@@ -1,0 +1,17 @@
+.ox-page-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--ox-space-4) var(--ox-space-8);
+    min-height: var(--ox-size-ctl);
+}
+
+.ox-page-head-title { display: flex; align-items: baseline; gap: var(--ox-space-7); min-width: 0; }
+
+.ox-page-head-title h1 { margin: 0; font-size: var(--ox-fs-xl); font-weight: var(--ox-fw-semibold); }
+.ox-page-head-title h1:focus { outline: none; }
+
+.ox-page-head-meta { font-size: var(--ox-fs-sm); color: var(--ox-text-muted); white-space: nowrap; }
+
+.ox-page-head-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ox-space-4); }

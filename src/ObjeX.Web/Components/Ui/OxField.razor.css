@@ -1,0 +1,13 @@
+.ox-field { display: flex; flex-direction: column; gap: var(--ox-space-2); min-width: 0; }
+
+.ox-field-label {
+    display: flex;
+    flex-direction: column;
+    gap: var(--ox-space-3);
+    font-size: var(--ox-fs-sm);
+    font-weight: var(--ox-fw-medium);
+    color: var(--ox-text);
+}
+
+.ox-field-hint { font-size: var(--ox-fs-sm); color: var(--ox-text-muted); }
+.ox-field-error { font-size: var(--ox-fs-sm); color: var(--ox-danger); }

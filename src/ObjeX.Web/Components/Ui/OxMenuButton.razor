@@ -1,0 +1,72 @@
+@implements IAsyncDisposable
+@inject IJSRuntime JS
+
+<span class="ox-menu-anchor" @ref="_anchor">
+    <OxIconButton Icon="@Icon" Label="@Label" Active="@_open" OnClick="Toggle" aria-haspopup="menu" aria-expanded="@(_open ? "true" : "false")" />
+</span>
+@if (_open)
+{
+    <div class="ox-menu-backdrop" @onclick="CloseAsync"></div>
+    <div class="ox-menu" role="menu" aria-label="@Label" @ref="_panel" @onkeydown="OnKeyDown">
+        <CascadingValue Value="this" IsFixed="true">@ChildContent</CascadingValue>
+    </div>
+}
+
+@code {
+    ElementReference _anchor;
+    ElementReference _panel;
+    IJSObjectReference? _module;
+    DotNetObjectReference<OxMenuButton>? _self;
+    bool _open;
+    bool _place;
+
+    [Parameter] public string Icon { get; set; } = "more_horiz";
+    [Parameter] public string Label { get; set; } = "More";
+    /// <summary><see cref="OxMenuItem"/> and <see cref="OxMenuDivider"/> entries.</summary>
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    void Toggle()
+    {
+        _open = !_open;
+        _place = _open;
+    }
+
+    /// <summary>Closes the menu and hands the focus back to its button.</summary>
+    public async Task CloseAsync()
+    {
+        if (!_open) return;
+        _open = false;
+        StateHasChanged();
+        if (_module is not null)
+            await _module.InvokeVoidAsync("release", _anchor);
+    }
+
+    [JSInvokable]
+    public Task CloseFromScroll() => InvokeAsync(CloseAsync);
+
+    Task OnKeyDown(KeyboardEventArgs e) => e.Key == "Escape" ? CloseAsync() : Task.CompletedTask;
+
+    // The panel is fixed to the viewport, so a scrolling grid cannot clip it; the script places it under the button.
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!_place) return;
+        _place = false;
+        _module ??= await JS.InvokeAsync<IJSObjectReference>("import", "./_content/ObjeX.Web/Components/Ui/OxMenuButton.razor.js");
+        _self ??= DotNetObjectReference.Create(this);
+        await _module.InvokeVoidAsync("place", _anchor, _panel, _self);
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        try
+        {
+            if (_module is not null)
+            {
+                await _module.InvokeVoidAsync("release", null);
+                await _module.DisposeAsync();
+            }
+        }
+        catch (JSDisconnectedException) { }
+        _self?.Dispose();
+    }
+}

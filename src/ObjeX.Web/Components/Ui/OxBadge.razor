@@ -1,0 +1,6 @@
+<span class="ox-badge ox-badge--@Tone.ToString().ToLowerInvariant()">@ChildContent</span>
+
+@code {
+    [Parameter] public OxTone Tone { get; set; }
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+}

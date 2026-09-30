@@ -1,0 +1,20 @@
+<section class="ox-card @(Flush ? "ox-card--flush" : null)" @attributes="Attributes">
+    @if (Title is not null)
+    {
+        <header class="ox-card-head">
+            <h2 class="ox-card-title">@Title</h2>
+            @Actions
+        </header>
+    }
+    @ChildContent
+</section>
+
+@code {
+    [Parameter] public string? Title { get; set; }
+    /// <summary>Controls on the right of the title.</summary>
+    [Parameter] public RenderFragment? Actions { get; set; }
+    /// <summary>No padding, for a table that runs to the card's edge.</summary>
+    [Parameter] public bool Flush { get; set; }
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+    [Parameter(CaptureUnmatchedValues = true)] public Dictionary<string, object>? Attributes { get; set; }
+}

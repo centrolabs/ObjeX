@@ -1,0 +1,12 @@
+.ox-avatar {
+    flex: none;
+    display: grid;
+    place-items: center;
+    width: var(--ox-size-avatar);
+    height: var(--ox-size-avatar);
+    border-radius: var(--ox-radius-full);
+    background: var(--ox-accent);
+    color: var(--ox-on-accent);
+    font-size: var(--ox-fs-xs);
+    font-weight: var(--ox-fw-semibold);
+}

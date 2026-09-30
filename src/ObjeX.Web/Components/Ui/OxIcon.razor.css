@@ -1,0 +1,30 @@
+.ox-icon {
+    flex: none;
+    display: inline-block;
+    width: 1em;
+    height: 1em;
+    overflow: hidden;
+    font-family: var(--ox-font-icon);
+    font-size: var(--ox-size-icon);
+    font-style: normal;
+    font-weight: var(--ox-fw-regular);
+    font-variation-settings: 'FILL' 0, 'GRAD' 0, 'opsz' 20;
+    font-feature-settings: 'liga';
+    line-height: 1;
+    letter-spacing: normal;
+    text-transform: none;
+    white-space: nowrap;
+    direction: ltr;
+    -webkit-font-smoothing: antialiased;
+    user-select: none;
+    pointer-events: none;
+}
+
+.ox-icon--sm { font-size: var(--ox-size-icon-sm); font-weight: var(--ox-fw-semibold); }
+.ox-icon--muted { color: var(--ox-text-muted); }
+.ox-icon--accent { color: var(--ox-accent-text); }
+.ox-icon--warning { color: var(--ox-warning); }
+.ox-icon--danger { color: var(--ox-danger); }
+.ox-icon--folder { color: var(--ox-icon-folder); }
+.ox-icon--image { color: var(--ox-icon-image); }
+.ox-icon--video { color: var(--ox-icon-video); }

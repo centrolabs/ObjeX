@@ -1,0 +1,16 @@
+.ox-menu-anchor { display: inline-flex; }
+
+.ox-menu-backdrop { position: fixed; inset: 0; z-index: var(--ox-z-popup); }
+
+.ox-menu {
+    position: fixed;
+    z-index: calc(var(--ox-z-popup) + 1);
+    visibility: hidden;
+    min-width: var(--ox-size-menu);
+    padding: var(--ox-space-2);
+    border: var(--ox-border) solid var(--ox-line-strong);
+    border-radius: var(--ox-radius-md);
+    background: var(--ox-surface-raised);
+    box-shadow: var(--ox-shadow-pop);
+    text-align: left;
+}

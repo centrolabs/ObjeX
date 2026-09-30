@@ -1,0 +1,8 @@
+.ox-swatch {
+    flex: none;
+    display: inline-block;
+    width: var(--ox-size-ctl);
+    height: var(--ox-space-8);
+    border: var(--ox-border) solid var(--ox-line-strong);
+    border-radius: var(--ox-radius-sm);
+}

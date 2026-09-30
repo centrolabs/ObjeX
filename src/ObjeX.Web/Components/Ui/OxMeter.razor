@@ -1,0 +1,21 @@
+@using System.Globalization
+
+<div class="ox-meter @ToneClass" role="meter" aria-label="@Label" aria-valuemin="0" aria-valuemax="100" aria-valuenow="@Percent">
+    <i style="width:@(Percent)%"></i>
+</div>
+
+@code {
+    /// <summary>0 to 100.</summary>
+    [Parameter] public double Value { get; set; }
+    [Parameter] public OxTone Tone { get; set; }
+    [Parameter] public string? Label { get; set; }
+
+    string Percent => Math.Clamp(Value, 0, 100).ToString("0.#", CultureInfo.InvariantCulture);
+
+    string? ToneClass => Tone switch
+    {
+        OxTone.Warning => "is-warning",
+        OxTone.Danger => "is-danger",
+        _ => null
+    };
+}

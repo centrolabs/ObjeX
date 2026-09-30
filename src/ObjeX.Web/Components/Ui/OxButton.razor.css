@@ -1,0 +1,39 @@
+.ox-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--ox-space-3);
+    height: var(--ox-size-ctl);
+    padding: 0 var(--ox-space-6);
+    border: var(--ox-border) solid var(--ox-line-strong);
+    border-radius: var(--ox-radius-md);
+    background: var(--ox-surface);
+    color: var(--ox-text);
+    font: inherit;
+    font-weight: var(--ox-fw-medium);
+    text-decoration: none;
+    white-space: nowrap;
+    cursor: pointer;
+    box-shadow: var(--ox-shadow-ctl);
+}
+
+.ox-btn:hover { background: var(--ox-surface-hover); }
+
+.ox-btn:focus-visible { outline: var(--ox-ring) solid var(--ox-accent-text); outline-offset: var(--ox-ring); }
+
+.ox-btn--primary { border-color: var(--ox-accent); background: var(--ox-accent); color: var(--ox-on-accent); }
+
+.ox-btn--primary:hover { border-color: var(--ox-accent-hover); background: var(--ox-accent-hover); }
+
+.ox-btn--danger { color: var(--ox-danger); }
+
+.ox-btn--block { width: 100%; }
+
+.ox-btn:disabled,
+.ox-btn:disabled:hover {
+    border-color: var(--ox-line-strong);
+    background: var(--ox-surface);
+    color: var(--ox-text-faint);
+    box-shadow: none;
+    cursor: default;
+}

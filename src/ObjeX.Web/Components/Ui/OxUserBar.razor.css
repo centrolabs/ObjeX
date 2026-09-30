@@ -1,0 +1,20 @@
+.ox-user { display: flex; align-items: center; gap: var(--ox-space-2); }
+
+.ox-user-link {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: var(--ox-space-4);
+    min-width: 0;
+    height: var(--ox-size-ctl);
+    padding: 0 var(--ox-space-4);
+    border-radius: var(--ox-radius-md);
+    color: var(--ox-text);
+    text-decoration: none;
+}
+
+.ox-user-link span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ox-user-link:hover { background: var(--ox-surface-nav-hover); }
+.ox-user-link:focus-visible { outline: var(--ox-ring) solid var(--ox-accent-text); outline-offset: calc(-1 * var(--ox-ring)); }
+
+.ox-user-version { padding: 0 var(--ox-space-4); font-size: var(--ox-fs-xs); color: var(--ox-text-side-muted); }

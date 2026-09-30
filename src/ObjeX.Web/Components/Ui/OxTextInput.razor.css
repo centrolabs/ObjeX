@@ -1,0 +1,17 @@
+.ox-input {
+    width: 100%;
+    height: var(--ox-size-ctl);
+    padding: 0 var(--ox-space-5);
+    border: var(--ox-border) solid var(--ox-line-strong);
+    border-radius: var(--ox-radius-md);
+    background: var(--ox-surface-field);
+    color: var(--ox-text);
+    font: inherit;
+}
+
+.ox-input::placeholder { color: var(--ox-text-muted); opacity: 1; }
+.ox-input:focus { border-color: var(--ox-accent-text); outline: var(--ox-border) solid var(--ox-accent-text); }
+.ox-input.is-invalid { border-color: var(--ox-danger); }
+.ox-input.is-invalid:focus { outline-color: var(--ox-danger); }
+.ox-input:disabled { background: var(--ox-surface-hover); color: var(--ox-text-muted); }
+.ox-input--mono { font-family: var(--ox-font-mono); font-size: var(--ox-fs-sm); }

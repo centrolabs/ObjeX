@@ -1,0 +1,17 @@
+.ox-text { margin: 0; font-size: var(--ox-fs-md); font-weight: var(--ox-fw-regular); color: var(--ox-text); }
+
+.ox-text--muted { color: var(--ox-text-muted); }
+.ox-text--small { font-size: var(--ox-fs-sm); color: var(--ox-text-muted); }
+.ox-text--label { font-size: var(--ox-fs-sm); font-weight: var(--ox-fw-medium); color: var(--ox-text-muted); }
+.ox-text--title { font-size: var(--ox-fs-xl); font-weight: var(--ox-fw-semibold); }
+.ox-text--heading { font-size: var(--ox-fs-lg); font-weight: var(--ox-fw-semibold); }
+.ox-text--figure { font-size: var(--ox-fs-2xl); font-weight: var(--ox-fw-semibold); line-height: 1; }
+.ox-text--mono { font-family: var(--ox-font-mono); font-size: var(--ox-fs-sm); overflow-wrap: anywhere; }
+
+.ox-text--tone-muted { color: var(--ox-text-muted); }
+.ox-text--tone-accent { color: var(--ox-accent-text); }
+.ox-text--tone-warning { color: var(--ox-warning); }
+.ox-text--tone-danger { color: var(--ox-danger); }
+
+.ox-text--truncate { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ox-text--hidden { visibility: hidden; }

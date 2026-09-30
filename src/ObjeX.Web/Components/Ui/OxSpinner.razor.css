@@ -1,0 +1,17 @@
+.ox-spinner {
+    display: inline-block;
+    width: var(--ox-size-icon);
+    height: var(--ox-size-icon);
+    border: var(--ox-ring) solid var(--ox-surface-track);
+    border-top-color: var(--ox-accent-text);
+    border-radius: var(--ox-radius-full);
+    animation: ox-spin .8s linear infinite;
+}
+
+@keyframes ox-spin {
+    to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .ox-spinner { animation-duration: 2.4s; }
+}

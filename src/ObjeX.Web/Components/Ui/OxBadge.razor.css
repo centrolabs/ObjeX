@@ -1,0 +1,16 @@
+.ox-badge {
+    display: inline-flex;
+    align-items: center;
+    height: var(--ox-space-8);
+    padding: 0 var(--ox-space-3);
+    border: var(--ox-border) solid var(--ox-line-strong);
+    border-radius: var(--ox-radius-sm);
+    font-size: var(--ox-fs-xs);
+    font-weight: var(--ox-fw-medium);
+    color: var(--ox-text-muted);
+    white-space: nowrap;
+}
+
+.ox-badge--accent { border-color: var(--ox-accent-text); color: var(--ox-accent-text); }
+.ox-badge--warning { border-color: var(--ox-warning); color: var(--ox-warning); }
+.ox-badge--danger { border-color: var(--ox-danger); color: var(--ox-danger); }

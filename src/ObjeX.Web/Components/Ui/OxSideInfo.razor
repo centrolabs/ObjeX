@@ -1,0 +1,10 @@
+<div class="ox-side-info">
+    <div class="ox-side-info-text">@ChildContent</div>
+    @Meter
+</div>
+
+@code {
+    /// <summary>A short line of text in the sidebar, with an optional meter below: free disk space.</summary>
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+    [Parameter] public RenderFragment? Meter { get; set; }
+}

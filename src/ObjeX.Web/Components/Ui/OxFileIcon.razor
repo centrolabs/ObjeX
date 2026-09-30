@@ -1,0 +1,43 @@
+<OxIcon Name="@Glyph" Class="@ToneClass" />
+
+@code {
+    [Parameter] public OxFileKind Kind { get; set; }
+
+    /// <summary>The kind of a stored object, from its media type.</summary>
+    public static OxFileKind KindOf(string? contentType)
+    {
+        var type = (contentType ?? string.Empty).Split(';')[0].Trim().ToLowerInvariant();
+        return type switch
+        {
+            _ when type.StartsWith("image/") => OxFileKind.Image,
+            _ when type.StartsWith("video/") => OxFileKind.Video,
+            _ when type.StartsWith("audio/") => OxFileKind.Audio,
+            _ when type.StartsWith("text/") => OxFileKind.Text,
+            "application/json" or "application/xml" or "application/yaml" => OxFileKind.Text,
+            "application/pdf" => OxFileKind.Pdf,
+            "application/zip" or "application/gzip" or "application/x-tar" or "application/x-7z-compressed" => OxFileKind.Archive,
+            _ => OxFileKind.File
+        };
+    }
+
+    string Glyph => Kind switch
+    {
+        OxFileKind.Folder => "folder",
+        OxFileKind.Image => "image",
+        OxFileKind.Video => "movie",
+        OxFileKind.Audio => "music_note",
+        OxFileKind.Text => "description",
+        OxFileKind.Pdf => "picture_as_pdf",
+        OxFileKind.Archive => "folder_zip",
+        _ => "draft"
+    };
+
+    // Colour marks the three kinds a reader scans for; every other file stays neutral.
+    string ToneClass => Kind switch
+    {
+        OxFileKind.Folder => "ox-icon--folder",
+        OxFileKind.Image => "ox-icon--image",
+        OxFileKind.Video => "ox-icon--video",
+        _ => "ox-icon--muted"
+    };
+}
