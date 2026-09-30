@@ -1,0 +1,27 @@
+@inject DialogService DialogService
+
+<OxStack Gap="7">
+    <OxText>Set storage quota for <strong>@Username</strong></OxText>
+    <OxStack Row="true" Gap="4" Align="OxAlign.Center">
+        <OxBox Width="OxWidth.Sm">
+            <RadzenNumeric @bind-Value="_gb" Min="0" />
+        </OxBox>
+        <OxText>GB</OxText>
+    </OxStack>
+    <OxText Variant="OxTextVariant.Small">@(Unlimited ? "0 = unlimited" : "0 = use system default")</OxText>
+    <OxStack Row="true" Justify="OxJustify.End" Gap="4">
+        <OxButton OnClick="@(() => DialogService.Close(null))">Cancel</OxButton>
+        <OxButton Variant="OxButtonVariant.Primary" OnClick="@(() => DialogService.Close(_gb))">Save</OxButton>
+    </OxStack>
+</OxStack>
+
+@code {
+    int _gb;
+
+    [Parameter] public string Username { get; set; } = string.Empty;
+    [Parameter] public int CurrentGb { get; set; }
+    /// <summary>Admins and Managers have no default quota, so zero means unlimited for them.</summary>
+    [Parameter] public bool Unlimited { get; set; }
+
+    protected override void OnInitialized() => _gb = CurrentGb;
+}

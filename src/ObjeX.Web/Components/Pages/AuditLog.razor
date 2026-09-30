@@ -8,33 +8,25 @@
 
 <PageTitle>Audit Log — ObjeX</PageTitle>
 
-<RadzenStack Gap="1.5rem" Style="height:calc(100vh - 100px)">
-    <RadzenText TextStyle="TextStyle.H4">Audit Log</RadzenText>
+<OxPageHeader Title="Audit log" Meta="@($"{_count:N0} entries")" />
 
-    <RadzenCard Style="padding:0; flex:1; min-height:0; display:flex; flex-direction:column">
-        <RadzenDataGrid @ref="_grid" IsLoading="_loading" Data="_entries" TItem="AuditEntry" Count="_count"
-                        AllowSorting="true" AllowPaging="true" PageSize="20" PagerAlwaysVisible="true"
-                        LoadData="@LoadData" Style="border:none; height:100%">
-            <Columns>
-                <RadzenDataGridColumn TItem="AuditEntry" Property="Timestamp" Title="Time" Width="190px"
-                                      SortOrder="SortOrder.Descending">
-                    <Template Context="e">
-                        @Tz.FormatSeconds(e.Timestamp)
-                    </Template>
-                </RadzenDataGridColumn>
-                <RadzenDataGridColumn TItem="AuditEntry" Property="UserId" Title="User" Width="140px">
-                    <Template Context="e">
-                        @(_userNames.GetValueOrDefault(e.UserId, Truncate(e.UserId, 8)))
-                    </Template>
-                </RadzenDataGridColumn>
-                <RadzenDataGridColumn TItem="AuditEntry" Property="Action" Title="Action" Width="140px" />
-                <RadzenDataGridColumn TItem="AuditEntry" Property="BucketName" Title="Bucket" Width="160px" />
-                <RadzenDataGridColumn TItem="AuditEntry" Property="Key" Title="Key" />
-                <RadzenDataGridColumn TItem="AuditEntry" Property="Details" Title="Details" Width="280px" />
-            </Columns>
-        </RadzenDataGrid>
-    </RadzenCard>
-</RadzenStack>
+<RadzenDataGrid @ref="_grid" IsLoading="_loading" Data="_entries" TItem="AuditEntry" Count="_count"
+                AllowSorting="true" AllowAlternatingRows="false" AllowPaging="true" PageSize="20" PagerAlwaysVisible="true"
+                LoadData="@LoadData" EmptyText="No entries yet.">
+    <Columns>
+        <RadzenDataGridColumn TItem="AuditEntry" Property="Timestamp" Title="Time" Width="@OxSizes.TypeColumn"
+                              SortOrder="SortOrder.Descending" CssClass="ox-col-muted">
+            <Template Context="e">@Tz.FormatSeconds(e.Timestamp)</Template>
+        </RadzenDataGridColumn>
+        <RadzenDataGridColumn TItem="AuditEntry" Property="UserId" Title="User" Width="@OxSizes.DateColumn">
+            <Template Context="e">@(_userNames.GetValueOrDefault(e.UserId, Truncate(e.UserId, 8)))</Template>
+        </RadzenDataGridColumn>
+        <RadzenDataGridColumn TItem="AuditEntry" Property="Action" Title="Action" Width="@OxSizes.DateColumn" />
+        <RadzenDataGridColumn TItem="AuditEntry" Property="BucketName" Title="Bucket" Width="@OxSizes.DateColumn" />
+        <RadzenDataGridColumn TItem="AuditEntry" Property="Key" Title="Key" />
+        <RadzenDataGridColumn TItem="AuditEntry" Property="Details" Title="Details" Width="@OxSizes.NameColumn" CssClass="ox-col-muted" />
+    </Columns>
+</RadzenDataGrid>
 
 @code {
     RadzenDataGrid<AuditEntry> _grid = null!;

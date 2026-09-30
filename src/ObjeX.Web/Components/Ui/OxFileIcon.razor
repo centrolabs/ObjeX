@@ -23,6 +23,7 @@
     string Glyph => Kind switch
     {
         OxFileKind.Folder => "folder",
+        OxFileKind.Bucket => "inventory_2",
         OxFileKind.Image => "image",
         OxFileKind.Video => "movie",
         OxFileKind.Audio => "music_note",
@@ -35,7 +36,7 @@
     // Colour marks the three kinds a reader scans for; every other file stays neutral.
     string ToneClass => Kind switch
     {
-        OxFileKind.Folder => "ox-icon--folder",
+        OxFileKind.Folder or OxFileKind.Bucket => "ox-icon--folder",
         OxFileKind.Image => "ox-icon--image",
         OxFileKind.Video => "ox-icon--video",
         _ => "ox-icon--muted"
