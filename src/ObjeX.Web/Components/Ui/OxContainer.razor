@@ -1,0 +1,8 @@
+<div class="ox-container @(Narrow ? "ox-container--narrow" : null)">@ChildContent</div>
+
+@code {
+    /// <summary>Page body for a layout without the shell: padding and a vertical rhythm.</summary>
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+    /// <summary>Form width, centred in the viewport: login, change password.</summary>
+    [Parameter] public bool Narrow { get; set; }
+}

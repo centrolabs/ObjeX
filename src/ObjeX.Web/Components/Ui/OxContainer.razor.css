@@ -1,0 +1,17 @@
+.ox-container {
+    display: flex;
+    flex-direction: column;
+    gap: var(--ox-space-9);
+    min-height: 100vh;
+    padding: var(--ox-space-9);
+    background: var(--ox-surface);
+    color: var(--ox-text);
+}
+
+.ox-container--narrow {
+    justify-content: center;
+    gap: var(--ox-space-8);
+    width: 100%;
+    max-width: calc(var(--ox-size-form) + 2 * var(--ox-space-9));
+    margin: 0 auto;
+}
