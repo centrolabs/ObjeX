@@ -45,4 +45,4 @@ Used by the web UI; they need the login cookie unless noted.
 | `GET` | `/health`, `/health/live` | Liveness, no cookie needed |
 | `GET` | `/health/ready` | Database and blob storage check, no cookie needed |
 | `GET` | `/metrics` | Prometheus, with `Metrics:Enabled=true`; no cookie, Bearer token when `Metrics:Token` is set |
-| `GET` | `/hangfire` | Job dashboard, Admin only |
+| `GET` | `/hangfire` | Hangfire job dashboard, Admin only, Development only (the UI has its own Jobs page) |
