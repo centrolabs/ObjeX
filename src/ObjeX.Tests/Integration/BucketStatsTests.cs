@@ -129,4 +129,53 @@ public class BucketStatsTests(ObjeXFactory factory) : IClassFixture<ObjeXFactory
         Assert.Equal((1L, 40L), await StatsAsync(bucket));
         Assert.Equal(await StatsAsync(bucket), await RecountAsync(bucket));
     }
+
+    private async Task SaveRowAsync(string bucket, string key, int size)
+    {
+        using var scope = factory.CreateScope();
+        await scope.ServiceProvider.GetRequiredService<IMetadataService>()
+            .SaveObjectAsync(new BlobObject { BucketName = bucket, Key = key, ETag = "e", Size = size });
+    }
+
+    // Each write reads the stored size only inside its transaction, so parallel writes of one key never count against the same old size.
+    [Fact]
+    public async Task ParallelOverwritesOfOneKey_KeepTheStatsExact()
+    {
+        const string bucket = "stats-parallel-overwrite";
+        await CreateBucketAsync(bucket);
+        await SaveRowAsync(bucket, "same.bin", 1);
+
+        await Task.WhenAll(Enumerable.Range(1, 30).Select(i => Task.Run(() => SaveRowAsync(bucket, "same.bin", i * 1000))));
+
+        var stats = await StatsAsync(bucket);
+        Assert.Equal(1, stats.Count);
+        Assert.Equal(await RecountAsync(bucket), stats);
+    }
+
+    [Fact]
+    public async Task ParallelFirstWritesOfOneKey_StoreOneRow()
+    {
+        const string bucket = "stats-parallel-insert";
+        await CreateBucketAsync(bucket);
+
+        await Task.WhenAll(Enumerable.Range(1, 10).Select(i => Task.Run(() => SaveRowAsync(bucket, "new.bin", i * 100))));
+
+        var stats = await StatsAsync(bucket);
+        Assert.Equal(1, stats.Count);
+        Assert.Equal(await RecountAsync(bucket), stats);
+    }
+
+    [Fact]
+    public async Task ParallelDeletesAndOverwritesOfOneKey_KeepTheStatsExact()
+    {
+        const string bucket = "stats-parallel-delete";
+        await CreateBucketAsync(bucket);
+        await SaveRowAsync(bucket, "same.bin", 100);
+
+        await Task.WhenAll(Enumerable.Range(1, 20).Select(i => Task.Run(() =>
+            i % 2 == 0 ? DeleteAsync(bucket, "same.bin") : SaveRowAsync(bucket, "same.bin", i * 1000))));
+
+        var stats = await StatsAsync(bucket);
+        Assert.Equal(await RecountAsync(bucket), stats);
+    }
 }

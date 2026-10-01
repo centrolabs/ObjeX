@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 
 using ObjeX.Core.Interfaces;
 using ObjeX.Core.Models;
@@ -72,6 +73,7 @@ public class EfCoreMetadataService(IDbContextFactory<ObjeXDbContext> contexts) :
     public async Task<BlobObject> SaveObjectAsync(BlobObject blobObject, string? auditUserId = null, CancellationToken ctk = default)
     {
         await using var ctx = await contexts.CreateDbContextAsync(ctk);
+        await using var tx = await BeginBucketWriteAsync(ctx, blobObject.BucketName, ctk);
         var existing = await ctx.BlobObjects.AsNoTracking()
             .FirstOrDefaultAsync(o => o.BucketName == blobObject.BucketName && o.Key == blobObject.Key, ctk);
         var sizeDelta = blobObject.Size - (existing?.Size ?? 0);
@@ -93,7 +95,6 @@ public class EfCoreMetadataService(IDbContextFactory<ObjeXDbContext> contexts) :
         if (auditUserId is not null)
             ctx.AuditEntries.Add(new AuditEntry { UserId = auditUserId, Action = "PutObject", BucketName = blobObject.BucketName, Key = blobObject.Key, Details = $"Size: {FormatBytes(blobObject.Size)}, Type: {blobObject.ContentType}" });
 
-        await using var tx = await ctx.Database.BeginTransactionAsync(ctk);
         await ctx.SaveChangesAsync(ctk);
         await AdjustBucketStatsAsync(ctx, blobObject.BucketName, countDelta, sizeDelta, ctk);
         await tx.CommitAsync(ctk);
@@ -253,6 +254,7 @@ public class EfCoreMetadataService(IDbContextFactory<ObjeXDbContext> contexts) :
     public async Task DeleteObjectAsync(string bucketName, string key, string? auditUserId = null, CancellationToken ctk = default)
     {
         await using var ctx = await contexts.CreateDbContextAsync(ctk);
+        await using var tx = await BeginBucketWriteAsync(ctx, bucketName, ctk);
         var obj = await ctx.BlobObjects.FirstOrDefaultAsync(o => o.BucketName == bucketName && o.Key == key, ctk);
         if (obj is not null)
         {
@@ -260,7 +262,6 @@ public class EfCoreMetadataService(IDbContextFactory<ObjeXDbContext> contexts) :
             if (auditUserId is not null)
                 ctx.AuditEntries.Add(new AuditEntry { UserId = auditUserId, Action = "DeleteObject", BucketName = bucketName, Key = key });
 
-            await using var tx = await ctx.Database.BeginTransactionAsync(ctk);
             await ctx.SaveChangesAsync(ctk);
             await AdjustBucketStatsAsync(ctx, bucketName, -1, -obj.Size, ctk);
             await tx.CommitAsync(ctk);
@@ -273,6 +274,7 @@ public class EfCoreMetadataService(IDbContextFactory<ObjeXDbContext> contexts) :
         var keyList = keys.Distinct().ToList();
         if (keyList.Count == 0) return 0;
 
+        await using var tx = await BeginBucketWriteAsync(ctx, bucketName, ctk);
         var objects = await ctx.BlobObjects
             .Where(o => o.BucketName == bucketName && keyList.Contains(o.Key))
             .ToListAsync(ctk);
@@ -283,7 +285,6 @@ public class EfCoreMetadataService(IDbContextFactory<ObjeXDbContext> contexts) :
             foreach (var obj in objects)
                 ctx.AuditEntries.Add(new AuditEntry { UserId = auditUserId, Action = "DeleteObject", BucketName = bucketName, Key = obj.Key });
 
-        await using var tx = await ctx.Database.BeginTransactionAsync(ctk);
         await ctx.SaveChangesAsync(ctk);
         await AdjustBucketStatsAsync(ctx, bucketName, -objects.Count, -objects.Sum(o => o.Size), ctk);
         await tx.CommitAsync(ctk);
@@ -298,6 +299,19 @@ public class EfCoreMetadataService(IDbContextFactory<ObjeXDbContext> contexts) :
             .AnyAsync(o => o.BucketName == bucketName && o.Key == key, ctk);
     }
 
+    /// <summary>
+    /// Starts a write before anything of the bucket is read, so the stored size a delta is computed from cannot change until the commit:
+    /// SQLite begins with BEGIN IMMEDIATE and holds the write lock, PostgreSQL locks the bucket row that every write updates.
+    /// Each later statement on PostgreSQL reads with a fresh snapshot and so sees what the previous writer committed.
+    /// </summary>
+    private static async Task<IDbContextTransaction> BeginBucketWriteAsync(ObjeXDbContext ctx, string bucketName, CancellationToken ctk)
+    {
+        var tx = await ctx.Database.BeginTransactionAsync(ctk);
+        if (IsPostgreSql(ctx))
+            await ctx.Database.ExecuteSqlInterpolatedAsync($"SELECT 1 FROM buckets WHERE name = {bucketName} FOR UPDATE", ctk);
+        return tx;
+    }
+
     /// <summary>Set-based so two writers on the same bucket cannot lose each other's delta.</summary>
     private static Task AdjustBucketStatsAsync(ObjeXDbContext ctx, string bucketName, long countDelta, long sizeDelta, CancellationToken ctk) =>
         ctx.Buckets
@@ -309,11 +323,8 @@ public class EfCoreMetadataService(IDbContextFactory<ObjeXDbContext> contexts) :
 
     public async Task UpdateBucketStatsAsync(string bucketName, CancellationToken ctk = default)
     {
-        // PostgreSQL: lock the row first, so the UPDATE is a new statement whose subqueries see a concurrent writer's commit.
         await using var ctx = await contexts.CreateDbContextAsync(ctk);
-        await using var tx = await ctx.Database.BeginTransactionAsync(ctk);
-        if (IsPostgreSql(ctx))
-            await ctx.Database.ExecuteSqlInterpolatedAsync($"SELECT 1 FROM buckets WHERE name = {bucketName} FOR UPDATE", ctk);
+        await using var tx = await BeginBucketWriteAsync(ctx, bucketName, ctk);
         await ctx.Buckets
             .Where(b => b.Name == bucketName)
             .ExecuteUpdateAsync(s => s
