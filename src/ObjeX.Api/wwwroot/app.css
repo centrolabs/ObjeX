@@ -98,8 +98,9 @@ h1:focus { outline: none; }
     margin-top: var(--ox-space-8);
 }
 
-/* Buttons that Radzen renders itself (confirm and alert dialogs, grid filters) follow the Ui button. */
-.rz-button {
+/* Buttons that Radzen renders itself (confirm and alert dialogs, grid filters) follow the Ui button.
+   The spin buttons of RadzenNumeric are buttons too; they keep Radzen's own size and position. */
+.rz-button:not(.rz-numeric-button) {
     height: var(--ox-size-ctl);
     min-height: 0;
     padding: 0 var(--ox-space-6);
@@ -115,7 +116,7 @@ h1:focus { outline: none; }
 
 .rz-button.rz-base, .rz-button.rz-light, .rz-button.rz-secondary { background: var(--ox-surface); color: var(--ox-text); }
 
-.rz-button:hover:not(.rz-state-disabled) { background: var(--ox-surface-hover); color: var(--ox-text); }
+.rz-button:hover:not(.rz-state-disabled, .rz-numeric-button) { background: var(--ox-surface-hover); color: var(--ox-text); }
 
 .rz-button.rz-primary {
     border-color: var(--ox-accent);
