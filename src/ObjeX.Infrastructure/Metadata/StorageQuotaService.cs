@@ -1,5 +1,3 @@
-using System.Collections.Concurrent;
-
 using Microsoft.EntityFrameworkCore;
 using ObjeX.Core.Interfaces;
 using ObjeX.Infrastructure.Data;
@@ -9,7 +7,8 @@ namespace ObjeX.Infrastructure.Metadata;
 /// <summary>A singleton: the gates of <see cref="WriteWithinQuotaAsync"/> must be the same for every request of the process.</summary>
 public class StorageQuotaService(IDbContextFactory<ObjeXDbContext> dbFactory) : IStorageQuotaService
 {
-    private readonly ConcurrentDictionary<string, SemaphoreSlim> _ownerGates = new();
+    private readonly NamedGates _ownerGates = new();
+    private readonly NamedGates _keyGates = new();
 
     public async Task<StorageQuotaStatus> GetAsync(string userId, CancellationToken ctk = default)
     {
@@ -57,26 +56,16 @@ public class StorageQuotaService(IDbContextFactory<ObjeXDbContext> dbFactory) : 
 
     public async Task<QuotaExceeded?> WriteWithinQuotaAsync(string bucketName, string key, long newSize, Func<Task> write, CancellationToken ctk = default)
     {
-        if (await OwnerOfAsync(bucketName, ctk) is not { } ownerId || (await GetAsync(ownerId, ctk)).QuotaBytes is null)
-        {
-            await write();
-            return null;
-        }
+        var limitedOwner = await OwnerOfAsync(bucketName, ctk) is { } ownerId && (await GetAsync(ownerId, ctk)).QuotaBytes is not null ? ownerId : null;
 
-        // The write ends with the row and the owner's new TotalSize, so the next check behind the gate counts it.
-        var gate = _ownerGates.GetOrAdd(ownerId, _ => new SemaphoreSlim(1, 1));
-        await gate.WaitAsync(ctk);
-        try
-        {
-            if (await CheckWriteAsync(bucketName, key, newSize, ctk) is { } exceeded)
-                return exceeded;
-            await write();
-            return null;
-        }
-        finally
-        {
-            gate.Release();
-        }
+        // Owner gate first, key gate second, in every call, so two calls never wait for each other in a circle.
+        // The write ends with the row and the owner's new TotalSize, so the next check behind the owner gate counts it.
+        using var ownerGate = limitedOwner is null ? null : await _ownerGates.EnterAsync(limitedOwner, ctk);
+        using var keyGate = await _keyGates.EnterAsync($"{bucketName}/{key}", ctk);
+        if (limitedOwner is not null && await CheckWriteAsync(bucketName, key, newSize, ctk) is { } exceeded)
+            return exceeded;
+        await write();
+        return null;
     }
 
     private async Task<string?> OwnerOfAsync(string bucketName, CancellationToken ctk)

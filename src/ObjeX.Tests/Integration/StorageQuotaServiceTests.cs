@@ -153,6 +153,36 @@ public class StorageQuotaServiceTests(ObjeXFactory factory) : IClassFixture<Obje
         Assert.Null(await first);
     }
 
+    // Two uploads of one key would otherwise move their files and write their rows in any order: bytes of one, row of the other.
+    [Fact]
+    public async Task WriteWithinQuota_SameKey_WritesOneAtATime_EvenWithoutQuota()
+    {
+        await CreateUserAsync("write-same-key", "Manager", null, 0);
+        var firstInside = new TaskCompletionSource();
+        var releaseFirst = new TaskCompletionSource();
+        var secondWrote = false;
+
+        var first = Quota.WriteWithinQuotaAsync("write-same-key-b0", "same.bin", 600, async () =>
+        {
+            firstInside.SetResult();
+            await releaseFirst.Task;
+        });
+        await firstInside.Task;
+        var second = Quota.WriteWithinQuotaAsync("write-same-key-b0", "same.bin", 600, () =>
+        {
+            secondWrote = true;
+            return Task.CompletedTask;
+        });
+
+        await Task.Delay(200);
+        Assert.False(secondWrote);
+
+        releaseFirst.SetResult();
+        Assert.Null(await first);
+        Assert.Null(await second);
+        Assert.True(secondWrote);
+    }
+
     [Fact]
     public async Task WriteWithinQuota_Refused_LeavesTheWriteUndone()
     {
