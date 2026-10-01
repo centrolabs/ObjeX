@@ -224,6 +224,25 @@ public class BrowserUploadTests(ObjeXFactory factory) : IClassFixture<ObjeXFacto
     }
 
     [Fact]
+    public async Task ParallelUploads_NeverPassTheOwnersQuotaTogether()
+    {
+        var ownerId = await CreateUserAsync("upload-race-owner", "User", quota: 1000);
+        await CreateBucketAsync("upload-race", ownerId);
+        var owner = await UiSession.LoginAsync(factory, "upload-race-owner", "test1234");
+
+        // Each file fits on its own, any two together do not.
+        var responses = await Task.WhenAll(Enumerable.Range(1, 3).Select(i =>
+            owner.PutAsync(FileHelper.UploadUrl("upload-race", $"part-{i}.bin"), Body(RandomNumberGenerator.GetBytes(600)))));
+
+        Assert.Equal(1, responses.Count(r => r.StatusCode == HttpStatusCode.OK));
+        Assert.Equal(2, responses.Count(r => r.StatusCode == (HttpStatusCode)507));
+        using var scope = factory.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ObjeXDbContext>();
+        Assert.Equal(600, (await db.Buckets.AsNoTracking().SingleAsync(b => b.Name == "upload-race")).TotalSize);
+        Assert.Empty(BucketFiles("upload-race", "*.tmp"));
+    }
+
+    [Fact]
     public async Task FreeDiskBelowTheMinimum_Returns507_AndWritesNothing()
     {
         using var lowDisk = factory.WithWebHostBuilder(b => b.UseSetting("Storage:MinimumFreeDiskBytes", (long.MaxValue / 4).ToString()));

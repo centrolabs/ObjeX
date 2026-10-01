@@ -57,7 +57,7 @@ public static class ServiceCollectionExtensions
     public static IServiceCollection AddObjeXStorage(this IServiceCollection services, string blobBasePath, long minimumFreeDiskBytes)
     {
         services.AddScoped<IMetadataService, EfCoreMetadataService>();
-        services.AddScoped<IStorageQuotaService, StorageQuotaService>();
+        services.AddSingleton<IStorageQuotaService, StorageQuotaService>();
         services.AddSingleton<IHashService, Sha256HashService>();
         services.AddSingleton<IStorageSpaceService>(_ => new StorageSpaceService(blobBasePath, minimumFreeDiskBytes));
 

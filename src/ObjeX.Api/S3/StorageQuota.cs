@@ -9,10 +9,18 @@ public static class StorageQuota
     {
         var exceeded = await ctx.RequestServices.GetRequiredService<IStorageQuotaService>()
             .CheckWriteAsync(bucketName, key, newSize, ctx.RequestAborted);
-
-        return exceeded is null
-            ? null
-            : S3Xml.Error(S3Errors.EntityTooLarge,
-                $"Storage quota exceeded ({exceeded.RequestedBytes} bytes requested, {exceeded.QuotaBytes} bytes allowed).", 507);
+        return exceeded is null ? null : Error(exceeded);
     }
+
+    /// <summary>Runs write, the commit and the row, behind the owner's quota gate (see <see cref="IStorageQuotaService.WriteWithinQuotaAsync"/>); 507 when refused.</summary>
+    public static async Task<IResult?> WriteAsync(HttpContext ctx, string bucketName, string key, long newSize, Func<Task> write)
+    {
+        var exceeded = await ctx.RequestServices.GetRequiredService<IStorageQuotaService>()
+            .WriteWithinQuotaAsync(bucketName, key, newSize, write, ctx.RequestAborted);
+        return exceeded is null ? null : Error(exceeded);
+    }
+
+    private static IResult Error(QuotaExceeded exceeded) =>
+        S3Xml.Error(S3Errors.EntityTooLarge,
+            $"Storage quota exceeded ({exceeded.RequestedBytes} bytes requested, {exceeded.QuotaBytes} bytes allowed).", 507);
 }

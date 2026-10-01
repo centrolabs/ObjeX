@@ -99,6 +99,76 @@ public class StorageQuotaServiceTests(ObjeXFactory factory) : IClassFixture<Obje
         Assert.Null(await CheckWriteAsync("no-such-bucket", "huge.bin", long.MaxValue / 2));
     }
 
+    private IStorageQuotaService Quota => factory.Services.GetRequiredService<IStorageQuotaService>();
+
+    // Through the metadata service, so the bucket's TotalSize grows like after a real upload.
+    private async Task SaveObjectAsync(string bucket, string key, long size)
+    {
+        using var scope = factory.CreateScope();
+        await scope.ServiceProvider.GetRequiredService<IMetadataService>()
+            .SaveObjectAsync(new BlobObject { BucketName = bucket, Key = key, Size = size, ETag = "e" });
+    }
+
+    [Fact]
+    public async Task WriteWithinQuota_SecondWriteWaitsForTheFirst_AndCountsIt()
+    {
+        await CreateUserAsync("write-gate", "User", 1000, 0);
+        var firstInside = new TaskCompletionSource();
+        var releaseFirst = new TaskCompletionSource();
+        var secondWrote = false;
+
+        var first = Quota.WriteWithinQuotaAsync("write-gate-b0", "first.bin", 600, async () =>
+        {
+            firstInside.SetResult();
+            await releaseFirst.Task;
+            await SaveObjectAsync("write-gate-b0", "first.bin", 600);
+        });
+        await firstInside.Task;
+        var second = Quota.WriteWithinQuotaAsync("write-gate-b0", "second.bin", 600, () =>
+        {
+            secondWrote = true;
+            return Task.CompletedTask;
+        });
+
+        await Task.Delay(200);
+        Assert.False(second.IsCompleted);
+
+        releaseFirst.SetResult();
+        Assert.Null(await first);
+        Assert.Equal(new QuotaExceeded(1200, 1000), await second);
+        Assert.False(secondWrote);
+    }
+
+    [Fact]
+    public async Task WriteWithinQuota_UnlimitedOwner_WritesInParallel()
+    {
+        await CreateUserAsync("write-unlimited", "Manager", null, 0);
+        var releaseFirst = new TaskCompletionSource();
+
+        var first = Quota.WriteWithinQuotaAsync("write-unlimited-b0", "first.bin", 600, () => releaseFirst.Task);
+        var second = Quota.WriteWithinQuotaAsync("write-unlimited-b0", "second.bin", 600, () => Task.CompletedTask);
+
+        Assert.Null(await second.WaitAsync(TimeSpan.FromSeconds(5)));
+        releaseFirst.SetResult();
+        Assert.Null(await first);
+    }
+
+    [Fact]
+    public async Task WriteWithinQuota_Refused_LeavesTheWriteUndone()
+    {
+        await CreateUserAsync("write-refused", "User", 1000, 900);
+        var wrote = false;
+
+        var exceeded = await Quota.WriteWithinQuotaAsync("write-refused-b0", "big.bin", 101, () =>
+        {
+            wrote = true;
+            return Task.CompletedTask;
+        });
+
+        Assert.Equal(new QuotaExceeded(1001, 1000), exceeded);
+        Assert.False(wrote);
+    }
+
     [Fact]
     public async Task PrivilegedRole_WithoutOwnQuota_IsUnlimited()
     {

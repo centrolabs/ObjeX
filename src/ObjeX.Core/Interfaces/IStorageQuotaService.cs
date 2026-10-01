@@ -19,4 +19,10 @@ public interface IStorageQuotaService
     /// and an overwrite is charged only its growth over the stored size. An unknown bucket is never refused here.
     /// </summary>
     Task<QuotaExceeded?> CheckWriteAsync(string bucketName, string key, long newSize, CancellationToken ctk = default);
+
+    /// <summary>
+    /// Runs write, the commit and the row, unless <see cref="CheckWriteAsync"/> refuses it. For an owner with a quota the check and
+    /// the write run one at a time, so parallel uploads cannot pass the check together; an owner without one writes in parallel.
+    /// </summary>
+    Task<QuotaExceeded?> WriteWithinQuotaAsync(string bucketName, string key, long newSize, Func<Task> write, CancellationToken ctk = default);
 }

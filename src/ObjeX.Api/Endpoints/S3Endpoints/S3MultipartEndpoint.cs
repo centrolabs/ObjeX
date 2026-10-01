@@ -175,23 +175,29 @@ public static class S3MultipartEndpoint
         var quotaError = await StorageQuota.CheckAsync(ctx, bucket, key, totalSize);
         if (quotaError is not null) return quotaError;
 
-        // Assemble parts into final blob
-        var storagePath = await fs.AssemblePartsAsync(bucket, key, orderedPaths, request.HttpContext.RequestAborted);
+        // Assemble parts into a staged blob; it only replaces the object behind the owner's quota gate.
+        await using var assembled = await fs.StageAssembledPartsAsync(bucket, key, orderedPaths, request.HttpContext.RequestAborted);
 
         // Compute final ETag: MD5(concat of part MD5 bytes) + "-" + partCount  (S3 multipart format)
         var finalEtag = ComputeMultipartETag(requestedParts.Select(r =>
             upload.Parts.First(p => p.PartNumber == r.PartNumber).ETag).ToList());
 
-        await metadata.SaveObjectAsync(new BlobObject
+        var postQuotaError = await StorageQuota.WriteAsync(ctx, bucket, key, totalSize, async () =>
         {
-            BucketName = bucket,
-            Key = key,
-            Size = totalSize,
-            ContentType = upload.ContentType,
-            ETag = finalEtag,
-            StoragePath = storagePath,
-            CustomMetadata = upload.CustomMetadata
-        }, GetCallerId(ctx));
+            var storagePath = await assembled.CommitAsync(request.HttpContext.RequestAborted);
+            await metadata.SaveObjectAsync(new BlobObject
+            {
+                BucketName = bucket,
+                Key = key,
+                Size = totalSize,
+                ContentType = upload.ContentType,
+                ETag = finalEtag,
+                StoragePath = storagePath,
+                CustomMetadata = upload.CustomMetadata
+            }, GetCallerId(ctx));
+        });
+        if (postQuotaError is not null)
+            return postQuotaError;
 
         // Cleanup
         await fs.DeletePartsAsync(uploadId);

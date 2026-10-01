@@ -165,20 +165,25 @@ public static class S3ObjectEndpoint
 
                 var srcStream = await storage.RetrieveAsync(srcBucket, srcKey, ctx.RequestAborted);
                 await using var copyHashStream = new HashingStream(srcStream);
-                var destPath = await storage.StoreAsync(bucket, key, copyHashStream, ctx.RequestAborted);
-                var destSize = await storage.GetSizeAsync(bucket, key, ctx.RequestAborted);
+                await using var copied = await storage.StageAsync(bucket, key, copyHashStream, ctx.RequestAborted);
                 var destEtag = copyHashStream.GetETag();
 
-                await metadata.SaveObjectAsync(new BlobObject
+                var copyPostQuotaError = await StorageQuota.WriteAsync(ctx, bucket, key, copied.Size, async () =>
                 {
-                    BucketName = bucket,
-                    Key = key,
-                    Size = destSize,
-                    ContentType = replaceMetadata ? request.ContentType ?? "application/octet-stream" : srcObj.ContentType,
-                    ETag = destEtag,
-                    StoragePath = destPath,
-                    CustomMetadata = replaceMetadata ? ObjectHeaders.Extract(request.Headers) : srcObj.CustomMetadata
-                }, GetCallerId(ctx));
+                    var destPath = await copied.CommitAsync(ctx.RequestAborted);
+                    await metadata.SaveObjectAsync(new BlobObject
+                    {
+                        BucketName = bucket,
+                        Key = key,
+                        Size = copied.Size,
+                        ContentType = replaceMetadata ? request.ContentType ?? "application/octet-stream" : srcObj.ContentType,
+                        ETag = destEtag,
+                        StoragePath = destPath,
+                        CustomMetadata = replaceMetadata ? ObjectHeaders.Extract(request.Headers) : srcObj.CustomMetadata
+                    }, GetCallerId(ctx));
+                });
+                if (copyPostQuotaError is not null)
+                    return copyPostQuotaError;
 
                 return S3Xml.CopyObjectResult(destEtag, DateTime.UtcNow);
             }
@@ -215,26 +220,23 @@ public static class S3ObjectEndpoint
             if (!ContentMd5.Matches(expectedMd5, etag))
                 return S3Xml.Error(S3Errors.BadDigest, "The Content-MD5 you specified did not match what we received.");
 
-            // Post-check with actual size for chunked transfers (no Content-Length)
-            if (request.ContentLength is null)
+            // The real size behind the owner's gate: chunked bodies have no Content-Length, and parallel writes all passed the pre-check.
+            var postQuotaError = await StorageQuota.WriteAsync(ctx, bucket, key, size, async () =>
             {
-                var postQuotaError = await StorageQuota.CheckAsync(ctx, bucket, key, size);
-                if (postQuotaError is not null)
-                    return postQuotaError;
-            }
-
-            var storagePath = await staged.CommitAsync(ctx.RequestAborted);
-
-            await metadata.SaveObjectAsync(new BlobObject
-            {
-                BucketName = bucket,
-                Key = key,
-                Size = size,
-                ContentType = contentType,
-                ETag = etag,
-                StoragePath = storagePath,
-                CustomMetadata = customMetadata
-            }, GetCallerId(ctx));
+                var storagePath = await staged.CommitAsync(ctx.RequestAborted);
+                await metadata.SaveObjectAsync(new BlobObject
+                {
+                    BucketName = bucket,
+                    Key = key,
+                    Size = size,
+                    ContentType = contentType,
+                    ETag = etag,
+                    StoragePath = storagePath,
+                    CustomMetadata = customMetadata
+                }, GetCallerId(ctx));
+            });
+            if (postQuotaError is not null)
+                return postQuotaError;
 
             ctx.Response.Headers.ETag = $"\"{etag}\"";
             return Results.Ok();

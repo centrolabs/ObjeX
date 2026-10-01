@@ -151,24 +151,24 @@ public class FileSystemStorageService : IObjectStorageService
         return new StagedPart(tmpPath, partPath, size, etag);
     }
 
-    public async Task<string> AssemblePartsAsync(
+    /// <summary>Concatenates the parts into a staged blob next to the object; the object changes only on commit.</summary>
+    public async Task<IStagedBlob> StageAssembledPartsAsync(
         string bucketName, string key, IEnumerable<string> orderedPartPaths, CancellationToken ctk = default)
     {
         var filePath = AssertWithinBasePath(GetSafePath(bucketName, key)); // codeql[cs/path-injection]
         var tmpPath = $"{filePath}.{Guid.NewGuid():N}.tmp";
         Directory.CreateDirectory(Path.GetDirectoryName(filePath)!); // codeql[cs/path-injection]
 
+        long size;
         try
         {
-            await using (var dest = File.Create(tmpPath)) // codeql[cs/path-injection]
+            await using var dest = File.Create(tmpPath); // codeql[cs/path-injection]
+            foreach (var partPath in orderedPartPaths)
             {
-                foreach (var partPath in orderedPartPaths)
-                {
-                    await using var src = File.OpenRead(partPath);
-                    await src.CopyToAsync(dest, ctk);
-                }
+                await using var src = File.OpenRead(partPath);
+                await src.CopyToAsync(dest, ctk);
             }
-            File.Move(tmpPath, filePath, overwrite: true); // codeql[cs/path-injection]
+            size = dest.Length;
         }
         catch
         {
@@ -176,7 +176,7 @@ public class FileSystemStorageService : IObjectStorageService
             throw;
         }
 
-        return filePath;
+        return new StagedBlob(tmpPath, filePath, size);
     }
 
     public Task DeletePartsAsync(Guid uploadId)
