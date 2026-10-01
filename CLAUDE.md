@@ -309,6 +309,8 @@ public interface IMetadataService
     Task UpdateBucketStatsAsync(string bucketName, CancellationToken ctk = default);
     // UpdateBucketStatsAsync is the full recount in one UPDATE with subqueries, for repair only (RecountBucketStatsJob); on PostgreSQL it locks the bucket row first (FOR UPDATE), so a concurrent write is counted. SaveObjectAsync/DeleteObjectAsync/DeleteObjectsAsync adjust ObjectCount and TotalSize
     // by the changed object's delta via ExecuteUpdate in the same transaction as the row change; overwrite = count unchanged, size delta = new - old.
+    // Every write begins its transaction before it reads the stored row (BeginBucketWriteAsync: BEGIN IMMEDIATE on SQLite, the bucket row FOR UPDATE
+    // on PostgreSQL), so parallel writes of one key take their delta from the current size and a parallel first write updates instead of colliding.
 }
 
 // ObjeX.Core/Models/ListObjectsResult.cs
