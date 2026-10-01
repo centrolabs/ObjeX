@@ -309,14 +309,18 @@ public class EfCoreMetadataService(IDbContextFactory<ObjeXDbContext> contexts) :
 
     public async Task UpdateBucketStatsAsync(string bucketName, CancellationToken ctk = default)
     {
-        // One statement, so a write that lands during the recount is not overwritten by a count taken before it.
+        // PostgreSQL: lock the row first, so the UPDATE is a new statement whose subqueries see a concurrent writer's commit.
         await using var ctx = await contexts.CreateDbContextAsync(ctk);
+        await using var tx = await ctx.Database.BeginTransactionAsync(ctk);
+        if (IsPostgreSql(ctx))
+            await ctx.Database.ExecuteSqlInterpolatedAsync($"SELECT 1 FROM buckets WHERE name = {bucketName} FOR UPDATE", ctk);
         await ctx.Buckets
             .Where(b => b.Name == bucketName)
             .ExecuteUpdateAsync(s => s
                 .SetProperty(b => b.ObjectCount, b => ctx.BlobObjects.Count(o => o.BucketName == b.Name))
                 .SetProperty(b => b.TotalSize, b => ctx.BlobObjects.Where(o => o.BucketName == b.Name).Sum(o => (long?)o.Size) ?? 0)
                 .SetProperty(b => b.UpdatedAt, DateTime.UtcNow), ctk);
+        await tx.CommitAsync(ctk);
     }
 
     public async Task<IEnumerable<ContentTypeStats>> GetContentTypeStatsAsync(IEnumerable<string>? bucketNames = null, CancellationToken ctk = default)
