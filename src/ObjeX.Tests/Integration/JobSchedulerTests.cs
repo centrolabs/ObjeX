@@ -49,7 +49,7 @@ public class JobSchedulerTests(ObjeXFactory factory) : IClassFixture<ObjeXFactor
 
         await using var db = await DbAsync();
         var entry = await db.AuditEntries.OrderByDescending(e => e.Id).FirstAsync(e => e.Action == "UpdateJobSchedule");
-        Assert.Equal("cleanup-orphaned-blobs: 0 3 * * 0 UTC, enabled → 0 1 * * * UTC, enabled", entry.Details);
+        Assert.Equal("cleanup-orphaned-blobs: 0 3 * * 0 UTC, enabled, grace 60 minutes → 0 1 * * * UTC, enabled, grace 60 minutes", entry.Details);
     }
 
     [Theory]
@@ -89,16 +89,49 @@ public class JobSchedulerTests(ObjeXFactory factory) : IClassFixture<ObjeXFactor
     public async Task Reset_RemovesTheStoredSchedule_AndRestoresTheDefaultInUtc()
     {
         var admin = await AdminIdAsync();
-        await Scheduler.SaveAsync(new JobScheduleChange("cleanup-orphaned-blobs", false, "0 2 * * *", "Europe/Zurich"), admin);
+        await Scheduler.SaveAsync(new JobScheduleChange("cleanup-orphaned-blobs", false, "0 2 * * *", "Europe/Zurich", 30), admin);
 
         await Scheduler.ResetAsync("cleanup-orphaned-blobs", admin);
 
         await using var db = await DbAsync();
         Assert.False(await db.JobSchedules.AnyAsync(s => s.JobId == "cleanup-orphaned-blobs"));
+        Assert.Null((await db.SystemSettings.SingleAsync()).OrphanGraceMinutes);
         var entry = await db.AuditEntries.OrderByDescending(e => e.Id).FirstAsync();
-        Assert.Equal(("ResetJobSchedule", "cleanup-orphaned-blobs: 0 2 * * * Europe/Zurich, disabled → 0 3 * * 0 UTC, enabled"), (entry.Action, entry.Details));
+        Assert.Equal(("ResetJobSchedule", "cleanup-orphaned-blobs: 0 2 * * * Europe/Zurich, disabled, grace 30 minutes → 0 3 * * 0 UTC, enabled, grace 60 minutes"), (entry.Action, entry.Details));
 
         var job = Hangfire("cleanup-orphaned-blobs");
         Assert.Equal(("0 3 * * 0", "UTC"), (job.Cron, job.TimeZoneId));
+    }
+
+    [Fact]
+    public async Task Save_StoresTheParameter_AndNothingForItsDefault()
+    {
+        var admin = await AdminIdAsync();
+
+        await Scheduler.SaveAsync(new JobScheduleChange("cleanup-abandoned-multipart", true, "0 5 * * 0", "UTC", 14), admin);
+        await using (var db = await DbAsync())
+            Assert.Equal(14, (await db.SystemSettings.SingleAsync()).AbandonedMultipartDays);
+
+        await Scheduler.SaveAsync(new JobScheduleChange("cleanup-abandoned-multipart", true, "0 5 * * 0", "UTC", 7), admin);
+        await using (var db = await DbAsync())
+            Assert.Null((await db.SystemSettings.SingleAsync()).AbandonedMultipartDays);
+    }
+
+    [Theory]
+    [InlineData("cleanup-orphaned-blobs", 14)]
+    [InlineData("cleanup-orphaned-blobs", 10081)]
+    [InlineData("cleanup-abandoned-multipart", 0)]
+    [InlineData("cleanup-abandoned-multipart", 366)]
+    [InlineData("verify-blob-integrity", 5)]
+    public async Task Save_RejectsAParameterOutOfRangeOrForAJobWithoutOne_AndStoresNothing(string jobId, int parameter)
+    {
+        await Assert.ThrowsAsync<ArgumentException>(() =>
+            Scheduler.SaveAsync(new JobScheduleChange(jobId, true, "7 4 * * 0", "UTC", parameter), "unused"));
+
+        await using var db = await DbAsync();
+        Assert.False(await db.JobSchedules.AnyAsync(s => s.JobId == jobId && s.Cron == "7 4 * * 0"));
+        var settings = await db.SystemSettings.SingleAsync();
+        Assert.NotEqual(parameter, settings.OrphanGraceMinutes);
+        Assert.NotEqual(parameter, settings.AbandonedMultipartDays);
     }
 }

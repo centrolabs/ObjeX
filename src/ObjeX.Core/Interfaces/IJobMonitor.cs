@@ -13,9 +13,12 @@ public record JobRun(
     string? Result,
     string? Error);
 
+/// <summary>A job's one setting in Unit, between Min and Max. Value is null while the default applies.</summary>
+public record JobParameter(string Label, string Unit, string Help, int? Value, int Default, int Min, int Max);
+
 /// <summary>
-/// A recurring job with its schedule and its most recent run. Cron is read in TimeZone; IsDefault means no stored
-/// schedule. A disabled job has no next run. Times are UTC.
+/// A recurring job with its schedule and its most recent run. Cron is read in TimeZone; IsDefault means neither a
+/// stored schedule nor a stored parameter. A disabled job has no next run. Times are UTC.
 /// </summary>
 public record RecurringJobStatus(
     string Id,
@@ -26,7 +29,8 @@ public record RecurringJobStatus(
     bool IsDefault,
     DateTime? NextRun,
     DateTime? LastRun,
-    JobRun? LastJob);
+    JobRun? LastJob,
+    JobParameter? Parameter);
 
 /// <summary>One step in the life of a run: Enqueued, Processing, Succeeded, Failed, Scheduled (a retry) or Deleted.
 /// Data holds what Hangfire recorded for the step, for example the server, the latency or the exception type.</summary>

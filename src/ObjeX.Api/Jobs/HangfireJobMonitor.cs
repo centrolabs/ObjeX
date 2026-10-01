@@ -27,6 +27,7 @@ public class HangfireJobMonitor(
         using var db = dbFactory.CreateDbContext();
         var entries = connection.GetRecurringJobs().ToDictionary(j => j.Id);
         var schedules = db.JobSchedules.AsNoTracking().ToDictionary(s => s.JobId);
+        var settings = db.SystemSettings.AsNoTracking().Single();
 
         return JobDefinitions.All
             .Select(d =>
@@ -34,16 +35,18 @@ public class HangfireJobMonitor(
                 var entry = entries.GetValueOrDefault(d.Id);
                 var schedule = schedules.GetValueOrDefault(d.Id);
                 var enabled = schedule?.Enabled ?? true;
+                var parameter = d.Parameter?.Read(settings);
                 return new RecurringJobStatus(
                     d.Id,
                     d.Name,
                     schedule?.Cron ?? d.DefaultCron,
                     schedule?.TimeZone ?? "UTC",
                     enabled,
-                    schedule is null,
+                    schedule is null && parameter?.Value is null,
                     enabled ? entry?.NextExecution : null,
                     entry?.LastExecution,
-                    entry?.LastJobId is { Length: > 0 } lastId ? ReadRun(monitor, lastId) : null);
+                    entry?.LastJobId is { Length: > 0 } lastId ? ReadRun(monitor, lastId) : null,
+                    parameter);
             })
             .ToList();
     }
