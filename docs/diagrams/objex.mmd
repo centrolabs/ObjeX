@@ -46,7 +46,7 @@ end
 
 subgraph group_core["ObjeX.Core · BCL only"]
   node_utils["Utilities · Validation<br/>HashingStream · PresignedUrlGenerator<br/>ETags · InlineMediaTypes · validators"]
-  node_models["Models<br/>Bucket · BlobObject · S3Credential<br/>User · AuditEntry · SystemSettings"]
+  node_models["Models<br/>Bucket · BlobObject · S3Credential<br/>User · AuditEntry · SystemSettings · JobSchedule"]
 end
 
 subgraph group_jobs["Background work"]
@@ -439,6 +439,16 @@ erDiagram
     int presigned_url_default_expiry_seconds "3600"
     int presigned_url_max_expiry_seconds "604800"
     long default_storage_quota_bytes "nullable = unlimited"
+    int orphan_grace_minutes "nullable = 60"
+    int abandoned_multipart_days "nullable = 7"
+  }
+  JOB_SCHEDULE {
+    string job_id PK "recurring job id"
+    string cron "five fields"
+    string time_zone "zone the cron is read in"
+    bool enabled
+    datetime created_at
+    datetime updated_at
   }
 
 %%% Staged blob lifecycle
