@@ -349,6 +349,7 @@
         var key = _currentPrefix + folderName.Trim('/') + "/";
         try
         {
+            using var gate = await KeyGate.EnterAsync(BucketName, [key]);
             await using var empty = new MemoryStream();
             await using var hashingStream = new Core.Utilities.HashingStream(empty);
             var storagePath = await StorageService.StoreAsync(BucketName, key, hashingStream);
@@ -391,11 +392,11 @@
             new DialogOptions { Width = OxSizes.DialogMedium, CloseDialogOnOverlayClick = true });
     }
 
-    // Files dropped or picked: the key is fixed under the folder shown at that moment, so changing folders later moves nothing.
+    // Files dropped or picked: the key is fixed under the folder shown when the drop's first batch came, so changing folders later moves nothing.
     [JSInvokable]
-    public async Task OnFilesAdded(UploadFile[] files)
+    public async Task OnFilesAdded(int drop, UploadFile[] files)
     {
-        var toSend = _uploads.Add(_currentPrefix, files);
+        var toSend = _uploads.Add(drop, _currentPrefix, files);
         StateHasChanged();
         await StartUploadsAsync(toSend);
     }

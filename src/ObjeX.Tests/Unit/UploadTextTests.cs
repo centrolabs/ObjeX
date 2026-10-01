@@ -8,7 +8,7 @@ public class UploadTextTests
     private static UploadQueue Queue(int count, long size = 1024 * 1024)
     {
         var queue = new UploadQueue();
-        queue.Add("", Enumerable.Range(1, count).Select(i => new UploadFile(i, $"f{i}.bin", size, null)));
+        queue.Add(1, "", Enumerable.Range(1, count).Select(i => new UploadFile(i, $"f{i}.bin", size, null)));
         return queue;
     }
 

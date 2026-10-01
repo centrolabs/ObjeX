@@ -19,7 +19,7 @@ public class UploadQueueTests
     {
         var queue = new UploadQueue();
 
-        var toSend = queue.Add("docs/", [File(1, "a.txt"), File(2, "bad\u0001name.txt"), File(3, "sub/b.txt", type: "")]);
+        var toSend = queue.Add(1, "docs/", [File(1, "a.txt"), File(2, "bad\u0001name.txt"), File(3, "sub/b.txt", type: "")]);
 
         Assert.Equal([1, 3], toSend.Select(i => i.Id));
         Assert.Equal(["docs/a.txt", "docs/sub/b.txt"], toSend.Select(i => i.Key));
@@ -32,10 +32,22 @@ public class UploadQueueTests
     }
 
     [Fact]
+    public void Add_KeepsTheFolderOfADrop_ForItsLaterBatches()
+    {
+        var queue = new UploadQueue();
+
+        queue.Add(1, "first/", [File(1, "a.txt")]);
+        queue.Add(1, "second/", [File(2, "b.txt")]);
+        queue.Add(2, "second/", [File(3, "c.txt")]);
+
+        Assert.Equal(["first/a.txt", "first/b.txt", "second/c.txt"], queue.Items.Select(i => i.Key));
+    }
+
+    [Fact]
     public void Apply_MovesFilesThroughTheirStates()
     {
         var queue = new UploadQueue();
-        queue.Add("", [File(1, "a", 100), File(2, "b", 200), File(3, "c", 300)]);
+        queue.Add(1, "", [File(1, "a", 100), File(2, "b", 200), File(3, "c", 300)]);
 
         queue.Apply([new(1, "progress", Loaded: 40), new(2, "done"), new(3, "failed", Status: 507, Error: "Quota")]);
 
@@ -53,7 +65,7 @@ public class UploadQueueTests
     public void Apply_IgnoresProgressAfterTheEnd_AndUnknownIds()
     {
         var queue = new UploadQueue();
-        queue.Add("", [File(1, "a")]);
+        queue.Add(1, "", [File(1, "a")]);
 
         queue.Apply([new(1, "cancelled"), new(1, "progress", Loaded: 50), new(99, "done")]);
 
@@ -65,7 +77,7 @@ public class UploadQueueTests
     public void Retry_PutsFailedAndCancelledFilesBack_ButNotARefusedKey()
     {
         var queue = new UploadQueue();
-        queue.Add("", [File(1, "a"), File(2, "b"), File(3, "c"), File(4, "/")]);
+        queue.Add(1, "", [File(1, "a"), File(2, "b"), File(3, "c"), File(4, "/")]);
         queue.Apply([new(1, "failed", Status: 0), new(2, "cancelled"), new(3, "done")]);
 
         Assert.Equal([1], queue.Retry(1).Select(i => i.Id));
@@ -80,7 +92,7 @@ public class UploadQueueTests
     public void CancelledFiles_LeaveTheTotals()
     {
         var queue = new UploadQueue();
-        queue.Add("", [File(1, "a", 100), File(2, "b", 300)]);
+        queue.Add(1, "", [File(1, "a", 100), File(2, "b", 300)]);
 
         queue.Apply([new(1, "done"), new(2, "cancelled")]);
 
@@ -92,7 +104,7 @@ public class UploadQueueTests
     public void Percent_OfEmptyFiles_CountsFinishedFiles()
     {
         var queue = new UploadQueue();
-        queue.Add("", [File(1, "a", 0), File(2, "b", 0)]);
+        queue.Add(1, "", [File(1, "a", 0), File(2, "b", 0)]);
 
         queue.Apply([new(1, "done")]);
 
@@ -103,7 +115,7 @@ public class UploadQueueTests
     public void Clear_EmptiesTheQueue_AndReturnsTheIdsToForget()
     {
         var queue = new UploadQueue();
-        queue.Add("", [File(1, "a"), File(2, "b")]);
+        queue.Add(1, "", [File(1, "a"), File(2, "b")]);
         queue.Apply([new(1, "done"), new(2, "failed")]);
 
         Assert.Equal([1, 2], queue.Clear());

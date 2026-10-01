@@ -3,8 +3,10 @@
 
 const parallel = 3;
 const reportMs = 250;
-// Keeps each list of new files well below the circuit's 32 KB message limit.
-const batchChars = 16000;
+const retryMs = 1000;
+// Keeps every call to the page well below the circuit's 32 KB message limit, counted in UTF-8 bytes as sent.
+const batchBytes = 16000;
+const utf8 = new TextEncoder();
 
 export function createUploader(page, tokenHeader, token) {
     const files = new Map();
@@ -13,6 +15,7 @@ export function createUploader(page, tokenHeader, token) {
     let reports = new Map();
     let timer = 0;
     let nextId = 1;
+    let nextDrop = 1;
     let disposed = false;
 
     function report(event) {
@@ -25,12 +28,18 @@ export function createUploader(page, tokenHeader, token) {
 
     async function flush() {
         timer = 0;
-        const batch = [...reports.values()];
+        const pending = [...reports.values()];
         reports = new Map();
-        try {
-            await page.invokeMethodAsync("OnUploadEvents", batch);
-        } catch {
-            // The circuit is gone; the uploads still finish on the server.
+        for (const batch of batches(pending)) {
+            try {
+                await page.invokeMethodAsync("OnUploadEvents", batch);
+            } catch {
+                // The circuit is away, for example while it reconnects: keep what did not arrive, unless a newer report replaced it.
+                for (const event of pending.slice(pending.indexOf(batch[0])))
+                    if (!reports.has(event.id)) reports.set(event.id, event);
+                if (!disposed) timer ||= setTimeout(flush, retryMs);
+                return;
+            }
         }
     }
 
@@ -63,22 +72,16 @@ export function createUploader(page, tokenHeader, token) {
     }
 
     return {
-        /** From OxDropZone and OxFileDrop: keeps the files and tells the page about them in batches. */
+        /** From OxDropZone and OxFileDrop: keeps the files and tells the page about them, one drop in one or more batches. */
         async add(entries) {
-            let batch = [];
-            let chars = 0;
-            for (const { file, path } of entries) {
+            const drop = nextDrop++;
+            const added = entries.map(({ file, path }) => {
                 const id = nextId++;
                 files.set(id, file);
-                batch.push({ id, path, size: file.size, type: file.type });
-                chars += path.length + file.type.length + 64;
-                if (chars > batchChars) {
-                    await page.invokeMethodAsync("OnFilesAdded", batch);
-                    batch = [];
-                    chars = 0;
-                }
-            }
-            if (batch.length > 0) await page.invokeMethodAsync("OnFilesAdded", batch);
+                return { id, path, size: file.size, type: file.type };
+            });
+            for (const batch of batches(added))
+                await page.invokeMethodAsync("OnFilesAdded", drop, batch);
         },
         /** Queues files the page accepted: [{ id, url, type }]. */
         start(items) {
@@ -108,6 +111,22 @@ export function createUploader(page, tokenHeader, token) {
             files.clear();
         },
     };
+}
+
+function* batches(items) {
+    let batch = [];
+    let bytes = 0;
+    for (const item of items) {
+        const size = utf8.encode(JSON.stringify(item)).length + 1;
+        if (batch.length > 0 && bytes + size > batchBytes) {
+            yield batch;
+            batch = [];
+            bytes = 0;
+        }
+        batch.push(item);
+        bytes += size;
+    }
+    if (batch.length > 0) yield batch;
 }
 
 function serverError(xhr) {

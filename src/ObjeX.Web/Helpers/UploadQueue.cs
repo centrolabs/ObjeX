@@ -34,6 +34,7 @@ public sealed class UploadQueue
 {
     private readonly List<UploadItem> _items = [];
     private readonly Dictionary<int, UploadItem> _byId = [];
+    private readonly Dictionary<int, string> _dropPrefixes = [];
 
     public UploadQueue() => Items = _items.AsReadOnly();
 
@@ -42,9 +43,15 @@ public sealed class UploadQueue
 
     public static string KeyFor(string prefix, string path) => prefix + path.TrimStart('/');
 
-    /// <summary>Queues the files under the prefix and returns those to send; a key the validator refuses fails at once.</summary>
-    public IReadOnlyList<UploadItem> Add(string prefix, IEnumerable<UploadFile> files)
+    /// <summary>
+    /// Queues the files and returns those to send; a key the validator refuses fails at once. A drop arrives in batches: all of them go
+    /// under the folder shown when the first one came, even if the user has moved on since.
+    /// </summary>
+    public IReadOnlyList<UploadItem> Add(int drop, string currentPrefix, IEnumerable<UploadFile> files)
     {
+        if (!_dropPrefixes.TryGetValue(drop, out var prefix))
+            _dropPrefixes[drop] = prefix = currentPrefix;
+
         var toSend = new List<UploadItem>();
         foreach (var file in files)
         {
@@ -110,6 +117,7 @@ public sealed class UploadQueue
         var ids = _items.Select(i => i.Id).ToList();
         _items.Clear();
         _byId.Clear();
+        _dropPrefixes.Clear();
         return ids;
     }
 
