@@ -1,0 +1,120 @@
+@using ObjeX.Core.Interfaces
+@inject DialogService DialogService
+@inject IJobScheduler Scheduler
+@inject BrowserTimeZone Tz
+
+<OxStack Gap="7">
+    <OxSwitch Checked="_enabled" CheckedChanged="@(v => Change(() => _enabled = v))">Enabled</OxSwitch>
+
+    <OxField Label="Frequency">
+        <RadzenDropDown TValue="JobFrequency" Value="_preset.Frequency" Data="Frequencies" TextProperty="Text" ValueProperty="Value"
+                        ValueChanged="@((JobFrequency f) => Change(() => OnFrequency(f)))" />
+    </OxField>
+
+    @if (_preset.Frequency == JobFrequency.Weekly)
+    {
+        <OxField Label="Day">
+            <RadzenDropDown TValue="DayOfWeek" Value="_preset.Day" Data="Days" TextProperty="Text" ValueProperty="Value"
+                            ValueChanged="@((DayOfWeek d) => Change(() => _preset = _preset with { Day = d }))" />
+        </OxField>
+    }
+
+    @if (_preset.Frequency == JobFrequency.Custom)
+    {
+        <OxField Label="Cron (expert)" Error="@_check.Error" Hint="minute hour day-of-month month day-of-week">
+            <OxTextInput Mono="true" Value="@_cron" ValueChanged="@(v => Change(() => _cron = v))" />
+        </OxField>
+    }
+    else
+    {
+        <OxField Label="Time" Error="@_check.Error">
+            <OxBox Width="OxWidth.Sm">
+                <OxTextInput Type="time" Value="@_preset.Time.ToString("HH:mm")" ValueChanged="OnTime" />
+            </OxBox>
+        </OxField>
+    }
+
+    <OxText Variant="OxTextVariant.Small">@Preview</OxText>
+
+    @if (Job.Parameter is { } parameter)
+    {
+        <OxField Label="@($"{parameter.Label} ({parameter.Unit})")" Hint="@($"{parameter.Help} Default {parameter.Default:N0}, {parameter.Min:N0} to {parameter.Max:N0}.")">
+            <OxBox Width="OxWidth.Sm">
+                <RadzenNumeric TValue="int" Value="_parameter" Min="parameter.Min" Max="parameter.Max"
+                               ValueChanged="@((int v) => Change(() => _parameter = v))" />
+            </OxBox>
+        </OxField>
+    }
+
+    <OxStack Row="true" Justify="OxJustify.Between" Gap="4">
+        <OxButton Disabled="Job.IsDefault" OnClick="@(() => DialogService.Close(new Result(null)))">Reset to default</OxButton>
+        <OxStack Row="true" Gap="4">
+            <OxButton OnClick="@(() => DialogService.Close(null))">Cancel</OxButton>
+            <OxButton Variant="OxButtonVariant.Primary" Disabled="@(!_dirty || _check.Error is not null)" OnClick="Save">Save</OxButton>
+        </OxStack>
+    </OxStack>
+</OxStack>
+
+@code {
+    [Parameter] public RecurringJobStatus Job { get; set; } = null!;
+
+    /// <summary>Change null resets the job to its defaults.</summary>
+    public record Result(JobScheduleChange? Change);
+
+    record Option<T>(T Value, string Text);
+
+    static readonly Option<JobFrequency>[] Frequencies =
+        [new(JobFrequency.Daily, "Daily"), new(JobFrequency.Weekly, "Weekly"), new(JobFrequency.Custom, "Custom cron")];
+
+    static readonly Option<DayOfWeek>[] Days =
+        [.. new[] { 1, 2, 3, 4, 5, 6, 0 }.Select(d => new Option<DayOfWeek>((DayOfWeek)d, ((DayOfWeek)d).ToString()))];
+
+    bool _enabled;
+    JobPreset _preset = null!;
+    string _cron = string.Empty;
+    int _parameter;
+    bool _dirty;
+    JobScheduleCheck _check = null!;
+
+    string Cron => _preset.Frequency == JobFrequency.Custom ? _cron : CronPreset.ToCron(_preset);
+
+    string Preview => _check.NextRun is not { } next
+        ? $"Times are in {Tz.Zone.Id}."
+        : _enabled
+            ? $"Next run {Tz.Format(next)}. Times are in {Tz.Zone.Id}."
+            : $"Disabled: runs only through Run now. Times are in {Tz.Zone.Id}.";
+
+    protected override void OnInitialized()
+    {
+        var next = Scheduler.Check(Job.Cron, Job.TimeZone).NextRun;
+        _enabled = Job.Enabled;
+        _preset = CronPreset.Read(Job.Cron, next is { } n ? Tz.ToLocal(n) : null);
+        _cron = Job.Cron;
+        _parameter = Job.Parameter is { } p ? p.Value ?? p.Default : 0;
+        _check = Scheduler.Check(Cron, Tz.Zone.Id);
+    }
+
+    void Change(Action apply)
+    {
+        apply();
+        _dirty = true;
+        _check = Scheduler.Check(Cron, Tz.Zone.Id);
+    }
+
+    // A custom cron starts from the preset it replaces.
+    void OnFrequency(JobFrequency frequency)
+    {
+        if (frequency == JobFrequency.Custom && _preset.Frequency != JobFrequency.Custom)
+            _cron = CronPreset.ToCron(_preset);
+        _preset = _preset with { Frequency = frequency };
+    }
+
+    void OnTime(string value)
+    {
+        if (TimeOnly.TryParse(value, out var time))
+            Change(() => _preset = _preset with { Time = time });
+    }
+
+    void Save() => DialogService.Close(new Result(
+        new JobScheduleChange(Job.Id, _enabled, Cron, Tz.Zone.Id, Job.Parameter is null ? null : _parameter)));
+}

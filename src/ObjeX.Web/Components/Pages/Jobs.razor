@@ -4,6 +4,8 @@
 @using ObjeX.Core.Interfaces
 @using ObjeX.Web.Components.Dialogs
 @inject IJobMonitor Monitor
+@inject IJobScheduler Scheduler
+@inject AuthenticationStateProvider AuthStateProvider
 @inject DialogService DialogService
 @inject NotificationService NotificationService
 @inject BrowserTimeZone Tz
@@ -22,13 +24,17 @@
                 <Template Context="job">
                     <OxStack Gap="1">
                         <OxText Truncate="true"><strong>@job.Name</strong></OxText>
-                        <OxText Variant="OxTextVariant.Small" Truncate="true" title="@($"{job.Cron} (UTC)")">@(CronText.Describe(job.Cron, job.NextRun, Tz) ?? $"{job.Cron} (UTC)")</OxText>
+                        <OxText Variant="OxTextVariant.Small" Truncate="true" title="@($"{job.Cron} ({job.TimeZone})")">@(CronText.Describe(job.Cron, job.NextRun, Tz, job.TimeZone) ?? $"{job.Cron} ({job.TimeZone})")</OxText>
                     </OxStack>
                 </Template>
             </RadzenDataGridColumn>
             <RadzenDataGridColumn TItem="RecurringJobStatus" Title="Status" Width="@OxSizes.NumberColumn">
                 <Template Context="job">
-                    @if (job.LastJob is { } last)
+                    @if (!job.Enabled)
+                    {
+                        <OxBadge Tone="OxTone.Muted">Disabled</OxBadge>
+                    }
+                    else if (job.LastJob is { } last)
                     {
                         <OxBadge Tone="@ToneOf(last.State)">@LabelOf(last.State)</OxBadge>
                     }
@@ -58,6 +64,13 @@
                     <OxRowActions>
                         <OxIconButton Icon="info" Label="Details of the last run" Href="@(job.LastJob is { } last ? JobRunText.DetailsUrl(last.Id) : null)" Disabled="@(job.LastJob is null)" />
                         <OxIconButton Icon="play_arrow" Label="Run now" Disabled="@IsActive(job.LastJob)" OnClick="@(() => RunNow(job))" />
+                        <OxMenuButton Label="@($"More actions for {job.Name}")">
+                            <OxMenuItem Icon="edit" OnClick="@(() => Edit(job))">Edit schedule</OxMenuItem>
+                            @if (!job.IsDefault)
+                            {
+                                <OxMenuItem Icon="restart_alt" OnClick="@(() => Reset(job))">Reset to default</OxMenuItem>
+                            }
+                        </OxMenuButton>
                     </OxRowActions>
                 </Template>
             </RadzenDataGridColumn>
@@ -145,6 +158,41 @@
         Load();
         NotificationService.Notify(NotificationSeverity.Success, "Queued", $"\"{job.Name}\" is queued.");
         _ = PollWhileActiveAsync();
+    }
+
+    async Task Edit(RecurringJobStatus job)
+    {
+        var result = await DialogService.OpenAsync<EditJobDialog>(job.Name,
+            new Dictionary<string, object?> { { nameof(EditJobDialog.Job), job } },
+            new DialogOptions { Width = OxSizes.DialogMedium });
+        if (result is not EditJobDialog.Result r) return;
+
+        if (r.Change is null)
+            await ApplyAsync(job, "Reset", userId => Scheduler.ResetAsync(job.Id, userId));
+        else
+            await ApplyAsync(job, "Saved", userId => Scheduler.SaveAsync(r.Change, userId));
+    }
+
+    async Task Reset(RecurringJobStatus job)
+    {
+        if (!await ConfirmDialog.AskAsync(DialogService, "Reset to default", $"Reset the schedule and settings of \"{job.Name}\" to their defaults?", "Reset")) return;
+
+        await ApplyAsync(job, "Reset", userId => Scheduler.ResetAsync(job.Id, userId));
+    }
+
+    async Task ApplyAsync(RecurringJobStatus job, string done, Func<string, Task> apply)
+    {
+        var auth = await AuthStateProvider.GetAuthenticationStateAsync();
+        try
+        {
+            await apply(auth.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? string.Empty);
+            NotificationService.Notify(NotificationSeverity.Success, done, $"\"{job.Name}\" is updated.");
+        }
+        catch (ArgumentException e)
+        {
+            NotificationService.Notify(NotificationSeverity.Error, "Not saved", e.Message);
+        }
+        Load();
     }
 
     async Task Retry(JobRun run)
