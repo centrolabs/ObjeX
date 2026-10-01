@@ -15,7 +15,7 @@ Self-hosted object storage with an S3-compatible API and a web UI. One container
 - **S3 API** — AWS Signature V4, multipart upload, presigned GET and POST, copy, batch delete, range requests
 - **Web UI** — folders, file previews, search, ZIP download, share links
 - **Users** — Admin, Manager and User roles, storage quotas, audit log
-- **Operations** — health checks, Prometheus metrics, weekly integrity and cleanup jobs
+- **Operations** — health checks, Prometheus metrics, integrity and cleanup jobs with schedules you set on the Jobs page
 - **Deployment** — multi-arch Docker image (amd64, arm64), Docker Compose, Helm chart
 
 Built for homelabs, internal tools and dev/test. ObjeX runs on a single node: no replication, no high availability.
