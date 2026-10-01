@@ -1,4 +1,3 @@
-using System.Linq.Expressions;
 using Hangfire;
 using Hangfire.PostgreSql;
 using Hangfire.PostgreSql.Factories;
@@ -55,11 +54,10 @@ public static class BackgroundJobs
         var manager = services.GetRequiredService<IRecurringJobManager>();
         var storage = services.GetRequiredService<JobStorage>();
         var logger = services.GetRequiredService<ILoggerFactory>().CreateLogger(typeof(BackgroundJobs));
-        var declared = new HashSet<string>(StringComparer.Ordinal);
+        var declared = JobDefinitions.All.Select(d => d.Id).ToHashSet(StringComparer.Ordinal);
 
-        Declare<CleanupOrphanedBlobsJob>("cleanup-orphaned-blobs", job => job.ExecuteAsync(), Cron.Weekly(DayOfWeek.Sunday, 3));
-        Declare<VerifyBlobIntegrityJob>("verify-blob-integrity", job => job.ExecuteAsync(), Cron.Weekly(DayOfWeek.Sunday, 4));
-        Declare<CleanupAbandonedMultipartJob>("cleanup-abandoned-multipart", job => job.ExecuteAsync(), Cron.Weekly(DayOfWeek.Sunday, 5));
+        foreach (var definition in JobDefinitions.All)
+            manager.AddOrUpdate(definition.Id, definition.Job, definition.DefaultCron, new RecurringJobOptions());
 
         using var connection = storage.GetConnection();
         foreach (var job in connection.GetRecurringJobs())
@@ -71,12 +69,6 @@ public static class BackgroundJobs
             logger.LogWarning(
                 "Removed recurring job '{JobId}' left behind by an earlier version{Detail}.",
                 job.Id, job.LoadException is null ? "" : " (its job type no longer exists)");
-        }
-
-        void Declare<TJob>(string id, Expression<Func<TJob, Task>> call, string cron)
-        {
-            manager.AddOrUpdate(id, call, cron);
-            declared.Add(id);
         }
     }
 }
