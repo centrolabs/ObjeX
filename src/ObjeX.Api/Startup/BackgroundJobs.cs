@@ -47,6 +47,7 @@ public static class BackgroundJobs
         services.AddScoped<CleanupOrphanedBlobsJob>();
         services.AddScoped<VerifyBlobIntegrityJob>();
         services.AddScoped<CleanupAbandonedMultipartJob>();
+        services.AddScoped<RecountBucketStatsJob>();
 
         return services;
     }

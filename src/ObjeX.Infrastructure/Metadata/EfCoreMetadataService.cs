@@ -309,22 +309,13 @@ public class EfCoreMetadataService(IDbContextFactory<ObjeXDbContext> contexts) :
 
     public async Task UpdateBucketStatsAsync(string bucketName, CancellationToken ctk = default)
     {
+        // One statement, so a write that lands during the recount is not overwritten by a count taken before it.
         await using var ctx = await contexts.CreateDbContextAsync(ctk);
-        var stats = await ctx.BlobObjects
-            .Where(o => o.BucketName == bucketName)
-            .GroupBy(o => o.BucketName)
-            .Select(g => new
-            {
-                Count = g.Count(),
-                TotalSize = g.Sum(o => o.Size)
-            })
-            .FirstOrDefaultAsync(ctk);
-
         await ctx.Buckets
             .Where(b => b.Name == bucketName)
             .ExecuteUpdateAsync(s => s
-                .SetProperty(b => b.ObjectCount, stats != null ? stats.Count : 0)
-                .SetProperty(b => b.TotalSize, stats != null ? stats.TotalSize : 0)
+                .SetProperty(b => b.ObjectCount, b => ctx.BlobObjects.Count(o => o.BucketName == b.Name))
+                .SetProperty(b => b.TotalSize, b => ctx.BlobObjects.Where(o => o.BucketName == b.Name).Sum(o => (long?)o.Size) ?? 0)
                 .SetProperty(b => b.UpdatedAt, DateTime.UtcNow), ctk);
     }
 
