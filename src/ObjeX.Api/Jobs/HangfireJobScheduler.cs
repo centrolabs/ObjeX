@@ -16,13 +16,13 @@ public class HangfireJobScheduler(IDbContextFactory<ObjeXDbContext> dbFactory, I
 
     public async Task SaveAsync(JobScheduleChange change, string auditUserId, CancellationToken ctk = default)
     {
-        var definition = JobDefinitions.Find(change.JobId) ?? throw new ArgumentException($"Unknown job \"{change.JobId}\".", nameof(change));
+        var definition = Find(change.JobId);
         if (Check(change.Cron, change.TimeZone).Error is { } error)
             throw new ArgumentException(error, nameof(change));
 
         await using var db = await dbFactory.CreateDbContextAsync(ctk);
         var row = await db.JobSchedules.FindAsync([change.JobId], ctk);
-        var before = row is null ? Describe(definition.DefaultCron, "UTC", true) : Describe(row.Cron, row.TimeZone, row.Enabled);
+        var before = Describe(definition, row);
 
         if (row is null)
             db.JobSchedules.Add(row = new JobSchedule { JobId = change.JobId, Cron = change.Cron, TimeZone = change.TimeZone, Enabled = change.Enabled });
@@ -38,11 +38,31 @@ public class HangfireJobScheduler(IDbContextFactory<ObjeXDbContext> dbFactory, I
         {
             UserId = auditUserId,
             Action = "UpdateJobSchedule",
-            Details = $"{change.JobId}: {before} → {Describe(row.Cron, row.TimeZone, row.Enabled)}",
+            Details = $"{change.JobId}: {before} → {Describe(definition, row)}",
         });
         await db.SaveChangesAsync(ctk);
 
         Apply(manager, definition, row);
+    }
+
+    public async Task ResetAsync(string jobId, string auditUserId, CancellationToken ctk = default)
+    {
+        var definition = Find(jobId);
+
+        await using var db = await dbFactory.CreateDbContextAsync(ctk);
+        var row = await db.JobSchedules.FindAsync([jobId], ctk);
+        if (row is not null)
+            db.JobSchedules.Remove(row);
+
+        db.AuditEntries.Add(new AuditEntry
+        {
+            UserId = auditUserId,
+            Action = "ResetJobSchedule",
+            Details = $"{jobId}: {Describe(definition, row)} → {Describe(definition, null)}",
+        });
+        await db.SaveChangesAsync(ctk);
+
+        Apply(manager, definition, null);
     }
 
     /// <summary>The stored schedule, or the default in UTC without one.</summary>
@@ -53,5 +73,10 @@ public class HangfireJobScheduler(IDbContextFactory<ObjeXDbContext> dbFactory, I
         manager.AddOrUpdate(definition.Id, definition.Job, cron, new RecurringJobOptions { TimeZone = zone });
     }
 
-    private static string Describe(string cron, string timeZone, bool enabled) => $"{cron} {timeZone}, {(enabled ? "enabled" : "disabled")}";
+    private static JobDefinition Find(string jobId)
+        => JobDefinitions.Find(jobId) ?? throw new ArgumentException($"Unknown job \"{jobId}\".", nameof(jobId));
+
+    private static string Describe(JobDefinition definition, JobSchedule? schedule) => schedule is null
+        ? $"{definition.DefaultCron} UTC, enabled"
+        : $"{schedule.Cron} {schedule.TimeZone}, {(schedule.Enabled ? "enabled" : "disabled")}";
 }
