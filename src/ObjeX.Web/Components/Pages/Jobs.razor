@@ -26,37 +26,39 @@
                     </OxStack>
                 </Template>
             </RadzenDataGridColumn>
-            <RadzenDataGridColumn TItem="RecurringJobStatus" Property="NextRun" Title="Next run" Width="@OxSizes.DateColumn" CssClass="ox-col-muted">
-                <Template Context="job">@Tz.Format(job.NextRun)</Template>
-            </RadzenDataGridColumn>
-            <RadzenDataGridColumn TItem="RecurringJobStatus" Property="LastRun" Title="Last run" Width="@OxSizes.DateColumn">
+            <RadzenDataGridColumn TItem="RecurringJobStatus" Title="Status" Width="@OxSizes.NumberColumn">
                 <Template Context="job">
                     @if (job.LastJob is { } last)
                     {
-                        <OxStack Gap="1" Align="OxAlign.Start">
-                            <OxBadge Tone="@ToneOf(last.State)">@LabelOf(last.State)</OxBadge>
-                            <OxText Variant="OxTextVariant.Small">@Tz.Format(job.LastRun)</OxText>
-                        </OxStack>
+                        <OxBadge Tone="@ToneOf(last.State)">@LabelOf(last.State)</OxBadge>
                     }
                     else
                     {
-                        <OxText Variant="OxTextVariant.Muted">@(job.LastRun is null ? "Never run" : Tz.Format(job.LastRun))</OxText>
+                        <OxText Variant="OxTextVariant.Muted">Never run</OxText>
                     }
                 </Template>
             </RadzenDataGridColumn>
-            <RadzenDataGridColumn TItem="RecurringJobStatus" Title="Last result" CssClass="ox-col-muted">
+            <RadzenDataGridColumn TItem="RecurringJobStatus" Property="LastRun" Title="Last run" Width="@OxSizes.DateColumn" CssClass="ox-col-muted">
+                <Template Context="job">@Tz.Format(job.LastRun)</Template>
+            </RadzenDataGridColumn>
+            <RadzenDataGridColumn TItem="RecurringJobStatus" Property="NextRun" Title="Next run" Width="@OxSizes.DateColumn" CssClass="ox-col-muted">
+                <Template Context="job">@Tz.Format(job.NextRun)</Template>
+            </RadzenDataGridColumn>
+            <RadzenDataGridColumn TItem="RecurringJobStatus" Title="Result" CssClass="ox-col-muted">
                 <Template Context="job">
                     @if (job.LastJob is { } last)
                     {
-                        <OxLink Href="@JobRunText.DetailsUrl(last.Id)" title="@(last.Error ?? last.Result ?? "Details")">
-                            <OxText Truncate="true" Tone="@(last.Error is null ? OxTone.Default : OxTone.Danger)">@(last.Error ?? last.Result ?? "Details")</OxText>
-                        </OxLink>
+                        var (text, tone) = JobRunText.Summary(last);
+                        <OxText Truncate="true" Tone="@tone" title="@text">@text</OxText>
                     }
                 </Template>
             </RadzenDataGridColumn>
-            <RadzenDataGridColumn TItem="RecurringJobStatus" Title="" Width="@OxSizes.ButtonColumn" CssClass="ox-col-actions">
+            <RadzenDataGridColumn TItem="RecurringJobStatus" Title="" Width="@OxSizes.ActionsColumn" CssClass="ox-col-actions">
                 <Template Context="job">
-                    <OxButton Icon="play_arrow" Disabled="@IsActive(job.LastJob)" OnClick="@(() => RunNow(job))">Run now</OxButton>
+                    <OxRowActions>
+                        <OxIconButton Icon="info" Label="Details of the last run" Href="@(job.LastJob is { } last ? JobRunText.DetailsUrl(last.Id) : null)" Disabled="@(job.LastJob is null)" />
+                        <OxIconButton Icon="play_arrow" Label="Run now" Disabled="@IsActive(job.LastJob)" OnClick="@(() => RunNow(job))" />
+                    </OxRowActions>
                 </Template>
             </RadzenDataGridColumn>
         </Columns>
@@ -72,38 +74,38 @@
     {
         <RadzenDataGrid Data="_runs" TItem="JobRun" AllowSorting="false" AllowAlternatingRows="false" AllowPaging="true" PageSize="20">
             <Columns>
-                <RadzenDataGridColumn TItem="JobRun" Property="StartedAt" Title="Started" Width="@OxSizes.TimestampColumn" CssClass="ox-col-muted">
-                    <Template Context="run">@(run.StartedAt is { } started ? Tz.FormatSeconds(started) : "—")</Template>
-                </RadzenDataGridColumn>
                 <RadzenDataGridColumn TItem="JobRun" Property="Name" Title="Job" Width="@OxSizes.NameColumn">
-                    <Template Context="run"><OxLink Href="@JobRunText.DetailsUrl(run.Id)">@run.Name</OxLink></Template>
+                    <Template Context="run"><OxText Truncate="true"><strong>@run.Name</strong></OxText></Template>
                 </RadzenDataGridColumn>
                 <RadzenDataGridColumn TItem="JobRun" Title="Status" Width="@OxSizes.NumberColumn">
                     <Template Context="run"><OxBadge Tone="@ToneOf(run.State)">@LabelOf(run.State)</OxBadge></Template>
                 </RadzenDataGridColumn>
-                <RadzenDataGridColumn TItem="JobRun" Title="Duration" Width="@OxSizes.NumberColumn" TextAlign="TextAlign.End" CssClass="ox-col-muted">
+                <RadzenDataGridColumn TItem="JobRun" Property="StartedAt" Title="Started" Width="@OxSizes.DateColumn" CssClass="ox-col-muted">
+                    <Template Context="run">@Tz.Format(run.StartedAt)</Template>
+                </RadzenDataGridColumn>
+                <RadzenDataGridColumn TItem="JobRun" Title="Duration" Width="@OxSizes.DateColumn" TextAlign="TextAlign.End" CssClass="ox-col-muted">
                     <Template Context="run">@(run.Duration is { } duration ? FormatDuration(duration) : "—")</Template>
                 </RadzenDataGridColumn>
                 <RadzenDataGridColumn TItem="JobRun" Title="Result" CssClass="ox-col-muted">
                     <Template Context="run">
-                        <OxText Truncate="true" Tone="@(run.Error is null ? OxTone.Default : OxTone.Danger)" title="@(run.Error ?? run.Result)">@(run.Error ?? run.Result)</OxText>
+                        @{ var (text, tone) = JobRunText.Summary(run); }
+                        <OxText Truncate="true" Tone="@tone" title="@text">@text</OxText>
                     </Template>
                 </RadzenDataGridColumn>
                 <RadzenDataGridColumn TItem="JobRun" Title="" Width="@OxSizes.ActionsColumn" CssClass="ox-col-actions">
                     <Template Context="run">
                         <OxRowActions>
+                            <OxIconButton Icon="info" Label="Details" Href="@JobRunText.DetailsUrl(run.Id)" />
                             @if (JobRunText.CanRetry(run.State))
                             {
                                 <OxIconButton Icon="replay" Label="Retry" OnClick="@(() => Retry(run))" />
                             }
-                            <OxMenuButton Label="@($"More actions for run {run.Id}")">
-                                <OxMenuItem Icon="info" Href="@JobRunText.DetailsUrl(run.Id)">Details</OxMenuItem>
-                                @if (JobRunText.CanDelete(run.State))
-                                {
-                                    <OxMenuDivider />
+                            @if (JobRunText.CanDelete(run.State))
+                            {
+                                <OxMenuButton Label="@($"More actions for run {run.Id}")">
                                     <OxMenuItem Icon="delete" Danger="true" OnClick="@(() => Delete(run))">Delete</OxMenuItem>
-                                }
-                            </OxMenuButton>
+                                </OxMenuButton>
+                            }
                         </OxRowActions>
                     </Template>
                 </RadzenDataGridColumn>
