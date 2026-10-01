@@ -15,7 +15,7 @@ One process, two Kestrel listeners. Requests are split by the TCP port they arri
 
 ## 2. S3 PutObject · staged write
 
-The order of checks on a single-part upload. The body is written to a temporary file first. Content-MD5 and the quota are checked after the write, and a failure disposes the staged file while the previous object keeps its bytes and its row. Only the commit moves the file into place, and only then is the row written together with the bucket statistics and the audit entry.
+The order of checks on a single-part upload. The body is written to a temporary file first. Content-MD5 and the quota are checked after the write, and a failure disposes the staged file while the previous object keeps its bytes and its row. Only the commit moves the file into place, and only then is the row written together with the bucket statistics and the audit entry. For a bucket owner with a quota, the last check, the commit and the row run one at a time (`IStorageQuotaService.WriteWithinQuotaAsync`), so parallel uploads cannot pass the quota together. Every upload path does the same.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="diagrams/02-s3-putobject-staged-write.dark.svg">
@@ -51,13 +51,13 @@ sequenceDiagram
   FS->>D: write {hash}.blob.{guid}.tmp
   Note over E,FS: ETag = MD5 from HashingStream
   E->>E: Content-MD5 mismatch → 400 BadDigest, staged blob disposed, old object untouched
-  opt no Content-Length (chunked)
-    E->>Q: CheckAsync with real size (507)
+  critical owner with a quota: one write at a time
+    E->>Q: WriteAsync · check with real size (507, staged blob disposed)
+    E->>FS: CommitAsync
+    FS->>D: File.Move(tmp → {bucket}/{L1}/{L2}/{hash}.blob, overwrite)
+    E->>M: SaveObjectAsync(BlobObject, auditUserId)
+    M->>DB: upsert row · ObjectCount/TotalSize delta · AuditEntry (one transaction)
   end
-  E->>FS: CommitAsync
-  FS->>D: File.Move(tmp → {bucket}/{L1}/{L2}/{hash}.blob, overwrite)
-  E->>M: SaveObjectAsync(BlobObject, auditUserId)
-  M->>DB: upsert row · ObjectCount/TotalSize delta · AuditEntry (one transaction)
   E-->>C: 200 · ETag header
 ```
 
@@ -106,11 +106,15 @@ sequenceDiagram
   MP->>MP: parts ascending (400 InvalidPartOrder) · ETag matches (400 InvalidPart) · ≥ 5 MB except last (400 EntityTooSmall)
   MP->>MP: free disk below the minimum (507)
   MP->>DB: StorageQuota.CheckAsync(sum of part sizes) (507)
-  MP->>FS: AssemblePartsAsync(bucket, key, ordered paths)
-  FS->>D: concatenate parts into {hash}.blob
+  MP->>FS: StageAssembledPartsAsync(bucket, key, ordered paths)
+  FS->>D: concatenate parts into {hash}.blob.{guid}.tmp
   Note over MP: ETag = MD5(concat of part MD5 bytes) + "-" + partCount
-  MP->>M: SaveObjectAsync(BlobObject, auditUserId)
-  M->>DB: row · stats delta · audit
+  critical owner with a quota: one write at a time
+    MP->>DB: check again (507, staged blob disposed)
+    MP->>FS: CommitAsync · move into place
+    MP->>M: SaveObjectAsync(BlobObject, auditUserId)
+    M->>DB: row · stats delta · audit
+  end
   MP->>FS: DeletePartsAsync(uploadId)
   FS->>D: remove _multipart/{uploadId}
   MP->>DB: delete MultipartUpload (parts cascade)
@@ -370,9 +374,11 @@ sequenceDiagram
     B->>U: PUT raw body · login cookie · antiforgery header
     U->>U: token (400) · key (400) · bucket with owner filter (404) · free disk (507)
     U->>S: StageAsync(HashingStream over the body)
-    U->>S: CheckWriteAsync(real size): owner quota, an overwrite pays its growth (507, staged file disposed)
-    U->>S: CommitAsync · SaveObjectAsync(auditUserId)
-    S->>DB: row · stats delta · PutObject audit
+    critical owner with a quota: one write at a time
+      U->>S: CheckWriteAsync(real size): owner quota, an overwrite pays its growth (507, staged file disposed)
+      U->>S: CommitAsync · SaveObjectAsync(auditUserId)
+      S->>DB: row · stats delta · PutObject audit
+    end
     U-->>B: 200 {key, size, etag} or {error}
   end
   B->>P: OnUploadEvents(progress, done, failed, cancelled) at most every 250 ms

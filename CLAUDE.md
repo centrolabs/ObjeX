@@ -327,7 +327,11 @@ public interface IStorageQuotaService
     // It resolves the bucket's OwnerId and calls GetAsync(ownerId), never the caller: an Admin or Manager uploading into a user's bucket
     // is bound by that user's quota. An overwrite is charged newSize - existingSize, floored at zero. An unknown bucket passes.
     // The S3 endpoints call it through Api/S3/StorageQuota, which turns it into the S3 507 EntityTooLarge document; PUT /api/upload answers JSON.
+    // Used alone only as an early check before the body or the copy is written.
     Task<QuotaExceeded?> CheckWriteAsync(string bucketName, string key, long newSize, CancellationToken ctk = default);
+    // Runs write (commit plus SaveObjectAsync) unless CheckWriteAsync refuses it. For an owner with a quota, check and write run one at a time
+    // behind a gate per owner; the write ends with the new TotalSize, so the next check counts it. StorageQuotaService is a singleton for the gates.
+    Task<QuotaExceeded?> WriteWithinQuotaAsync(string bucketName, string key, long newSize, Func<Task> write, CancellationToken ctk = default);
 }
 
 // ObjeX.Core/Interfaces/IStorageSpaceService.cs
@@ -413,7 +417,7 @@ Example:
   path   = /data/blobs/photos/a3/f7/a3f7c2....blob
 ```
 
-**Staged writes:** `StageAsync` writes `{hash}.blob.{guid}.tmp` and returns an `IStagedBlob`. PUT object, UploadPart, POST Object and the browser upload (`PUT /api/upload`) run the `Content-MD5` check and the post-write quota check between stage and commit; an early return disposes the staged blob, and the previous object keeps its bytes and its metadata row. `CommitAsync` is the `File.Move(..., overwrite: true)`, atomic on Linux. `StoreAsync` is stage plus commit; CopyObject still uses it, because its quota pre-check is exact, and so does the zero-byte folder placeholder. Parts follow the same pattern through `FileSystemStorageService.StagePartAsync`, which also yields the part ETag. On crash the `.tmp` file is cleaned up at next startup (files older than 1 hour are deleted).
+**Staged writes:** `StageAsync` writes `{hash}.blob.{guid}.tmp` and returns an `IStagedBlob`. PUT object, CopyObject, UploadPart, POST Object, CompleteMultipartUpload (`FileSystemStorageService.StageAssembledPartsAsync`) and the browser upload (`PUT /api/upload`) run the `Content-MD5` check and the post-write quota check between stage and commit; an early return disposes the staged blob, and the previous object keeps its bytes and its metadata row. The quota check, the commit and the row run through `IStorageQuotaService.WriteWithinQuotaAsync` (S3: `StorageQuota.WriteAsync`): for an owner with a quota one at a time, behind a `SemaphoreSlim` per owner, so parallel uploads cannot pass the quota together; owners without one write in parallel. The gate is in-process, which covers the single replica ObjeX runs as. `CommitAsync` is the `File.Move(..., overwrite: true)`, atomic on Linux. `StoreAsync` is stage plus commit; only the zero-byte folder placeholder uses it, which no quota can refuse. Parts follow the same pattern through `FileSystemStorageService.StagePartAsync`, which also yields the part ETag. On crash the `.tmp` file is cleaned up at next startup (files older than 1 hour are deleted).
 
 **Why hashed paths:**
 - Eliminates path traversal risk — the logical key never touches the filesystem raw
@@ -509,7 +513,7 @@ PUT    /api/upload/{bucket}/{*key}           → browser upload: raw body, Conte
                                                400 antiforgery token missing or invalid (header first, IAntiforgery.IsRequestValidAsync), 400 key refused by ObjectKeyValidator,
                                                404 bucket unknown or not the caller's (Admin and Manager: all), 507 free disk below the minimum, 507 owner quota after staging
                                                (no early Content-Length check: a browser still sending sees an early answer as a dropped connection), 413 over Storage:MaxUploadBytes;
-                                               disk → StageAsync(HashingStream) → CheckWriteAsync → CommitAsync → SaveObjectAsync(auditUserId); a client abort leaves no object and no .tmp
+                                               disk → StageAsync(HashingStream) → WriteWithinQuotaAsync(check, CommitAsync, SaveObjectAsync(auditUserId)); a client abort leaves no object and no .tmp
 
 # Auth (no auth required)
 POST   /account/login     → form login (sets cookie), redirects to returnUrl
