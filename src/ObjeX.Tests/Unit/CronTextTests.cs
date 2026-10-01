@@ -36,6 +36,10 @@ public class CronTextTests
     public void WithoutNextRun_ReadsTheCronInItsOwnZone()
         => Assert.Equal("Every day at 02:15 Europe/Zurich", CronText.Describe("15 2 * * *", null, Zone("UTC"), "Europe/Zurich"));
 
+    [Fact]
+    public void WithoutNextRun_LeavesOutTheZone_WhenItIsTheBrowsers()
+        => Assert.Equal("Every day at 02:15", CronText.Describe("15 2 * * *", null, Zone("Europe/Zurich"), "Europe/Zurich"));
+
     [Theory]
     [InlineData("*/5 * * * *")]
     [InlineData("0 3 1 * *")]
