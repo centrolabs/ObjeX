@@ -5,7 +5,9 @@ using Hangfire.Storage;
 using Hangfire.Storage.SQLite;
 using ObjeX.Api.Jobs;
 using ObjeX.Api.Options;
+using Microsoft.EntityFrameworkCore;
 using ObjeX.Core.Interfaces;
+using ObjeX.Infrastructure.Data;
 using ObjeX.Infrastructure.Jobs;
 
 namespace ObjeX.Api.Startup;
@@ -49,7 +51,7 @@ public static class BackgroundJobs
         return services;
     }
 
-    /// <summary>Declares the recurring schedule and prunes recurring jobs this version does not declare.</summary>
+    /// <summary>Declares the recurring jobs on their stored or default schedule and prunes recurring jobs this version does not declare.</summary>
     public static void RegisterRecurringJobs(IServiceProvider services)
     {
         var manager = services.GetRequiredService<IRecurringJobManager>();
@@ -57,8 +59,12 @@ public static class BackgroundJobs
         var logger = services.GetRequiredService<ILoggerFactory>().CreateLogger(typeof(BackgroundJobs));
         var declared = JobDefinitions.All.Select(d => d.Id).ToHashSet(StringComparer.Ordinal);
 
-        foreach (var definition in JobDefinitions.All)
-            manager.AddOrUpdate(definition.Id, definition.Job, definition.DefaultCron, new RecurringJobOptions());
+        using (var db = services.GetRequiredService<IDbContextFactory<ObjeXDbContext>>().CreateDbContext())
+        {
+            var schedules = db.JobSchedules.AsNoTracking().ToDictionary(s => s.JobId);
+            foreach (var definition in JobDefinitions.All)
+                HangfireJobScheduler.Apply(manager, definition, schedules.GetValueOrDefault(definition.Id));
+        }
 
         using var connection = storage.GetConnection();
         foreach (var job in connection.GetRecurringJobs())
