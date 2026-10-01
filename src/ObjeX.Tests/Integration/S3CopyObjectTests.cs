@@ -1,10 +1,31 @@
 using System.Net;
 
+using Microsoft.AspNetCore.Hosting;
+
 namespace ObjeX.Tests.Integration;
 
 public class S3CopyObjectTests(ObjeXFactory factory) : IClassFixture<ObjeXFactory>
 {
     private readonly HttpClient _client = factory.CreateS3Client();
+
+    [Fact]
+    public async Task CopyObject_FreeDiskBelowTheMinimum_Returns507()
+    {
+        var key = "copy-disk-" + Guid.NewGuid().ToString("N")[..6];
+        var content = "copy me"u8.ToArray();
+        var put = new HttpRequestMessage(HttpMethod.Put, $"/test-bucket/{key}.src") { Content = new ByteArrayContent(content) };
+        S3RequestSigner.SignRequest(put, factory.AccessKeyId, factory.SecretAccessKey, content);
+        Assert.Equal(HttpStatusCode.OK, (await _client.SendAsync(put)).StatusCode);
+
+        using var lowDisk = factory.WithWebHostBuilder(b => b.UseSetting("Storage:MinimumFreeDiskBytes", (long.MaxValue / 4).ToString()));
+        var copy = new HttpRequestMessage(HttpMethod.Put, $"/test-bucket/{key}.dst");
+        copy.Headers.TryAddWithoutValidation("x-amz-copy-source", $"/test-bucket/{key}.src");
+        S3RequestSigner.SignRequest(copy, factory.AccessKeyId, factory.SecretAccessKey);
+        var response = await ObjeXFactory.CreateS3Client(lowDisk).SendAsync(copy);
+
+        Assert.Equal((HttpStatusCode)507, response.StatusCode);
+        Assert.Contains("<Code>EntityTooLarge</Code>", await response.Content.ReadAsStringAsync());
+    }
 
     [Fact]
     public async Task CopyObject_WithinBucket()

@@ -160,6 +160,9 @@ public static class S3ObjectEndpoint
                 if (await metadata.GetBucketAsync(bucket, IsPrivileged(ctx) ? null : GetCallerId(ctx)) is null)
                     return S3Xml.Error(S3Errors.NoSuchBucket, "The destination bucket does not exist.", 404);
 
+                if (space.Get().IsBelowMinimum)
+                    return S3Xml.Error(S3Errors.EntityTooLarge, "Insufficient disk space.", 507);
+
                 var copyQuotaError = await StorageQuota.CheckAsync(ctx, bucket, key, srcObj.Size);
                 if (copyQuotaError is not null) return copyQuotaError;
 

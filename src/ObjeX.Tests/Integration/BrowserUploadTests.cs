@@ -151,15 +151,50 @@ public class BrowserUploadTests(ObjeXFactory factory) : IClassFixture<ObjeXFacto
     }
 
     [Fact]
-    public async Task WithAnotherUsersToken_Returns400()
+    public async Task WithATokenIssuedToAnotherUser_Returns400()
     {
         var admin = await AdminAsync();
         await CreateUserAsync("upload-token-other", "User");
-        var other = await UiSession.LoginAsync(factory, "upload-token-other", "test1234");
 
-        var response = await admin.PutAsync(FileHelper.UploadUrl(Bucket, "other-token.txt"), Body([1, 2, 3]), token: other.Token);
+        var response = await admin.PutAsync(FileHelper.UploadUrl(Bucket, "other-token.txt"), Body([1, 2, 3]),
+            token: await admin.RequestTokenForAsync("upload-token-other"));
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal(HttpStatusCode.OK,
+            (await admin.PutAsync(FileHelper.UploadUrl(Bucket, "own-token.txt"), Body([1]), token: await admin.RequestTokenForAsync("admin"))).StatusCode);
+    }
+
+    [Fact]
+    public async Task WithoutContentLength_Returns411()
+    {
+        var session = await AdminAsync();
+
+        var response = await session.PutAsync(FileHelper.UploadUrl(Bucket, "chunked.bin"),
+            new GeneratedContent(1024, pauseAt: long.MaxValue, pause: () => Task.CompletedTask, announceLength: false));
+
+        Assert.Equal(HttpStatusCode.LengthRequired, response.StatusCode);
+        Assert.Null(await GetObjectAsync(Bucket, "chunked.bin"));
+    }
+
+    // The declared size bounds the write before any byte lands on disk, so an account with a quota cannot fill the volume with one body.
+    [Fact]
+    public async Task DeclaredSizeOverTheOwnersQuota_IsRefusedBeforeTheBodyIsStaged()
+    {
+        var ownerId = await CreateUserAsync("upload-early-owner", "User", quota: 1000);
+        await CreateBucketAsync("upload-early", ownerId);
+        var owner = await UiSession.LoginAsync(factory, "upload-early-owner", "test1234");
+        var stagedWhileSending = false;
+        var content = new GeneratedContent(50L * 1024 * 1024, pauseAt: 5L * 1024 * 1024, pause: () =>
+        {
+            stagedWhileSending = BucketFiles("upload-early", "*.tmp").Length > 0;
+            return Task.CompletedTask;
+        });
+
+        var response = await owner.PutAsync(FileHelper.UploadUrl("upload-early", "huge.bin"), content);
+
+        Assert.Equal((HttpStatusCode)507, response.StatusCode);
+        Assert.False(stagedWhileSending);
+        Assert.Empty(BucketFiles("upload-early"));
     }
 
     [Fact]
@@ -357,7 +392,7 @@ public class BrowserUploadTests(ObjeXFactory factory) : IClassFixture<ObjeXFacto
     }
 
     /// <summary>A body of the given length produced on the fly, so the test never holds it in memory; runs pause once at the given offset.</summary>
-    private sealed class GeneratedContent(long length, long pauseAt, Func<Task> pause) : HttpContent
+    private sealed class GeneratedContent(long length, long pauseAt, Func<Task> pause, bool announceLength = true) : HttpContent
     {
         private readonly IncrementalHash _md5 = IncrementalHash.CreateHash(HashAlgorithmName.MD5);
 
@@ -388,7 +423,7 @@ public class BrowserUploadTests(ObjeXFactory factory) : IClassFixture<ObjeXFacto
         protected override bool TryComputeLength(out long len)
         {
             len = length;
-            return true;
+            return announceLength;
         }
     }
 }

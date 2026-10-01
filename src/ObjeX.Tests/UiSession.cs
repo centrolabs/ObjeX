@@ -23,6 +23,8 @@ public sealed class UiSession
     public required string TokenHeader { get; init; }
     public required string Token { get; init; }
     public required string UserId { get; init; }
+    public required string CookieToken { get; init; }
+    private WebApplicationFactory<ApiAssemblyMarker> Host { get; init; } = null!;
 
     public static async Task<UiSession> LoginAsync(WebApplicationFactory<ApiAssemblyMarker> factory, string login, string password)
     {
@@ -38,15 +40,35 @@ public sealed class UiSession
         Assert.DoesNotContain("error=1", response.Headers.Location?.OriginalString ?? "");
 
         using var scope = factory.Services.CreateScope();
-        var user = (await scope.ServiceProvider.GetRequiredService<UserManager<User>>().FindByNameAsync(login))!;
-        var principal = await scope.ServiceProvider.GetRequiredService<IUserClaimsPrincipalFactory<User>>().CreateAsync(user);
+        var (user, principal) = await PrincipalAsync(scope, login);
 
         var options = scope.ServiceProvider.GetRequiredService<IOptions<AntiforgeryOptions>>().Value;
         var tokens = scope.ServiceProvider.GetRequiredService<IAntiforgery>()
             .GetTokens(new DefaultHttpContext { User = principal, RequestServices = scope.ServiceProvider });
         jar.Add(client.BaseAddress!, new Cookie(options.Cookie.Name!, tokens.CookieToken));
 
-        return new UiSession { Client = client, TokenHeader = options.HeaderName!, Token = tokens.RequestToken!, UserId = user.Id };
+        return new UiSession
+        {
+            Client = client, TokenHeader = options.HeaderName!, Token = tokens.RequestToken!, UserId = user.Id,
+            CookieToken = tokens.CookieToken!, Host = factory
+        };
+    }
+
+    /// <summary>A request token issued to another user but paired with this session's antiforgery cookie: right in everything except the user.</summary>
+    public async Task<string> RequestTokenForAsync(string login)
+    {
+        using var scope = Host.Services.CreateScope();
+        var (_, principal) = await PrincipalAsync(scope, login);
+        var options = scope.ServiceProvider.GetRequiredService<IOptions<AntiforgeryOptions>>().Value;
+        var http = new DefaultHttpContext { User = principal, RequestServices = scope.ServiceProvider };
+        http.Request.Headers.Cookie = $"{options.Cookie.Name}={CookieToken}";
+        return scope.ServiceProvider.GetRequiredService<IAntiforgery>().GetTokens(http).RequestToken!;
+    }
+
+    private static async Task<(User User, System.Security.Claims.ClaimsPrincipal Principal)> PrincipalAsync(IServiceScope scope, string login)
+    {
+        var user = (await scope.ServiceProvider.GetRequiredService<UserManager<User>>().FindByNameAsync(login))!;
+        return (user, await scope.ServiceProvider.GetRequiredService<IUserClaimsPrincipalFactory<User>>().CreateAsync(user));
     }
 
     /// <summary>PUT with the antiforgery header, as the upload script sends it.</summary>
