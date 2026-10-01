@@ -349,7 +349,7 @@ stateDiagram-v2
 
 ## 8. Browser upload
 
-The Objects page uploads over HTTP, not through the circuit. The page's script keeps the files and sends each one with `XMLHttpRequest` to `PUT /api/upload`, three at a time; the circuit only decides keys and URLs and renders the progress. The endpoint applies the rules of PutObject: free disk first, then the staged write, the bucket owner's quota on the real size, the commit, and the row with its audit entry.
+The Objects page uploads over HTTP, not through the circuit. The page's script keeps the files and sends each one with `XMLHttpRequest` to `PUT /api/upload`, three at a time; the circuit only decides keys and URLs and renders the progress. The endpoint applies the rules of PutObject: free disk and the bucket owner's quota on the declared size first, then the staged write, the quota again on the real size, the commit, and the row with its audit entry.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="diagrams/08-browser-upload.dark.svg">
@@ -372,7 +372,7 @@ sequenceDiagram
   P->>B: start(id, url, type)
   loop three files at a time
     B->>U: PUT raw body · login cookie · antiforgery header
-    U->>U: token (400) · key (400) · bucket with owner filter (404) · free disk (507)
+    U->>U: token (400) · key (400) · bucket with owner filter (404) · free disk (507) · Content-Length (411) · quota on it (507)
     U->>S: StageAsync(HashingStream over the body)
     critical owner with a quota: one write at a time
       U->>S: CheckWriteAsync(real size): owner quota, an overwrite pays its growth (507, staged file disposed)
