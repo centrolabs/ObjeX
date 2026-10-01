@@ -40,6 +40,7 @@ public static class BackgroundJobs
             .WithJobExpirationTimeout(RunRetention));
         services.AddHangfireServer();
         services.AddSingleton<IJobMonitor, HangfireJobMonitor>();
+        services.AddSingleton<IJobScheduler, HangfireJobScheduler>();
 
         services.AddScoped<CleanupOrphanedBlobsJob>();
         services.AddScoped<VerifyBlobIntegrityJob>();

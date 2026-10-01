@@ -14,6 +14,7 @@ public class ObjeXDbContext(DbContextOptions<ObjeXDbContext> options) : Identity
     public DbSet<MultipartUploadPart> MultipartUploadParts { get; set; } = null!;
     public DbSet<SystemSettings> SystemSettings { get; set; } = null!;
     public DbSet<AuditEntry> AuditEntries { get; set; } = null!;
+    public DbSet<JobSchedule> JobSchedules { get; set; } = null!;
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -89,6 +90,12 @@ public class ObjeXDbContext(DbContextOptions<ObjeXDbContext> options) : Identity
             entity.HasIndex(e => e.UserId);
             entity.HasIndex(e => e.Action);
             entity.HasIndex(e => e.BucketName);
+        });
+
+        modelBuilder.Entity<JobSchedule>(entity =>
+        {
+            entity.HasKey(e => e.JobId);
+            entity.Property(e => e.JobId).ValueGeneratedNever();
         });
 
         modelBuilder.Entity<SystemSettings>(entity =>

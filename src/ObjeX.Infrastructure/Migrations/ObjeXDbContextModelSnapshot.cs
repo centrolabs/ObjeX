@@ -332,6 +332,40 @@ namespace ObjeX.Infrastructure.Migrations
                     b.ToTable("buckets", (string)null);
                 });
 
+            modelBuilder.Entity("ObjeX.Core.Models.JobSchedule", b =>
+                {
+                    b.Property<string>("JobId")
+                        .HasColumnType("TEXT")
+                        .HasColumnName("job_id");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("Cron")
+                        .IsRequired()
+                        .HasColumnType("TEXT")
+                        .HasColumnName("cron");
+
+                    b.Property<bool>("Enabled")
+                        .HasColumnType("INTEGER")
+                        .HasColumnName("enabled");
+
+                    b.Property<string>("TimeZone")
+                        .IsRequired()
+                        .HasColumnType("TEXT")
+                        .HasColumnName("time_zone");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("TEXT")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("JobId")
+                        .HasName("pk_job_schedules");
+
+                    b.ToTable("job_schedules", (string)null);
+                });
+
             modelBuilder.Entity("ObjeX.Core.Models.MultipartUpload", b =>
                 {
                     b.Property<Guid>("Id")
