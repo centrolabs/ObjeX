@@ -10,7 +10,10 @@ namespace ObjeX.Api.Jobs;
 /// Stores the Admin's schedules and applies them to Hangfire. A disabled job keeps its recurring entry with a
 /// cron that never fires, so its last run stays visible and Run now still works.
 /// </summary>
-public class HangfireJobScheduler(IDbContextFactory<ObjeXDbContext> dbFactory, IRecurringJobManager manager) : IJobScheduler
+public class HangfireJobScheduler(
+    IDbContextFactory<ObjeXDbContext> dbFactory,
+    IRecurringJobManager manager,
+    ILogger<HangfireJobScheduler> logger) : IJobScheduler
 {
     public JobScheduleCheck Check(string cron, string timeZone) => JobCron.Check(cron, timeZone, DateTime.UtcNow);
 
@@ -50,7 +53,7 @@ public class HangfireJobScheduler(IDbContextFactory<ObjeXDbContext> dbFactory, I
         });
         await db.SaveChangesAsync(ctk);
 
-        Apply(manager, definition, row);
+        Apply(manager, definition, row, logger);
     }
 
     public async Task ResetAsync(string jobId, string auditUserId, CancellationToken ctk = default)
@@ -74,15 +77,35 @@ public class HangfireJobScheduler(IDbContextFactory<ObjeXDbContext> dbFactory, I
         });
         await db.SaveChangesAsync(ctk);
 
-        Apply(manager, definition, null);
+        Apply(manager, definition, null, logger);
     }
 
     /// <summary>The stored schedule, or the default in UTC without one.</summary>
-    public static void Apply(IRecurringJobManager manager, JobDefinition definition, JobSchedule? schedule)
+    public static void Apply(IRecurringJobManager manager, JobDefinition definition, JobSchedule? schedule, ILogger logger)
     {
-        var cron = schedule is null ? definition.DefaultCron : schedule.Enabled ? schedule.Cron : Cron.Never();
-        var zone = schedule is null ? TimeZoneInfo.Utc : TimeZoneInfo.FindSystemTimeZoneById(schedule.TimeZone);
+        var (cron, zone) = Resolve(definition, schedule, logger);
         manager.AddOrUpdate(definition.Id, definition.Job, cron, new RecurringJobOptions { TimeZone = zone });
+    }
+
+    // A row from another host or edited by hand may hold a zone this host lacks or a cron Hangfire refuses; the app still starts.
+    private static (string Cron, TimeZoneInfo Zone) Resolve(JobDefinition definition, JobSchedule? schedule, ILogger logger)
+    {
+        if (schedule is null)
+            return (definition.DefaultCron, TimeZoneInfo.Utc);
+        if (!schedule.Enabled)
+            return (Cron.Never(), TimeZoneInfo.Utc);
+
+        if (JobCron.Check(schedule.Cron, "UTC", DateTime.UtcNow).Error is { } error)
+        {
+            logger.LogWarning("Job '{JobId}' runs on its default schedule: its stored cron '{Cron}' is invalid. {Error}", definition.Id, schedule.Cron, error);
+            return (definition.DefaultCron, TimeZoneInfo.Utc);
+        }
+
+        if (TimeZoneInfo.TryFindSystemTimeZoneById(schedule.TimeZone, out var zone))
+            return (schedule.Cron, zone);
+
+        logger.LogWarning("Job '{JobId}' runs its cron in UTC: this host does not know the time zone '{TimeZone}'.", definition.Id, schedule.TimeZone);
+        return (schedule.Cron, TimeZoneInfo.Utc);
     }
 
     private static JobDefinition Find(string jobId)
