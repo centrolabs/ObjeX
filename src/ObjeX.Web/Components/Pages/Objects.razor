@@ -123,7 +123,7 @@
 
     @if (_uploads.Items.Count > 0)
     {
-        <OxUploadPanel Title="@UploadText.Title(_uploads)" Detail="@UploadText.Detail(_uploads)" Progress="@_uploads.Percent">
+        <OxUploadPanel Title="@UploadText.Title(_uploads)" Detail="@UploadText.Detail(_uploads)" Progress="@_uploads.Percent" Tone="@UploadText.Tone(_uploads)">
             <Actions>
                 @if (_uploads.IsActive)
                 {

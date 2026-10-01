@@ -29,6 +29,10 @@ public static class UploadText
         return string.Join(" · ", parts);
     }
 
+    /// <summary>The bar turns red once a run has ended with files that did not go up.</summary>
+    public static OxTone Tone(UploadQueue queue) =>
+        !queue.IsActive && queue.CountOf(UploadStatus.Failed) > 0 ? OxTone.Danger : OxTone.Default;
+
     public static string Row(UploadItem item) => item.Status switch
     {
         UploadStatus.Queued => $"Waiting · {FileHelper.FormatBytes(item.Size)}",
