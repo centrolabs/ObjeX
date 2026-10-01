@@ -39,7 +39,7 @@ Used by the web UI; they need the login cookie unless noted.
 |---|---|---|
 | `GET` | `/api/objects/{bucket}/{key}` | Download; images, audio, video, PDF and plain text open inline |
 | `GET` | `/api/objects/{bucket}/download` | ZIP download; `?prefix=` scopes to a folder |
-| `PUT` | `/api/upload/{bucket}/{key}` | Upload one file, raw body, `Content-Type` from the header; needs the antiforgery token in the `RequestVerificationToken` header. Answers `{ key, size, etag }`; errors as `{ error }`: `400` token or key, `404` bucket, `507` disk or the bucket owner's quota, `413` over `Storage:MaxUploadBytes` |
+| `PUT` | `/api/upload/{bucket}/{key}` | Upload one file, raw body, `Content-Type` from the header; needs the antiforgery token in the `RequestVerificationToken` header. Answers `{ key, size, etag }`; needs `Content-Length` (`411` without). Errors as `{ error }`: `400` token or key, `404` bucket, `507` disk or the bucket owner's quota (checked on the declared size before the body is written), `413` over `Storage:MaxUploadBytes` |
 | `GET` | `/api/presign/{bucket}/{key}` | Presigned URL; `?expires=N` in seconds |
 | `POST` | `/account/login` | Form login, no cookie needed |
 | `GET` | `/account/logout` | Log out |

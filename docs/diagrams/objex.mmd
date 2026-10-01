@@ -498,7 +498,7 @@ sequenceDiagram
   P->>B: start(id, url, type)
   loop three files at a time
     B->>U: PUT raw body · login cookie · antiforgery header
-    U->>U: token (400) · key (400) · bucket with owner filter (404) · free disk (507)
+    U->>U: token (400) · key (400) · bucket with owner filter (404) · free disk (507) · Content-Length (411) · quota on it (507)
     U->>S: StageAsync(HashingStream over the body)
     critical owner with a quota: one write at a time
       U->>S: CheckWriteAsync(real size): owner quota, an overwrite pays its growth (507, staged file disposed)
