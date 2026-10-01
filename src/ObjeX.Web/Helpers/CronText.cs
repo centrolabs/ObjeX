@@ -29,7 +29,7 @@ public static class CronText
                 : $"Every {local.DayOfWeek} at {local.ToString("HH:mm", CultureInfo.InvariantCulture)}";
         }
 
-        var time = $"{h:00}:{m:00} {cronZone}";
+        var time = cronZone == tz.Zone.Id ? $"{h:00}:{m:00}" : $"{h:00}:{m:00} {cronZone}";
         return day is null ? $"Every day at {time}" : $"Every {(DayOfWeek)day} at {time}";
     }
 }
