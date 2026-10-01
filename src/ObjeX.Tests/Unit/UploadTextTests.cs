@@ -43,6 +43,17 @@ public class UploadTextTests
     }
 
     [Fact]
+    public void Tone_TurnsDanger_OnlyWhenARunEndsWithFailures()
+    {
+        var queue = Queue(2);
+        queue.Apply([new(1, "failed")]);
+        Assert.Equal(OxTone.Default, UploadText.Tone(queue));
+
+        queue.Apply([new(2, "done")]);
+        Assert.Equal(OxTone.Danger, UploadText.Tone(queue));
+    }
+
+    [Fact]
     public void RowProgress_OnlyWhileSending()
     {
         var queue = Queue(3, 200);
