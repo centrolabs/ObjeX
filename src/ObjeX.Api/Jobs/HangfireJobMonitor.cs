@@ -2,7 +2,9 @@ using Hangfire;
 using Hangfire.Common;
 using Hangfire.Storage;
 using Hangfire.Storage.Monitoring;
+using Microsoft.EntityFrameworkCore;
 using ObjeX.Core.Interfaces;
+using ObjeX.Infrastructure.Data;
 using ObjeX.Infrastructure.Jobs;
 
 namespace ObjeX.Api.Jobs;
@@ -12,23 +14,37 @@ namespace ObjeX.Api.Jobs;
 /// history, whose data the Hangfire state classes write themselves; the StateData of the list DTOs depends on
 /// the storage (null on SQLite).
 /// </summary>
-public class HangfireJobMonitor(JobStorage storage, IRecurringJobManager manager, IBackgroundJobClient client) : IJobMonitor
+public class HangfireJobMonitor(
+    JobStorage storage,
+    IRecurringJobManager manager,
+    IBackgroundJobClient client,
+    IDbContextFactory<ObjeXDbContext> dbFactory) : IJobMonitor
 {
     public IReadOnlyList<RecurringJobStatus> GetRecurringJobs()
     {
         var monitor = storage.GetMonitoringApi();
         using var connection = storage.GetConnection();
+        using var db = dbFactory.CreateDbContext();
+        var entries = connection.GetRecurringJobs().ToDictionary(j => j.Id);
+        var schedules = db.JobSchedules.AsNoTracking().ToDictionary(s => s.JobId);
 
-        return connection.GetRecurringJobs()
-            .OrderBy(j => JobDefinitions.Of(j.Job?.Type) is { } d ? JobDefinitions.All.ToList().IndexOf(d) : int.MaxValue)
-            .ThenBy(j => j.Id, StringComparer.Ordinal)
-            .Select(j => new RecurringJobStatus(
-                j.Id,
-                NameOf(j.Job) ?? j.Id,
-                j.Cron,
-                j.NextExecution,
-                j.LastExecution,
-                j.LastJobId is { Length: > 0 } lastId ? ReadRun(monitor, lastId) : null))
+        return JobDefinitions.All
+            .Select(d =>
+            {
+                var entry = entries.GetValueOrDefault(d.Id);
+                var schedule = schedules.GetValueOrDefault(d.Id);
+                var enabled = schedule?.Enabled ?? true;
+                return new RecurringJobStatus(
+                    d.Id,
+                    d.Name,
+                    schedule?.Cron ?? d.DefaultCron,
+                    schedule?.TimeZone ?? "UTC",
+                    enabled,
+                    schedule is null,
+                    enabled ? entry?.NextExecution : null,
+                    entry?.LastExecution,
+                    entry?.LastJobId is { Length: > 0 } lastId ? ReadRun(monitor, lastId) : null);
+            })
             .ToList();
     }
 
