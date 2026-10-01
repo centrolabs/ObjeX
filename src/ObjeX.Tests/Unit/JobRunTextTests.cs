@@ -1,4 +1,5 @@
 using ObjeX.Core.Interfaces;
+using ObjeX.Web.Components.Ui;
 using ObjeX.Web.Helpers;
 
 namespace ObjeX.Tests.Unit;
@@ -24,6 +25,22 @@ public class JobRunTextTests
             new Dictionary<string, string> { ["Latency"] = "40", ["PerformanceDuration"] = "250", ["Result"] = "{}" });
 
         Assert.Equal("Latency 40 ms · Duration 250 ms", JobRunText.StateDetails(change));
+    }
+
+    [Fact]
+    public void Summary_PrefersTheErrorInDanger()
+    {
+        var run = new JobRun("1", "Job", JobRunState.Failed, null, null, "ignored", "disk gone");
+
+        Assert.Equal(("disk gone", OxTone.Danger), JobRunText.Summary(run));
+    }
+
+    [Fact]
+    public void Summary_ShowsTheResultOtherwise()
+    {
+        var run = new JobRun("1", "Job", JobRunState.Succeeded, null, null, "3 blobs verified", null);
+
+        Assert.Equal(("3 blobs verified", OxTone.Default), JobRunText.Summary(run));
     }
 
     [Theory]

@@ -36,6 +36,9 @@ public static class JobRunText
 
     public static bool CanDelete(JobRunState state) => state is not JobRunState.Processing and not JobRunState.Other;
 
+    public static (string? Text, OxTone Tone) Summary(JobRun run)
+        => run.Error is { } error ? (error, OxTone.Danger) : (run.Result, OxTone.Default);
+
     public static string DetailsUrl(string jobId) => $"/jobs/runs/{Uri.EscapeDataString(jobId)}";
 
     // The step's own time is the row's time, and result and stack trace have their own cards; the rest is shown as is.
