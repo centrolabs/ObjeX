@@ -1,0 +1,21 @@
+<div class="ox-upload-row">
+    <OxFileName Kind="@Kind">@Name</OxFileName>
+    <span class="ox-upload-row-actions">@ChildContent</span>
+    <OxText Variant="OxTextVariant.Small" Tone="@Tone" Truncate="true" title="@Detail">@Detail</OxText>
+    @if (Progress is { } progress)
+    {
+        <OxMeter Value="@progress" Label="@($"{Name} progress")" />
+    }
+</div>
+
+@code {
+    [Parameter] public string? Name { get; set; }
+    [Parameter] public OxFileKind Kind { get; set; }
+    /// <summary>The second line: bytes sent, the size or the error.</summary>
+    [Parameter] public string? Detail { get; set; }
+    [Parameter] public OxTone Tone { get; set; } = OxTone.Muted;
+    /// <summary>0 to 100 while the file is sent; null hides the bar.</summary>
+    [Parameter] public double? Progress { get; set; }
+    /// <summary>Icon buttons for the file: cancel, retry.</summary>
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+}

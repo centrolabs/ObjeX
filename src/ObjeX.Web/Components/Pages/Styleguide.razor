@@ -164,6 +164,34 @@
         <OxAlert Tone="OxTone.Warning">Save your secret access key now. It is not shown again.</OxAlert>
         <OxAlert Tone="OxTone.Danger">The disk is below its minimum free space. Uploads are refused.</OxAlert>
 
+        <OxText Variant="OxTextVariant.Label">Upload panel</OxText>
+        <OxUploadPanel Floating="false" Title="Uploading 3 files" Detail="1 of 5 done · 1 failed · 61.4 MB of 140.2 MB" Progress="44">
+            <Actions><OxIconButton Icon="cancel" Label="Cancel all" /></Actions>
+            <ChildContent>
+                <OxUploadRow Name="trip/drone-footage.mp4" Kind="OxFileKind.Video" Detail="48.0 MB of 120.0 MB" Progress="40">
+                    <OxIconButton Icon="close" Label="Cancel" />
+                </OxUploadRow>
+                <OxUploadRow Name="trip/notes.txt" Kind="OxFileKind.Text" Detail="Waiting · 2.1 KB">
+                    <OxIconButton Icon="close" Label="Cancel" />
+                </OxUploadRow>
+                <OxUploadRow Name="trip/IMG_01.jpg" Kind="OxFileKind.Image" Detail="829.7 KB" Tone="OxTone.Accent">
+                    <OxIcon Name="check_circle" Tone="OxTone.Accent" />
+                </OxUploadRow>
+                <OxUploadRow Name="trip/raw.dng" Kind="OxFileKind.Image" Detail="Storage quota of the bucket owner exceeded (1.02 GB of 1.00 GB)." Tone="OxTone.Danger">
+                    <OxIconButton Icon="refresh" Label="Retry" />
+                </OxUploadRow>
+                <OxUploadRow Name="trip/old.mov" Kind="OxFileKind.Video" Detail="Cancelled">
+                    <OxIconButton Icon="refresh" Label="Retry" />
+                </OxUploadRow>
+            </ChildContent>
+        </OxUploadPanel>
+        <OxUploadPanel Floating="false" Title="4 of 5 files uploaded" Detail="1 failed" Progress="100">
+            <Actions>
+                <OxIconButton Icon="refresh" Label="Retry failed" />
+                <OxIconButton Icon="close" Label="Close" />
+            </Actions>
+        </OxUploadPanel>
+
         <OxText Variant="OxTextVariant.Label">Navigation and sidebar</OxText>
         <OxStack Gap="1">
             <OxNavItem Href="/styleguide" Icon="inventory_2">Active entry</OxNavItem>

@@ -1,0 +1,27 @@
+.ox-upload-panel {
+    display: flex;
+    flex-direction: column;
+    width: var(--ox-size-upload-panel);
+    max-width: calc(100vw - 2 * var(--ox-space-6));
+    border: var(--ox-border) solid var(--ox-line-strong);
+    border-radius: var(--ox-radius-md);
+    background: var(--ox-surface-raised);
+    box-shadow: var(--ox-shadow-pop);
+    overflow: hidden;
+}
+
+.ox-upload-panel.is-floating { position: fixed; right: var(--ox-space-6); bottom: var(--ox-space-6); z-index: var(--ox-z-panel); }
+
+.ox-upload-head { display: flex; align-items: center; justify-content: space-between; gap: var(--ox-space-4); padding: var(--ox-space-5) var(--ox-space-4) var(--ox-space-5) var(--ox-space-7); }
+
+.ox-upload-heading { display: flex; flex-direction: column; gap: var(--ox-space-1); min-width: 0; }
+
+.ox-upload-title { font-weight: var(--ox-fw-semibold); }
+
+.ox-upload-detail { overflow: hidden; color: var(--ox-text-muted); font-size: var(--ox-fs-sm); text-overflow: ellipsis; white-space: nowrap; }
+
+.ox-upload-actions { display: flex; flex-shrink: 0; align-items: center; gap: var(--ox-space-1); }
+
+.ox-upload-panel ::deep > .ox-meter { margin: 0 var(--ox-space-7) var(--ox-space-5); }
+
+.ox-upload-list { max-height: var(--ox-size-upload-list); overflow-y: auto; border-top: var(--ox-border) solid var(--ox-line); }
