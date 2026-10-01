@@ -31,6 +31,8 @@ Log files go to `./data/logs/objex-YYYYMMDD.log`: daily, 30 days retention, comp
 
 Presigned URL expiry (default 1 hour, max 7 days) and storage quotas are set in the web UI under **Settings**, not in configuration.
 
+The background jobs are set on the **Jobs** page (Admin): enabled or disabled, daily or weekly with day and time, or a five-field cron, and their settings — the grace for new blob files of the orphan cleanup (default 60 minutes) and the age after which a multipart upload counts as abandoned (default 7 days). A schedule is stored with the browser's time zone, so a job set to 04:00 runs at 04:00 local time across daylight saving time. The defaults are weekly on Sunday, 03:00, 04:00 and 05:00 UTC. The server needs the time zone database (`tzdata`); the official image ships it.
+
 ## Example
 
 ```json

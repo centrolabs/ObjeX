@@ -65,7 +65,7 @@ sequenceDiagram
 
 ## 3. S3 Multipart upload
 
-Initiate, the UploadPart loop with its upsert, and Complete with every validation the endpoint performs before it assembles the parts. The multipart ETag is the MD5 of the concatenated part MD5 bytes followed by the part count. Abort and the weekly cleanup job are noted at the bottom.
+Initiate, the UploadPart loop with its upsert, and Complete with every validation the endpoint performs before it assembles the parts. The multipart ETag is the MD5 of the concatenated part MD5 bytes followed by the part count. Abort and the cleanup job are noted at the bottom.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="diagrams/03-s3-multipart-upload.dark.svg">
@@ -116,7 +116,7 @@ sequenceDiagram
   MP->>DB: delete MultipartUpload (parts cascade)
   MP-->>C: CompleteMultipartUploadResult · ETag
 
-  Note over C,D: DELETE ?uploadId=X aborts: part files and rows removed. CleanupAbandonedMultipartJob removes uploads older than 7 days every Sunday 05:00 UTC.
+  Note over C,D: DELETE ?uploadId=X aborts: part files and rows removed. CleanupAbandonedMultipartJob removes uploads older than 7 days (default, set on /jobs), by default every Sunday 05:00 UTC.
 ```
 
 </details>
@@ -336,7 +336,7 @@ stateDiagram-v2
   Recorded --> [*]
   Committed --> Orphaned : crash before SaveObjectAsync
   note right of Orphaned
-    CleanupOrphanedBlobsJob (Sun 03:00 UTC) deletes .blob files
+    CleanupOrphanedBlobsJob (default Sun 03:00 UTC) deletes .blob files
     with no row, unless modified within the last hour
   end note
 ```

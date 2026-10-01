@@ -287,7 +287,7 @@ sequenceDiagram
   MP->>DB: delete MultipartUpload (parts cascade)
   MP-->>C: CompleteMultipartUploadResult · ETag
 
-  Note over C,D: DELETE ?uploadId=X aborts: part files and rows removed. CleanupAbandonedMultipartJob removes uploads older than 7 days every Sunday 05:00 UTC.
+  Note over C,D: DELETE ?uploadId=X aborts: part files and rows removed. CleanupAbandonedMultipartJob removes uploads older than 7 days (default, set on /jobs), by default every Sunday 05:00 UTC.
 
 %%% Browser login · cookie session
 %%{init: {"theme": "base", "themeVariables": {"fontFamily": "system-ui, sans-serif"}, "sequence": {"useMaxWidth": false, "actorFontSize": 18, "messageFontSize": 16, "noteFontSize": 15, "actorMargin": 60, "width": 220, "mirrorActors": false}}}%%
@@ -465,6 +465,6 @@ stateDiagram-v2
   Recorded --> [*]
   Committed --> Orphaned : crash before SaveObjectAsync
   note right of Orphaned
-    CleanupOrphanedBlobsJob (Sun 03:00 UTC) deletes .blob files
+    CleanupOrphanedBlobsJob (default Sun 03:00 UTC) deletes .blob files
     with no row, unless modified within the last hour
   end note
