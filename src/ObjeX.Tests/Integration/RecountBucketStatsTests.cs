@@ -69,4 +69,27 @@ public class RecountBucketStatsTests(ObjeXFactory factory) : IClassFixture<ObjeX
 
         Assert.Equal(0, (await RunAsync()).BucketsCorrected);
     }
+
+    [Fact]
+    public async Task AWriteThatCommitsWhileTheRecountWaits_IsCounted()
+    {
+        await CreateAsync("recount-race", 10);
+        await using var writer = await DbAsync();
+        await using var tx = await writer.Database.BeginTransactionAsync();
+        writer.BlobObjects.Add(new BlobObject { BucketName = "recount-race", Key = "late", ETag = "e", Size = 7, StoragePath = "unused" });
+        await writer.SaveChangesAsync();
+        await writer.Buckets.Where(b => b.Name == "recount-race")
+            .ExecuteUpdateAsync(s => s.SetProperty(b => b.ObjectCount, b => b.ObjectCount + 1).SetProperty(b => b.TotalSize, b => b.TotalSize + 7));
+
+        var recount = Task.Run(async () =>
+        {
+            using var scope = factory.CreateScope();
+            await scope.ServiceProvider.GetRequiredService<IMetadataService>().UpdateBucketStatsAsync("recount-race");
+        });
+        await Task.Delay(500); // the recount now waits for the writer's lock on the bucket row
+        await tx.CommitAsync();
+        await recount;
+
+        Assert.Equal((2L, 17L), await StatsAsync("recount-race"));
+    }
 }

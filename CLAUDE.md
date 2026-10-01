@@ -307,7 +307,7 @@ public interface IMetadataService
     // DeleteObjectsAsync: one transaction, one stats update, one DeleteObject audit entry per deleted key; unknown keys are ignored (S3 semantics), returns rows deleted
     Task<bool> ExistsObjectAsync(string bucketName, string key, CancellationToken ctk = default);
     Task UpdateBucketStatsAsync(string bucketName, CancellationToken ctk = default);
-    // UpdateBucketStatsAsync is the full recount in one UPDATE with subqueries, for repair only (RecountBucketStatsJob). SaveObjectAsync/DeleteObjectAsync/DeleteObjectsAsync adjust ObjectCount and TotalSize
+    // UpdateBucketStatsAsync is the full recount in one UPDATE with subqueries, for repair only (RecountBucketStatsJob); on PostgreSQL it locks the bucket row first (FOR UPDATE), so a concurrent write is counted. SaveObjectAsync/DeleteObjectAsync/DeleteObjectsAsync adjust ObjectCount and TotalSize
     // by the changed object's delta via ExecuteUpdate in the same transaction as the row change; overwrite = count unchanged, size delta = new - old.
 }
 
