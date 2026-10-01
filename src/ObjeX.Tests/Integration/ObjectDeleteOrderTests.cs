@@ -54,6 +54,38 @@ public class ObjectDeleteOrderTests(ObjectDeleteOrderTests.Factory factory) : IC
         return await _s3.SendAsync(request);
     }
 
+    // Between the commit of an overwrite and its row, a delete would remove the old row and the new file; the row then points nowhere.
+    [Fact]
+    public async Task DeleteDuringAnOverwrite_WaitsForIt_AndLeavesNoRowWithoutItsFile()
+    {
+        await PutObjectAsync("del-during-put", "a.txt", "old"u8.ToArray());
+        using var scope = factory.CreateScope();
+        var storage = scope.ServiceProvider.GetRequiredService<IObjectStorageService>();
+        var metadata = scope.ServiceProvider.GetRequiredService<IMetadataService>();
+        var committed = new TaskCompletionSource();
+        var release = new TaskCompletionSource();
+
+        var overwrite = factory.Services.GetRequiredService<IStorageQuotaService>().WriteWithinQuotaAsync("del-during-put", "a.txt", 3, async () =>
+        {
+            await using var staged = await storage.StageAsync("del-during-put", "a.txt", new MemoryStream("new"u8.ToArray()));
+            var storagePath = await staged.CommitAsync();
+            committed.SetResult();
+            await release.Task;
+            await metadata.SaveObjectAsync(new BlobObject { BucketName = "del-during-put", Key = "a.txt", Size = 3, ETag = "e", StoragePath = storagePath });
+        });
+        await committed.Task;
+        var delete = SendAsync(HttpMethod.Delete, "/del-during-put/a.txt");
+
+        await Task.Delay(200);
+        Assert.False(delete.IsCompleted);
+
+        release.SetResult();
+        await overwrite;
+        Assert.Equal(HttpStatusCode.NoContent, (await delete).StatusCode);
+        Assert.Null(await metadata.GetObjectAsync("del-during-put", "a.txt"));
+        Assert.False(await storage.ExistsAsync("del-during-put", "a.txt"));
+    }
+
     [Fact]
     public async Task DeleteObject_WhenMetadataDeleteFails_ObjectStaysRetrievable()
     {

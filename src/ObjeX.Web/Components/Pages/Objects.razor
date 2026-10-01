@@ -21,6 +21,7 @@
 @inject IJSRuntime JS
 @inject BrowserTimeZone Tz
 @inject AntiforgeryStateProvider Antiforgery
+@inject IKeyGate KeyGate
 @inject IOptions<AntiforgeryOptions> AntiforgeryOptions
 
 <PageTitle>@BucketName — ObjeX</PageTitle>
@@ -583,8 +584,10 @@
     }
 
     // Row first, blob second: a row must never point at a missing blob, while a leftover blob is collected by the orphan cleanup job.
+    // Behind the key gate, so an upload of the key cannot put its file between the two.
     async Task DeleteObjectAsync(string key)
     {
+        using var gate = await KeyGate.EnterAsync(BucketName, [key]);
         await MetadataService.DeleteObjectAsync(BucketName, key, _currentUserId);
         await DeleteBlobAsync(key);
     }
@@ -593,6 +596,7 @@
     async Task DeleteObjectsAsync(IReadOnlyCollection<string> keys)
     {
         if (keys.Count == 0) return;
+        using var gate = await KeyGate.EnterAsync(BucketName, keys);
         await MetadataService.DeleteObjectsAsync(BucketName, keys, _currentUserId);
         foreach (var key in keys)
             await DeleteBlobAsync(key);
