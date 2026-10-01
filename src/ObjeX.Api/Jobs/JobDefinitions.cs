@@ -34,6 +34,8 @@ public static class JobDefinitions
             new("Abandoned after", "days", "Multipart uploads not completed within this time are deleted with their parts.",
                 CleanupAbandonedMultipartJob.DefaultAbandonedDays, 1, 365,
                 s => s.AbandonedMultipartDays, (s, v) => s.AbandonedMultipartDays = v)),
+        new("recount-bucket-stats", "Bucket stats recount", Cron.Weekly(DayOfWeek.Sunday, 6),
+            Job.FromExpression<RecountBucketStatsJob>(j => j.ExecuteAsync())),
     ];
 
     public static JobDefinition? Find(string id) => All.FirstOrDefault(d => d.Id == id);

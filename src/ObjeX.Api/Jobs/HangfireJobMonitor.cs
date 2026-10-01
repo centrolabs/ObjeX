@@ -164,6 +164,7 @@ public class HangfireJobMonitor(
         IntegrityResult r => $"{Count(r.Checked, "blob")} verified, {r.Corrupted:N0} corrupted, {r.Missing:N0} missing"
             + (r.Skipped > 0 ? $", {r.Skipped:N0} multipart skipped" : ""),
         AbandonedMultipartResult r => $"{Count(r.UploadsChecked, "abandoned upload")} found, {r.UploadsDeleted:N0} deleted",
+        RecountResult r => $"{Count(r.BucketsChecked, "bucket")} checked, {r.BucketsCorrected:N0} corrected",
         _ => result.ToString(),
     };
 

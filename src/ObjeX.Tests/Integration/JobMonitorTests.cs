@@ -22,9 +22,9 @@ public class JobMonitorTests(ObjeXFactory factory) : IClassFixture<ObjeXFactory>
     {
         var jobs = Monitor.GetRecurringJobs();
 
-        Assert.Equal(["cleanup-orphaned-blobs", "verify-blob-integrity", "cleanup-abandoned-multipart"], jobs.Select(j => j.Id));
-        Assert.Equal(["Orphaned blob cleanup", "Blob integrity check", "Abandoned multipart cleanup"], jobs.Select(j => j.Name));
-        Assert.Equal(["0 3 * * 0", "0 4 * * 0", "0 5 * * 0"], jobs.Select(j => j.Cron));
+        Assert.Equal(["cleanup-orphaned-blobs", "verify-blob-integrity", "cleanup-abandoned-multipart", "recount-bucket-stats"], jobs.Select(j => j.Id));
+        Assert.Equal(["Orphaned blob cleanup", "Blob integrity check", "Abandoned multipart cleanup", "Bucket stats recount"], jobs.Select(j => j.Name));
+        Assert.Equal(["0 3 * * 0", "0 4 * * 0", "0 5 * * 0", "0 6 * * 0"], jobs.Select(j => j.Cron));
         Assert.All(jobs, j => Assert.Equal(DayOfWeek.Sunday, j.NextRun!.Value.DayOfWeek));
     }
 
@@ -41,6 +41,15 @@ public class JobMonitorTests(ObjeXFactory factory) : IClassFixture<ObjeXFactory>
         Assert.Equal(TimeSpan.FromMilliseconds(250), run.Duration);
         Assert.Equal($"{1204:N0} blob files checked, 1 orphan deleted", run.Result);
         Assert.Null(run.Error);
+    }
+
+    [Fact]
+    public void RecountRun_ShowsBucketsCheckedAndCorrected()
+    {
+        var id = Client.Create(Job.FromExpression<RecountBucketStatsJob>(j => j.ExecuteAsync()),
+            new SucceededState(new RecountResult(12, 1, 0.1, DateTime.UtcNow), latency: 0, performanceDuration: 100));
+
+        Assert.Equal("12 buckets checked, 1 corrected", Assert.Single(Monitor.GetRecentRuns(50), r => r.Id == id).Result);
     }
 
     [Fact]

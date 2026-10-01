@@ -26,7 +26,7 @@ public class BackgroundJobsTests(ObjeXFactory factory) : IClassFixture<ObjeXFact
         using var connection = factory.Services.GetRequiredService<JobStorage>().GetConnection();
         var ids = connection.GetRecurringJobs().Select(j => j.Id).Order().ToArray();
 
-        Assert.Equal(["cleanup-abandoned-multipart", "cleanup-orphaned-blobs", "verify-blob-integrity"], ids);
+        Assert.Equal(["cleanup-abandoned-multipart", "cleanup-orphaned-blobs", "recount-bucket-stats", "verify-blob-integrity"], ids);
     }
 
     [Fact]
@@ -80,7 +80,7 @@ public class BackgroundJobsTests(ObjeXFactory factory) : IClassFixture<ObjeXFact
         var jobs = RecurringJobs(second);
 
         Assert.Equal(("15 1 * * 2", "UTC"), (jobs["verify-blob-integrity"].Cron, jobs["verify-blob-integrity"].TimeZoneId));
-        Assert.Equal(3, jobs.Count);
+        Assert.Equal(4, jobs.Count);
     }
 
     [Fact]
@@ -93,7 +93,7 @@ public class BackgroundJobsTests(ObjeXFactory factory) : IClassFixture<ObjeXFact
         var jobs = RecurringJobs(second);
 
         Assert.Equal(("0 3 * * 0", "UTC"), (jobs["cleanup-orphaned-blobs"].Cron, jobs["cleanup-orphaned-blobs"].TimeZoneId));
-        Assert.Equal(3, jobs.Count);
+        Assert.Equal(4, jobs.Count);
     }
 
     // Written past the scheduler's checks, as a database moved from another host or edited by hand would hold it.

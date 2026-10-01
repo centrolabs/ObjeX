@@ -39,7 +39,7 @@ public class JobMonitorScheduleTests(ObjeXFactory factory) : IClassFixture<ObjeX
 
         Assert.Equal(("0 6 * * 0", false), (job.Cron, job.Enabled));
         Assert.Null(job.NextRun);
-        Assert.Equal(["cleanup-orphaned-blobs", "verify-blob-integrity", "cleanup-abandoned-multipart"], Monitor.GetRecurringJobs().Select(j => j.Id));
+        Assert.Equal(["cleanup-orphaned-blobs", "verify-blob-integrity", "cleanup-abandoned-multipart", "recount-bucket-stats"], Monitor.GetRecurringJobs().Select(j => j.Id));
     }
 
     [Fact]
