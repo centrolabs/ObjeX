@@ -27,6 +27,7 @@ subgraph group_ui["UI pipeline · :9001 · cookie"]
   node_blazor["Blazor Server<br/>App.razor · InteractiveServer"]
   node_account["/account/login · /logout<br/>lockout · remember me"]
   node_downloads["/api/objects download · ZIP<br/>inline allowlist · CSP sandbox<br/>safe ZIP entry names"]
+  node_upload["/api/upload<br/>raw body · antiforgery header<br/>disk → stage → owner quota → commit"]
   node_presign["/api/presign<br/>expiry from SystemSettings"]
 end
 
@@ -38,7 +39,7 @@ end
 
 subgraph group_services["Services · Core interface ⇒ Infrastructure implementation"]
   node_meta["IMetadataService ⇒ EfCoreMetadataService<br/>stats delta + audit in one transaction<br/>SearchPattern wildcards"]
-  node_store["IObjectStorageService ⇒ FileSystemStorageService<br/>SHA256 paths · IStagedBlob stage → commit<br/>parts · free-disk check"]
+  node_store["IObjectStorageService ⇒ FileSystemStorageService<br/>SHA256 paths · IStagedBlob stage → commit<br/>parts"]
   node_quota["IStorageQuotaService ⇒ StorageQuotaService<br/>user override → global → unlimited"]
   node_space["IStorageSpaceService ⇒ StorageSpaceService<br/>DriveInfo of blob root"]
   node_dbctx["ObjeXDbContext<br/>IdentityDbContext · snake_case<br/>SQLite or Npgsql"]
@@ -101,6 +102,9 @@ node_multipart -->|"parts"| node_store
 node_helpers --> node_meta
 node_helpers --> node_store
 node_helpers -->|"owner quota"| node_quota
+node_objectapi -->|"free disk"| node_space
+node_multipart --> node_space
+node_postobject --> node_space
 
 %% UI
 node_cookie --> node_opsapi
@@ -108,6 +112,7 @@ node_cookie --> node_blazor
 node_cookie --> node_account
 node_cookie --> node_downloads
 node_cookie --> node_presign
+node_cookie --> node_upload
 node_account --> node_dbctx
 node_opsapi --> node_hangfiredb
 node_opsapi --> node_dbctx
@@ -117,6 +122,11 @@ node_metrics --> node_opsapi
 node_downloads --> node_meta
 node_downloads --> node_store
 node_downloads --> node_utils
+node_upload --> node_meta
+node_upload --> node_store
+node_upload -->|"owner quota"| node_quota
+node_upload -->|"free disk"| node_space
+node_upload --> node_utils
 node_presign --> node_meta
 node_presign --> node_dbctx
 node_presign --> node_utils
@@ -127,7 +137,7 @@ node_pages --> node_meta
 node_pages --> node_dbctx
 node_pages --> node_quota
 node_pages --> node_space
-node_pages -->|"upload"| node_store
+node_pages -.->|"XHR per file"| node_upload
 node_dialogs -->|"preview"| node_store
 node_dialogs -->|"validation"| node_utils
 
@@ -136,7 +146,6 @@ node_meta --> node_utils
 node_meta --> node_models
 node_meta --> node_dbctx
 node_quota --> node_dbctx
-node_store --> node_space
 node_store --> node_blobs
 node_space --> node_blobs
 node_dbctx --> node_db
@@ -170,6 +179,7 @@ click node_opsapi "https://github.com/centrolabs/objex/blob/main/src/ObjeX.Api/P
 click node_blazor "https://github.com/centrolabs/objex/blob/main/src/ObjeX.Api/Components/App.razor" _blank
 click node_account "https://github.com/centrolabs/objex/blob/main/src/ObjeX.Api/Endpoints/AccountEndpoints.cs" _blank
 click node_downloads "https://github.com/centrolabs/objex/blob/main/src/ObjeX.Api/Endpoints/DownloadEndpoints.cs" _blank
+click node_upload "https://github.com/centrolabs/objex/blob/main/src/ObjeX.Api/Endpoints/UploadEndpoints.cs" _blank
 click node_presign "https://github.com/centrolabs/objex/blob/main/src/ObjeX.Api/Endpoints/PresignEndpoints.cs" _blank
 click node_routes "https://github.com/centrolabs/objex/blob/main/src/ObjeX.Web/Components/Routes.razor" _blank
 click node_pages "https://github.com/centrolabs/objex/tree/main/src/ObjeX.Web/Components/Pages" _blank
@@ -200,7 +210,7 @@ classDef toneGray fill:#e5e7eb,stroke:#4b5563,stroke-width:2px,color:#111827
 class node_browser,node_s3client,node_prometheus toneBlue
 class node_program,node_initializer,node_shared toneSlate
 class node_sigv4,node_s3routing,node_bucketapi,node_objectapi,node_multipart,node_postobject,node_helpers toneAmber
-class node_cookie,node_opsapi,node_blazor,node_account,node_downloads,node_presign toneMint
+class node_cookie,node_opsapi,node_blazor,node_account,node_downloads,node_upload,node_presign toneMint
 class node_routes,node_pages,node_dialogs toneTeal
 class node_utils,node_models toneViolet
 class node_meta,node_store,node_quota,node_space,node_dbctx toneRose
@@ -227,7 +237,7 @@ sequenceDiagram
   A->>E: context.User = SigV4 identity
   E->>E: ObjectKeyValidator (400 InvalidArgument)
   E->>M: GetBucketAsync(bucket, owner filter) (404 NoSuchBucket)
-  E->>FS: GetAvailableFreeSpace() (507 below Storage:MinimumFreeDiskBytes)
+  E->>E: IStorageSpaceService IsBelowMinimum (507 below Storage:MinimumFreeDiskBytes)
   E->>Q: CheckAsync with declared Content-Length
   Q->>DB: bucket owner · quota · used bytes (507 over quota)
   E->>E: ContentMd5.TryParse (400 InvalidDigest)
@@ -264,7 +274,7 @@ sequenceDiagram
   loop each part 1..10000
     C->>OE: PUT /{bucket}/{key}?partNumber=N&uploadId=X
     OE->>DB: MultipartUpload exists · caller is initiator or Admin/Manager (404 NoSuchUpload)
-    OE->>FS: GetAvailableFreeSpace() (507)
+    OE->>OE: free disk below the minimum (507)
     OE->>FS: StagePartAsync(uploadId, N, decoded body)
     FS->>D: _multipart/{uploadId}/{N}.part.tmp → commit
     OE->>OE: Content-MD5 vs part ETag (400 BadDigest)
@@ -275,7 +285,7 @@ sequenceDiagram
   C->>MP: POST /{bucket}/{key}?uploadId=X · XML part list
   MP->>DB: MultipartUpload + Parts (404 NoSuchUpload)
   MP->>MP: parts ascending (400 InvalidPartOrder) · ETag matches (400 InvalidPart) · ≥ 5 MB except last (400 EntityTooSmall)
-  MP->>FS: GetAvailableFreeSpace() (507)
+  MP->>MP: free disk below the minimum (507)
   MP->>DB: StorageQuota.CheckAsync(sum of part sizes) (507)
   MP->>FS: AssemblePartsAsync(bucket, key, ordered paths)
   FS->>D: concatenate parts into {hash}.blob
@@ -468,3 +478,29 @@ stateDiagram-v2
     CleanupOrphanedBlobsJob (default Sun 03:00 UTC) deletes .blob files
     with no row, unless modified within the last hour
   end note
+
+%%% Browser upload
+%%{init: {"theme": "base", "themeVariables": {"fontFamily": "system-ui, sans-serif"}, "sequence": {"useMaxWidth": false, "actorFontSize": 18, "messageFontSize": 16, "noteFontSize": 15, "actorMargin": 60, "width": 220, "mirrorActors": false}}}%%
+sequenceDiagram
+  autonumber
+  participant B as Browser · Objects.razor.js
+  participant P as Objects.razor · circuit
+  participant U as PUT /api/upload
+  participant S as Storage services
+  participant DB as Metadata DB
+
+  B->>P: OnFilesAdded(id, path, size, type) in batches under 32 KB
+  P->>P: key = folder shown + relative path · ObjectKeyValidator (refused key → failed row, never sent)
+  P->>B: start(id, url, type)
+  loop three files at a time
+    B->>U: PUT raw body · login cookie · antiforgery header
+    U->>U: token (400) · key (400) · bucket with owner filter (404) · free disk (507)
+    U->>S: StageAsync(HashingStream over the body)
+    U->>S: CheckWriteAsync(real size): owner quota, an overwrite pays its growth (507, staged file disposed)
+    U->>S: CommitAsync · SaveObjectAsync(auditUserId)
+    S->>DB: row · stats delta · PutObject audit
+    U-->>B: 200 {key, size, etag} or {error}
+  end
+  B->>P: OnUploadEvents(progress, done, failed, cancelled) at most every 250 ms
+  P->>P: panel rows and totals · refresh the listing
+  Note over B,U: xhr.abort() cancels: the server deletes the staged file, the previous object stays

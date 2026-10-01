@@ -9,7 +9,7 @@ Self-hosted blob storage built with Clean Architecture in .NET 10.
 ```
 src/
 ├── ObjeX.Api/           # ASP.NET Core host — Program.cs (composition only), Startup/, Endpoints/, Middleware/, Auth/, Jobs/
-│   ├── Endpoints/       # AccountEndpoints, DownloadEndpoints, PresignEndpoints
+│   ├── Endpoints/       # AccountEndpoints, DownloadEndpoints, UploadEndpoints, PresignEndpoints
 │   │   └── S3Endpoints/ # S3BucketEndpoint, S3ObjectEndpoint, S3MultipartEndpoint, S3PostObjectEndpoint
 │   ├── Middleware/      # SigV4AuthMiddleware, SecurityHeadersMiddleware
 │   ├── Auth/            # HangfireAuthorizationFilter
@@ -36,10 +36,10 @@ src/
 │   └── Storage/         # FileSystemStorageService, StorageSpaceService (free disk of the blob volume), LegacyKeyPathMigration (moves pre-1.2.5 alias blobs to their raw-key path at startup)
 ├── ObjeX.Migrations.PostgreSql/  # PostgreSQL-specific EF Core migrations
 ├── ObjeX.Tests/         # xUnit — unit (Core validators, hashing) + integration (WebApplicationFactory, real SQLite, or PostgreSQL with OBJEX_TEST_POSTGRES)
-│   ├── Unit/            # BucketNameValidator, ObjectKeyValidator, HashingStream, Sha256HashService, StorageSpaceStatus, ETags, CustomMetadata, InlineMediaTypes, S3ClientSnippets, TextPreview, BrowserTimeZone, CronText, CronPreset, JobCron, AppVersion, SearchPattern, UiRules (design rules, reads the UI sources as text), ThemeMode
-│   └── Integration/     # S3 API round-trips, S3 conformance and pagination, auth, multipart, quotas, storage space, resilience, cookie auth, health, styleguide, background jobs and the Hangfire dashboard
+│   ├── Unit/            # BucketNameValidator, ObjectKeyValidator, HashingStream, Sha256HashService, StorageSpaceStatus, ETags, CustomMetadata, InlineMediaTypes, S3ClientSnippets, TextPreview, BrowserTimeZone, CronText, CronPreset, JobCron, AppVersion, SearchPattern, UploadQueue, UploadText, UiRules (design rules, reads the UI sources as text), ThemeMode
+│   └── Integration/     # S3 API round-trips, S3 conformance and pagination, auth, multipart, quotas, storage space, resilience, cookie auth, browser upload (UiSession: login cookie plus antiforgery token), health, styleguide, background jobs and the Hangfire dashboard
 └── ObjeX.Web/           # Razor class library: components, pages, dialogs, layout — no host, no wwwroot
-    ├── Helpers/         # FileHelper, AppVersion, S3ClientSnippets, TextPreview, CustomMetadata, CronText (cron in words), CronPreset (daily and weekly presets ↔ cron), JobRunText
+    ├── Helpers/         # FileHelper, AppVersion, S3ClientSnippets, TextPreview, CustomMetadata, CronText (cron in words), CronPreset (daily and weekly presets ↔ cron), JobRunText, UploadQueue (browser uploads: keys, state, totals), UploadText (the upload panel in words)
     ├── Services/        # ThemeMode (objex-theme cookie → Radzen theme and token mode class), BrowserTimeZone (the circuit's browser zone, set by Routes from the objex-tz cookie)
     └── Components/      # Routes, RedirectToLogin, S3ConnectSnippets
         ├── Pages/       # Dashboard, Buckets, Objects, Settings, Login, NotFound, Users, ChangePassword, AuditLog, Jobs, Error, Profile, Styleguide (Development only)
@@ -321,18 +321,21 @@ public record StorageQuotaStatus(long UsedBytes, long? QuotaBytes); // HasQuota,
 public interface IStorageQuotaService
 {
     // Used = size of the user's buckets. Quota = per-user value, else the global default for the User role, else null (unlimited).
-    // The S3 507 check (Api/S3/StorageQuota) resolves the bucket's OwnerId and calls GetAsync(ownerId), never the caller: an Admin or Manager
-    // uploading into a user's bucket is bound by that user's quota. An overwrite is charged newSize - existingSize, floored at zero.
     // The Dashboard's "My Storage" card uses the same rule; the Users page applies it in one query for all users.
     Task<StorageQuotaStatus> GetAsync(string userId, CancellationToken ctk = default);
+    // The one quota rule of every upload path: null when newSize bytes under the key fit, else QuotaExceeded(RequestedBytes, QuotaBytes).
+    // It resolves the bucket's OwnerId and calls GetAsync(ownerId), never the caller: an Admin or Manager uploading into a user's bucket
+    // is bound by that user's quota. An overwrite is charged newSize - existingSize, floored at zero. An unknown bucket passes.
+    // The S3 endpoints call it through Api/S3/StorageQuota, which turns it into the S3 507 EntityTooLarge document; PUT /api/upload answers JSON.
+    Task<QuotaExceeded?> CheckWriteAsync(string bucketName, string key, long newSize, CancellationToken ctk = default);
 }
 
 // ObjeX.Core/Interfaces/IStorageSpaceService.cs
 public record StorageSpaceStatus(long FreeBytes, long TotalBytes, long MinimumFreeBytes); // IsBelowMinimum, IsNearMinimum (<= 2x minimum), UsedBytes, UsedPercent
 public interface IStorageSpaceService
 {
-    // DriveInfo of the blob root plus Storage:MinimumFreeDiskBytes, the threshold below which the S3 upload path answers 507.
-    // Singleton from AddObjeXStorage; FileSystemStorageService.GetAvailableFreeSpace() delegates here, so one class reads the drive.
+    // DriveInfo of the blob root plus Storage:MinimumFreeDiskBytes. Every upload path (PUT object, UploadPart, Complete, POST Object,
+    // PUT /api/upload) answers 507 when IsBelowMinimum; nothing else reads the drive. Singleton from AddObjeXStorage.
     StorageSpaceStatus Get();
 }
 
@@ -410,7 +413,7 @@ Example:
   path   = /data/blobs/photos/a3/f7/a3f7c2....blob
 ```
 
-**Staged writes:** `StageAsync` writes `{hash}.blob.{guid}.tmp` and returns an `IStagedBlob`. PUT object, UploadPart and POST Object run the `Content-MD5` check and the post-write quota check between stage and commit; an early return disposes the staged blob, and the previous object keeps its bytes and its metadata row. `CommitAsync` is the `File.Move(..., overwrite: true)`, atomic on Linux. `StoreAsync` is stage plus commit; CopyObject and the Blazor upload still use it, because their quota pre-check is exact. Parts follow the same pattern through `FileSystemStorageService.StagePartAsync`, which also yields the part ETag. On crash the `.tmp` file is cleaned up at next startup (files older than 1 hour are deleted).
+**Staged writes:** `StageAsync` writes `{hash}.blob.{guid}.tmp` and returns an `IStagedBlob`. PUT object, UploadPart, POST Object and the browser upload (`PUT /api/upload`) run the `Content-MD5` check and the post-write quota check between stage and commit; an early return disposes the staged blob, and the previous object keeps its bytes and its metadata row. `CommitAsync` is the `File.Move(..., overwrite: true)`, atomic on Linux. `StoreAsync` is stage plus commit; CopyObject still uses it, because its quota pre-check is exact, and so does the zero-byte folder placeholder. Parts follow the same pattern through `FileSystemStorageService.StagePartAsync`, which also yields the part ETag. On crash the `.tmp` file is cleaned up at next startup (files older than 1 hour are deleted).
 
 **Why hashed paths:**
 - Eliminates path traversal risk — the logical key never touches the filesystem raw
@@ -425,7 +428,7 @@ Example:
 
 **Combined host:** `ObjeX.Api` is the single process — it serves both the REST API and the Blazor UI. `ObjeX.Web` is a Razor class library (`Microsoft.NET.Sdk.Razor`) holding components, pages, dialogs and layout; it has no entry point and no `wwwroot`. The host document `App.razor`, `wwwroot` (app.css, favicons, fonts) and `MapRazorComponents<App>().AddAdditionalAssemblies(typeof(Routes).Assembly)` live in `ObjeX.Api`. Assets that ship inside the class library — collocated `*.razor.js` modules and scoped CSS — are served under `_content/ObjeX.Web/...`; JS interop imports and `@Assets[...]` references in Web components must use that prefix. Scoped CSS of the library is folded into the host bundle `ObjeX.Api.styles.css`.
 
-**Data access from Blazor:** Components inject Core interfaces (`IMetadataService`) or `IDbContextFactory<ObjeXDbContext>` — no HttpClient, no API calls. Pages take the factory, never the scoped `ObjeXDbContext`, because a scoped context would live as long as the SignalR circuit. Each operation opens its own `await using var db = await DbFactory.CreateDbContextAsync()`; an entity read in one operation is detached by the next, so re-query it (or let `Remove`/`Update` attach it) before saving on a new context.
+**Data access from Blazor:** Components inject Core interfaces (`IMetadataService`) or `IDbContextFactory<ObjeXDbContext>` — no HttpClient, no API calls. File downloads and uploads are the two exceptions, see below. Pages take the factory, never the scoped `ObjeXDbContext`, because a scoped context would live as long as the SignalR circuit. Each operation opens its own `await using var db = await DbFactory.CreateDbContextAsync()`; an entity read in one operation is detached by the next, so re-query it (or let `Remove`/`Update` attach it) before saving on a new context.
 
 `AddObjeXDatabase` registers `AddDbContextFactory<ObjeXDbContext>`, which also registers `ObjeXDbContext` as scoped — that scoped context still serves Identity, `SigV4AuthMiddleware` and the endpoints. Mutations of `User` on the Users page therefore go through `UserManager` (Identity's scoped context), reads through the factory; mixing them would let a stale tracked `User` overwrite fresh columns, since `UserStore.UpdateAsync` marks every property modified. `EfCoreMetadataService` opens its own short context per call through the factory: a context shared for a whole circuit would track every object it wrote, and a later overwrite or delete would work on stale values or throw (`MetadataScopeTests`). Work that runs beside the circuit — the Dashboard timer, the layout's account check — takes its own scope or factory context too.
 
@@ -470,9 +473,11 @@ Keyboard handling: text-input dialogs (`CreateBucketDialog`, `CreateS3Credential
 
 **File downloads are the exception to "no API calls from Blazor":** Blazor Server runs on the server and cannot push file bytes to the browser's download manager through SignalR. Download buttons use a plain `<a href="/api/objects/..." download>` pointing at the API endpoint. This is not an architecture violation — it's a browser constraint.
 
+**Uploads go over HTTP, never through the circuit.** The bytes travel from the browser straight to `PUT /api/upload/{bucket}/{*key}` (`Endpoints/UploadEndpoints.cs`), one file per request, raw body. `Pages/Objects.razor.js` exports `createUploader(page, tokenHeader, token)`; the page creates it in `OnAfterRenderAsync` with the antiforgery token from `AntiforgeryStateProvider` and the header name from `AntiforgeryOptions`, and passes the object as `Sink` to `OxDropZone` and, through the dialog's parameters, to `OxFileDrop`. Those two only collect `{ file, path }` (drop: `webkitGetAsEntry()` for every item synchronously inside the drop handler, then recursively; picker: `webkitRelativePath`) and call `sink.add`. The script keeps the files and sends their metadata to `[JSInvokable] OnFilesAdded` in batches under the circuit's 32 KB message limit. `UploadQueue.Add` fixes each key under `_currentPrefix` at that moment and validates it with `ObjectKeyValidator`: a refused key becomes a failed row and is never sent. The page answers with `start([{ id, url, type }])`, URLs from `FileHelper.UploadUrl` (per-segment encoding, like `ObjectUrl`). The script runs three `XMLHttpRequest`s at a time (`fetch` has no upload progress) and reports progress, done, failed and cancelled to `[JSInvokable] OnUploadEvents` at most every 250 ms, progress coalesced per file. Cancel per file and Cancel all abort the requests; Retry sends a failed or cancelled file again from the file the script still holds; Close lets it go (`forget`). The listing refreshes when a run ends, and while files arrive at most every 3 s when nothing is selected. `<NavigationLock>` makes the browser ask before an unload while uploads run, and `OnBeforeInternalNavigation` asks with `ConfirmDialog` before another page (another folder of the bucket passes); leaving cancels the uploads. An existing key is overwritten without asking, like S3. There is no limit on the number of files; the size limit is `Storage:MaxUploadBytes` and the free disk.
+
 **Clickable links in grids:** `OxFileName` (icon plus name, a link when `Href` is set) for buckets, folders and objects; `OxLink` for any other link. Row actions sit in `OxRowActions`: at most two direct `OxIconButton`s and one `OxMenuButton` with `OxMenuItem`s for the rest, destructive entries last. They show on row hover and keyboard focus, always on touch devices. A selected row gets `OxSizes.SelectedRowClass` through `RowRender`.
 
-**Virtual folder navigation:** `Objects.razor` tracks `_currentPrefix` (e.g. `"photos/2024/"`) as component state. Calls `ListObjectsAsync` with `delimiter: "/"` — folders render as links, files as regular rows in a unified `RadzenDataGrid`. Breadcrumb segments and folder names are real links (`?prefix=`); the router keeps the circuit and `OnParametersSetAsync` loads the folder, so Back and Forward work. Folder create writes a zero-byte placeholder object with key `prefix/` and `ContentType: application/x-directory`. Upload prepends `_currentPrefix` to the file name. Placeholder objects (key ends with `/`) are filtered from file rows. File rows show Download and Share link; the More menu holds Preview, Metadata, "Copy key", "Copy S3 URI" (`s3://{bucket}/{key}`) and Delete. Folder rows have the menu only (Download ZIP, Delete). Copy feedback is a Success notification. While at least one row is selected, `OxSelectionBar` ("N selected", Download ZIP, Delete, clear) takes the place of New folder and Upload on the header line, so selecting never moves the table; search and an upload's Cancel stay. The "Modified" column shows `UpdatedAt`. A search box in the toolbar (hidden while the bucket is empty) filters with a 300 ms debounce over `_currentPrefix` and everything below it — the grid then shows file rows only, keyed relative to the prefix, capped at 500 with a "N results · first 500 shown" caption; Escape, the clear button and breadcrumb navigation restore the folder view.
+**Virtual folder navigation:** `Objects.razor` tracks `_currentPrefix` (e.g. `"photos/2024/"`) as component state. Calls `ListObjectsAsync` with `delimiter: "/"` — folders render as links, files as regular rows in a unified `RadzenDataGrid`. Breadcrumb segments and folder names are real links (`?prefix=`); the router keeps the circuit and `OnParametersSetAsync` loads the folder, so Back and Forward work. Folder create writes a zero-byte placeholder object with key `prefix/` and `ContentType: application/x-directory`. Upload (the Upload dialog with "Choose a folder", or a drop anywhere on the page, folders included) puts each file's relative path under `_currentPrefix`; empty folders create no placeholder. The upload panel (`OxUploadPanel` with `OxUploadRow`s in a `Virtualize`, fixed at the bottom right) lists every file with its bytes, a bar while it is sent, its error, Cancel or Retry; the header has Cancel all while files run, Retry failed and Close afterwards. It stays while the user changes folders, because the page component stays; the run ends with one summary notification. Placeholder objects (key ends with `/`) are filtered from file rows. File rows show Download and Share link; the More menu holds Preview, Metadata, "Copy key", "Copy S3 URI" (`s3://{bucket}/{key}`) and Delete. Folder rows have the menu only (Download ZIP, Delete). Copy feedback is a Success notification. While at least one row is selected, `OxSelectionBar` ("N selected", Download ZIP, Delete, clear) takes the place of New folder and Upload on the header line, so selecting never moves the table; search stays. The "Modified" column shows `UpdatedAt`. A search box in the toolbar (hidden while the bucket is empty) filters with a 300 ms debounce over `_currentPrefix` and everything below it — the grid then shows file rows only, keyed relative to the prefix, capped at 500 with a "N results · first 500 shown" caption; Escape, the clear button and breadcrumb navigation restore the folder view.
 
 **Disk space:** free of total space of the blob volume via `IStorageSpaceService`, in the sidebar footer (`SidebarFooter.razor`) for every role, because the 507 hits every role; re-read on each navigation. The meter turns `Warning` at or below twice `Storage:MinimumFreeDiskBytes` and `Danger` at or below it. The Dashboard has no Disk card; it shows an alert in those two states. The disk read in `LoadStats` has its own change label, because free space moves without any bucket changing.
 
@@ -500,6 +505,11 @@ Keyboard handling: text-input dialogs (`CreateBucketDialog`, `CreateS3Credential
 # Internal endpoints — port 9001 (used by Blazor UI, cookie auth)
 GET    /api/objects/{bucket}/{*key}          → download object (browser file download); x-objex-verify-integrity re-hashes, multipart objects skip the check
 GET    /api/objects/{bucket}/download        → ZIP download; accepts ?prefix= to scope to a virtual folder; entry names drop empty, `.` and `..` segments, `\` splits like `/` (no zip slip)
+PUT    /api/upload/{bucket}/{*key}           → browser upload: raw body, Content-Type from the header (else application/octet-stream), 200 {key, size, etag}; errors {error}:
+                                               400 antiforgery token missing or invalid (header first, IAntiforgery.IsRequestValidAsync), 400 key refused by ObjectKeyValidator,
+                                               404 bucket unknown or not the caller's (Admin and Manager: all), 507 free disk below the minimum, 507 owner quota after staging
+                                               (no early Content-Length check: a browser still sending sees an early answer as a dropped connection), 413 over Storage:MaxUploadBytes;
+                                               disk → StageAsync(HashingStream) → CheckWriteAsync → CommitAsync → SaveObjectAsync(auditUserId); a client abort leaves no object and no .tmp
 
 # Auth (no auth required)
 POST   /account/login     → form login (sets cookie), redirects to returnUrl
