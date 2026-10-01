@@ -1,60 +1,14 @@
 @inject DialogService DialogService
-@inject NotificationService NotificationService
 
 <OxStack Gap="7">
-    @* The picker stays in the page while files are listed: the chosen files are read through its input. *@
-    <OxFileDrop OnChange="OnFilesSelected" Hidden="@(_files.Count > 0)">Drag and drop files here, or click to browse</OxFileDrop>
-
-    @if (_files.Count > 0)
-    {
-        <OxStack Gap="3">
-            @foreach (var f in _files)
-            {
-                <OxCard Dense="true">
-                    <OxStack Row="true" Align="OxAlign.Center" Justify="OxJustify.Between" Gap="6">
-                        <OxStack Gap="1">
-                            <OxText Truncate="true">@f.Name</OxText>
-                            <OxText Variant="OxTextVariant.Small">@FileHelper.FormatBytes(f.Size)</OxText>
-                        </OxStack>
-                        <OxIcon Name="check_circle" Tone="OxTone.Accent" />
-                    </OxStack>
-                </OxCard>
-            }
-        </OxStack>
-        <OxButton Icon="refresh" OnClick="@(() => _files = [])">@(_files.Count == 1 ? "Choose a different file" : "Choose different files")</OxButton>
-    }
-
+    @* Picking or dropping hands the files to the page's uploader and closes the dialog; the upload panel shows the rest. *@
+    <OxFileDrop Sink="Uploader" FolderLabel="Choose a folder" OnPicked="@(() => DialogService.Close(true))">Drag files or folders here, or click to choose files</OxFileDrop>
     <OxStack Row="true" Justify="OxJustify.End" Gap="4">
         <OxButton OnClick="@(() => DialogService.Close(null))">Cancel</OxButton>
-        <OxButton Variant="OxButtonVariant.Primary" Icon="upload" Disabled="@(_files.Count == 0)" OnClick="OnUpload">@UploadLabel</OxButton>
     </OxStack>
 </OxStack>
 
 @code {
-    public record UploadFile(string Name, string ContentType, long Size, IBrowserFile BrowserFile);
-
-    List<IBrowserFile> _files = [];
-
-    const long MaxFileSize = 500L * 1024 * 1024;
-    const int MaxFiles = 10;
-
-    string UploadLabel => _files.Count == 0 ? "Upload" : $"Upload ({_files.Count} {(_files.Count == 1 ? "file" : "files")})";
-
-    void OnFilesSelected(InputFileChangeEventArgs e)
-    {
-        if (e.FileCount > MaxFiles)
-        {
-            _files = [];
-            NotificationService.Notify(NotificationSeverity.Warning, "Too many files",
-                $"Selected {e.FileCount} files. Maximum is {MaxFiles} at a time.");
-            return;
-        }
-        _files = e.GetMultipleFiles(MaxFiles).ToList();
-    }
-
-    void OnUpload()
-    {
-        var result = _files.Select(f => new UploadFile(f.Name, f.ContentType, f.Size, f)).ToList();
-        DialogService.Close(result);
-    }
+    /// <summary>The upload script of the Objects page.</summary>
+    [Parameter, EditorRequired] public IJSObjectReference? Uploader { get; set; }
 }

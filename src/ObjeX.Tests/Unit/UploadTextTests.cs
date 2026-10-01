@@ -42,6 +42,25 @@ public class UploadTextTests
         Assert.Equal("1 failed · 1 cancelled", UploadText.Detail(queue));
     }
 
+    [Fact]
+    public void RowProgress_OnlyWhileSending()
+    {
+        var queue = Queue(3, 200);
+        queue.Apply([new(1, "progress", Loaded: 50), new(2, "done")]);
+
+        Assert.Equal([25.0, null, null], queue.Items.Select(UploadText.RowProgress));
+    }
+
+    [Fact]
+    public void LeaveQuestion_CountsTheFilesLeft()
+    {
+        var queue = Queue(3);
+        Assert.Equal("3 files are still uploading. Leave the page and cancel them?", UploadText.LeaveQuestion(queue));
+
+        queue.Apply([new(1, "done"), new(2, "progress", Loaded: 1), new(3, "cancelled")]);
+        Assert.Equal("1 file is still uploading. Leave the page and cancel it?", UploadText.LeaveQuestion(queue));
+    }
+
     [Theory]
     [InlineData(0, null, "The connection to the server was lost.")]
     [InlineData(401, null, "Your session has ended. Sign in again.")]

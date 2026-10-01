@@ -2,25 +2,25 @@
 @inject IJSRuntime JS
 
 <div class="ox-dropzone" @ref="_zone">
-    <InputFile @ref="_input" OnChange="OnFiles" multiple hidden />
     <div class="ox-dropzone-overlay" aria-hidden="true"></div>
     @ChildContent
 </div>
 
 @code {
     ElementReference _zone;
-    InputFile? _input;
     IJSObjectReference? _module;
+    IJSObjectReference? _attached;
 
-    /// <summary>Files dropped anywhere on the zone.</summary>
-    [Parameter] public EventCallback<InputFileChangeEventArgs> OnFiles { get; set; }
+    /// <summary>Receives the files dropped anywhere on the zone, folders with their subfolders, through its add method.</summary>
+    [Parameter] public IJSObjectReference? Sink { get; set; }
     [Parameter] public RenderFragment? ChildContent { get; set; }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (!firstRender || _input?.Element is null) return;
-        _module = await JS.InvokeAsync<IJSObjectReference>("import", "./_content/ObjeX.Web/Components/Ui/OxDropZone.razor.js");
-        await _module.InvokeVoidAsync("initDropZone", _zone, _input.Element);
+        if (Sink is null || ReferenceEquals(Sink, _attached)) return;
+        _module ??= await JS.InvokeAsync<IJSObjectReference>("import", "./_content/ObjeX.Web/Components/Ui/OxDropZone.razor.js");
+        await _module.InvokeVoidAsync("initDropZone", _zone, Sink);
+        _attached = Sink;
     }
 
     public async ValueTask DisposeAsync()

@@ -38,6 +38,16 @@ public static class UploadText
         _ => "Cancelled",
     };
 
+    /// <summary>The bar of a file while it is sent, null otherwise.</summary>
+    public static double? RowProgress(UploadItem item) =>
+        item.Status != UploadStatus.Uploading ? null : item.Size > 0 ? 100.0 * item.Loaded / item.Size : 0;
+
+    public static string LeaveQuestion(UploadQueue queue)
+    {
+        var left = queue.CountOf(UploadStatus.Queued) + queue.CountOf(UploadStatus.Uploading);
+        return $"{Files(left)} {(left == 1 ? "is" : "are")} still uploading. Leave the page and cancel {(left == 1 ? "it" : "them")}?";
+    }
+
     public static OxTone RowTone(UploadItem item) => item.Status switch
     {
         UploadStatus.Done => OxTone.Accent,

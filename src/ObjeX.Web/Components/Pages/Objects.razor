@@ -1,4 +1,6 @@
 @page "/buckets/{BucketName}"
+@implements IAsyncDisposable
+@using Microsoft.AspNetCore.Antiforgery
 @using ObjeX.Core.Interfaces
 @using ObjeX.Core.Models
 @using ObjeX.Web.Components.Dialogs
@@ -18,10 +20,14 @@
 @inject IDbContextFactory<ObjeXDbContext> DbFactory
 @inject IJSRuntime JS
 @inject BrowserTimeZone Tz
+@inject AntiforgeryStateProvider Antiforgery
+@inject IOptions<AntiforgeryOptions> AntiforgeryOptions
 
 <PageTitle>@BucketName — ObjeX</PageTitle>
 
-<OxDropZone OnFiles="OnDropFiles">
+<NavigationLock ConfirmExternalNavigation="@_uploads.IsActive" OnBeforeInternalNavigation="OnBeforeInternalNavigation" />
+
+<OxDropZone Sink="_uploader">
     <OxPageHeader Meta="@(_bucket is null ? null : HeaderCaption)">
         <Heading><OxBreadcrumbs Items="@Crumbs" /></Heading>
         <ChildContent>
@@ -30,17 +36,9 @@
             {
                 <OxSearch Value="@_searchTerm" ValueChanged="OnSearchInput" OnClear="ClearSearch" Title="* matches any text, ? one character" />
             }
-            @if (_uploading)
-            {
-                <OxButton Icon="close" OnClick="@(() => _uploadCts?.Cancel())">Cancel</OxButton>
-            }
             @* A selection swaps the create actions for the selection actions on the same line, so the table never moves. *@
             @if (_selected.Count > 0)
             {
-                @if (_uploading)
-                {
-                    <OxText Variant="OxTextVariant.Small">@_uploadStatus</OxText>
-                }
                 <OxSelectionBar Count="@_selected.Count" OnClear="@(() => _selected.Clear())">
                     <OxButton Icon="download" OnClick="BulkDownload">Download ZIP</OxButton>
                     <OxButton Variant="OxButtonVariant.Danger" Icon="delete" OnClick="BulkDelete">Delete</OxButton>
@@ -49,18 +47,13 @@
             else
             {
                 <OxButton Icon="create_new_folder" Disabled="@(!_bucketExists)" OnClick="OnNewFolderClick">New folder</OxButton>
-                <OxButton Variant="OxButtonVariant.Primary" Icon="upload" Disabled="@(_uploading || !_bucketExists)" OnClick="OnUploadClick">@(_uploadStatus ?? "Upload")</OxButton>
+                <OxButton Variant="OxButtonVariant.Primary" Icon="upload" Disabled="@(!_bucketExists || _uploader is null)" OnClick="OnUploadClick">Upload</OxButton>
             }
         </ChildContent>
     </OxPageHeader>
 
-    @if (_uploading)
-    {
-        <OxMeter Value="@_uploadProgress" Label="Upload progress" />
-    }
-
     <RadzenDataGrid Data="@_rows" TItem="ListRow" AllowSorting="true" AllowAlternatingRows="false" RowRender="OnRowRender"
-                    EmptyText="@(_searchApplied ? "No matches." : "No objects yet. Drag files here or click Upload.")">
+                    EmptyText="@(_searchApplied ? "No matches." : "No objects yet. Drag files or folders here or click Upload.")">
         <Columns>
             <RadzenDataGridColumn TItem="ListRow" Width="@OxSizes.CheckColumn" Sortable="false" Resizable="false" CssClass="ox-col-check">
                 <HeaderTemplate>
@@ -127,6 +120,45 @@
             </RadzenDataGridColumn>
         </Columns>
     </RadzenDataGrid>
+
+    @if (_uploads.Items.Count > 0)
+    {
+        <OxUploadPanel Title="@UploadText.Title(_uploads)" Detail="@UploadText.Detail(_uploads)" Progress="@_uploads.Percent">
+            <Actions>
+                @if (_uploads.IsActive)
+                {
+                    <OxIconButton Icon="cancel" Label="Cancel all" OnClick="CancelAllUploads" />
+                }
+                else
+                {
+                    @if (_uploads.Items.Any(i => i.CanRetry))
+                    {
+                        <OxIconButton Icon="refresh" Label="Retry failed" OnClick="@(() => RetryUploads(null))" />
+                    }
+                    <OxIconButton Icon="close" Label="Close" OnClick="CloseUploads" />
+                }
+            </Actions>
+            <ChildContent>
+                <Virtualize Items="_uploads.Items" Context="item" ItemSize="60">
+                    <OxUploadRow Name="@item.Name" Kind="@OxFileIcon.KindOf(item.ContentType)" Detail="@UploadText.Row(item)"
+                                 Tone="@UploadText.RowTone(item)" Progress="@UploadText.RowProgress(item)">
+                        @if (item.Status is UploadStatus.Queued or UploadStatus.Uploading)
+                        {
+                            <OxIconButton Icon="close" Label="@($"Cancel {item.Name}")" OnClick="@(() => CancelUpload(item.Id))" />
+                        }
+                        else if (item.CanRetry)
+                        {
+                            <OxIconButton Icon="refresh" Label="@($"Retry {item.Name}")" OnClick="@(() => RetryUploads(item.Id))" />
+                        }
+                        else if (item.Status == UploadStatus.Done)
+                        {
+                            <OxIcon Name="check_circle" Tone="OxTone.Accent" />
+                        }
+                    </OxUploadRow>
+                </Virtualize>
+            </ChildContent>
+        </OxUploadPanel>
+    }
 </OxDropZone>
 
 @code {
@@ -145,10 +177,11 @@
     List<string> _folders = [];
     HashSet<ListRow> _selected = [];
     string _currentPrefix = string.Empty;
-    bool _uploading;
-    string? _uploadStatus;
-    double _uploadProgress;
-    CancellationTokenSource? _uploadCts;
+    readonly UploadQueue _uploads = new();
+    IJSObjectReference? _uploadModule;
+    IJSObjectReference? _uploader;
+    DotNetObjectReference<Objects>? _self;
+    DateTime _uploadsListedAt;
     bool _bucketExists = true;
     Bucket? _bucket;
     string? _loadedPrefix;
@@ -161,6 +194,7 @@
 
     const int SearchLimit = 500;
     const int SearchDebounceMs = 300;
+    static readonly TimeSpan UploadRefreshInterval = TimeSpan.FromSeconds(3);
 
     string HeaderCaption =>
         _searchApplied
@@ -334,6 +368,15 @@
         }
     }
 
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender || !_bucketExists || Antiforgery.GetAntiforgeryToken()?.Value is not { } token) return;
+        _self = DotNetObjectReference.Create(this);
+        _uploadModule = await JS.InvokeAsync<IJSObjectReference>("import", "./_content/ObjeX.Web/Components/Pages/Objects.razor.js");
+        _uploader = await _uploadModule.InvokeAsync<IJSObjectReference>("createUploader", _self, AntiforgeryOptions.Value.HeaderName, token);
+        StateHasChanged();
+    }
+
     async Task OnUploadClick()
     {
         if (await MetadataService.GetBucketAsync(BucketName, _isPrivileged ? null : _currentUserId) is null)
@@ -342,117 +385,91 @@
             return;
         }
 
-        var result = await DialogService.OpenAsync<UploadObjectDialog>("Upload", options: new DialogOptions { Width = OxSizes.DialogMedium, CloseDialogOnOverlayClick = true });
-        if (result is not List<UploadObjectDialog.UploadFile> selectedFiles || selectedFiles.Count == 0) return;
-
-        var files = selectedFiles.Select(f => (f.Name, f.ContentType, f.Size, Stream: (Stream)f.BrowserFile.OpenReadStream(MaxFileSize))).ToList();
-        await UploadFiles(files);
+        await DialogService.OpenAsync<UploadObjectDialog>("Upload",
+            new Dictionary<string, object?> { { nameof(UploadObjectDialog.Uploader), _uploader } },
+            new DialogOptions { Width = OxSizes.DialogMedium, CloseDialogOnOverlayClick = true });
     }
 
-    const int MaxDropFiles = 10;
-    const long MaxFileSize = 500L * 1024 * 1024;
-
-    async Task OnDropFiles(InputFileChangeEventArgs e)
+    // Files dropped or picked: the key is fixed under the folder shown at that moment, so changing folders later moves nothing.
+    [JSInvokable]
+    public async Task OnFilesAdded(UploadFile[] files)
     {
-        if (_uploading || !_bucketExists || e.FileCount == 0) return;
-
-        if (e.FileCount > MaxDropFiles)
-        {
-            NotificationService.Notify(NotificationSeverity.Warning, "Too many files", $"Selected {e.FileCount} files. Maximum is {MaxDropFiles} at a time.");
-            return;
-        }
-
-        var files = e.GetMultipleFiles(MaxDropFiles)
-            .Select(bf => (bf.Name, bf.ContentType ?? "application/octet-stream", bf.Size, Stream: (Stream)bf.OpenReadStream(MaxFileSize)))
-            .ToList();
-
-        await UploadFiles(files);
-    }
-
-    async Task UploadFiles(List<(string Name, string ContentType, long Size, Stream Stream)> files)
-    {
-        _uploading = true;
-        _uploadProgress = 0;
-        _uploadCts = new CancellationTokenSource();
-        _uploadStatus = $"Uploading 0/{files.Count}...";
+        var toSend = _uploads.Add(_currentPrefix, files);
         StateHasChanged();
+        await StartUploadsAsync(toSend);
+    }
 
-        var errors = new List<string>();
-        var done = 0;
+    [JSInvokable]
+    public async Task OnUploadEvents(UploadEvent[] events)
+    {
+        var wasActive = _uploads.IsActive;
+        _uploads.Apply(events);
+        var finished = wasActive && !_uploads.IsActive;
 
-        foreach (var file in files)
+        // A refresh rebuilds the rows and would drop a selection in progress, so while files arrive it waits for none.
+        if (finished || (_selected.Count == 0 && events.Any(e => e.Kind == "done") && DateTime.UtcNow - _uploadsListedAt > UploadRefreshInterval))
         {
-            if ((_uploadCts?.IsCancellationRequested == true)) break;
-
-            var key = _currentPrefix + file.Name;
-            string? storagePath = null;
-            try
-            {
-                await using (var db = await DbFactory.CreateDbContextAsync())
-                {
-                    var user = await db.Users.FindAsync(_currentUserId);
-                    var quota = user?.StorageQuotaBytes;
-                    if (quota is null && !_isPrivileged)
-                    {
-                        var sysSettings = await db.SystemSettings.FindAsync(1);
-                        quota = sysSettings?.DefaultStorageQuotaBytes;
-                    }
-                    if (quota is not null)
-                    {
-                        var usage = await db.Buckets.Where(b => b.OwnerId == _currentUserId).SumAsync(b => b.TotalSize);
-                        if (usage + file.Size > quota.Value)
-                        {
-                            errors.Add($"{file.Name}: Storage quota exceeded");
-                            continue;
-                        }
-                    }
-                }
-
-                await using var hashingStream = new HashingStream(file.Stream);
-                storagePath = await StorageService.StoreAsync(BucketName, key, hashingStream);
-                var etag = hashingStream.GetETag();
-
-                await MetadataService.SaveObjectAsync(new BlobObject
-                {
-                    BucketName = BucketName,
-                    Key = key,
-                    Size = file.Size,
-                    ContentType = file.ContentType,
-                    ETag = etag,
-                    StoragePath = storagePath
-                }, _currentUserId);
-                done++;
-                _uploadProgress = (double)done / files.Count * 100;
-                _uploadStatus = $"Uploading {done}/{files.Count}...";
-                StateHasChanged();
-            }
-            catch (Exception ex)
-            {
-                if (storagePath is not null)
-                    await StorageService.DeleteAsync(BucketName, key);
-                errors.Add($"{file.Name}: {ex.Message}");
-            }
-            finally
-            {
-                file.Stream.Dispose();
-            }
+            _uploadsListedAt = DateTime.UtcNow;
+            await LoadObjects();
         }
 
-        var cancelled = (_uploadCts?.IsCancellationRequested == true);
-        await LoadObjects();
-        _uploading = false;
-        _uploadStatus = null;
-        _uploadProgress = 0;
-        _uploadCts?.Dispose();
-        _uploadCts = null;
+        if (finished)
+        {
+            var missed = _uploads.CountOf(UploadStatus.Failed) + _uploads.CountOf(UploadStatus.Cancelled);
+            NotificationService.Notify(missed == 0 ? NotificationSeverity.Success : NotificationSeverity.Warning,
+                UploadText.Title(_uploads), missed == 0 ? "" : UploadText.Detail(_uploads));
+        }
+        StateHasChanged();
+    }
 
-        if (cancelled)
-            NotificationService.Notify(NotificationSeverity.Warning, "Upload cancelled", $"{done} of {files.Count} file(s) uploaded before cancel");
-        else if (errors.Count == 0)
-            NotificationService.Notify(NotificationSeverity.Success, "Upload complete", $"{done} file(s) uploaded");
+    Task StartUploadsAsync(IReadOnlyList<UploadItem> items) =>
+        items.Count == 0 || _uploader is null
+            ? Task.CompletedTask
+            : _uploader.InvokeVoidAsync("start", items.Select(i => new { id = i.Id, url = FileHelper.UploadUrl(BucketName, i.Key), type = i.ContentType })).AsTask();
+
+    async Task CancelUpload(int id)
+    {
+        if (_uploader is not null) await _uploader.InvokeVoidAsync("cancel", id);
+    }
+
+    async Task CancelAllUploads()
+    {
+        if (_uploader is not null) await _uploader.InvokeVoidAsync("cancelAll");
+    }
+
+    Task RetryUploads(int? id) => StartUploadsAsync(_uploads.Retry(id));
+
+    async Task CloseUploads()
+    {
+        var ids = _uploads.Clear();
+        if (_uploader is not null) await _uploader.InvokeVoidAsync("forget", ids);
+    }
+
+    // Another folder of this bucket keeps the page and its uploads; any other page ends them.
+    async Task OnBeforeInternalNavigation(LocationChangingContext context)
+    {
+        if (!_uploads.IsActive || Navigation.ToBaseRelativePath(context.TargetLocation).Split('?', '#')[0] == $"buckets/{BucketName}")
+            return;
+
+        if (!await ConfirmDialog.AskAsync(DialogService, "Leave page", UploadText.LeaveQuestion(_uploads), "Leave", danger: true))
+            context.PreventNavigation();
         else
-            foreach (var err in errors)
-                NotificationService.Notify(NotificationSeverity.Error, "Upload failed", err);
+            await CancelAllUploads();
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        try
+        {
+            if (_uploader is not null)
+            {
+                await _uploader.InvokeVoidAsync("dispose");
+                await _uploader.DisposeAsync();
+            }
+            if (_uploadModule is not null) await _uploadModule.DisposeAsync();
+        }
+        catch (JSDisconnectedException) { }
+        _self?.Dispose();
     }
 
     async Task OnDeleteFolder(string folderPath)

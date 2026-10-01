@@ -18,6 +18,22 @@
 
 .ox-file-drop ::deep .ox-icon { font-size: var(--ox-fs-2xl); color: var(--ox-accent-text); }
 
-.ox-file-drop ::deep input[type=file] { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
+.ox-file-drop input[type=file] { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
 
-.ox-file-drop.is-hidden { display: none; }
+/* Above the transparent file input that covers the area, so it opens the folder picker instead. */
+.ox-file-drop-folder {
+    position: relative;
+    z-index: 1;
+    padding: var(--ox-space-1) var(--ox-space-3);
+    border: 0;
+    border-radius: var(--ox-radius-sm);
+    background: none;
+    color: var(--ox-accent-text);
+    font: inherit;
+    font-weight: var(--ox-fw-medium);
+    cursor: pointer;
+}
+
+.ox-file-drop-folder:hover { text-decoration: underline; }
+
+.ox-file-drop-folder:focus-visible { outline: var(--ox-ring) solid var(--ox-accent-text); }
