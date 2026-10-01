@@ -13,11 +13,17 @@ public record JobRun(
     string? Result,
     string? Error);
 
-/// <summary>A recurring job with its schedule and its most recent run. Times are UTC.</summary>
+/// <summary>
+/// A recurring job with its schedule and its most recent run. Cron is read in TimeZone; IsDefault means no stored
+/// schedule. A disabled job has no next run. Times are UTC.
+/// </summary>
 public record RecurringJobStatus(
     string Id,
     string Name,
     string Cron,
+    string TimeZone,
+    bool Enabled,
+    bool IsDefault,
     DateTime? NextRun,
     DateTime? LastRun,
     JobRun? LastJob);
@@ -45,7 +51,7 @@ public interface IJobMonitor
     /// <summary>Processing, retrying, succeeded and failed runs, newest first.</summary>
     IReadOnlyList<JobRun> GetRecentRuns(int count);
 
-    /// <summary>Enqueues a run of the recurring job now; its schedule stays as it is.</summary>
+    /// <summary>Enqueues a run of the recurring job now, also when it is disabled; its schedule stays as it is.</summary>
     void Trigger(string recurringJobId);
 
     /// <summary>The run with its state history, or null when Hangfire no longer holds it.</summary>
