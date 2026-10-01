@@ -14,14 +14,29 @@ namespace ObjeX.Tests;
 
 public class ObjeXFactory : WebApplicationFactory<ApiAssemblyMarker>
 {
-    private readonly string _tempDir = Path.Combine(Path.GetTempPath(), $"objex-test-{Guid.NewGuid():N}");
+    private readonly string _tempDir;
+    private readonly string? _postgres;
+    private readonly bool _ownsData;
 
     /// <summary>A PostgreSQL connection string without Database=; when set, the suite runs on PostgreSQL, one database per factory.</summary>
     public const string PostgresVariable = "OBJEX_TEST_POSTGRES";
 
-    private readonly string? _postgres = Environment.GetEnvironmentVariable(PostgresVariable) is { Length: > 0 } server
-        ? $"{server};Database=objex_test_{Guid.NewGuid():N}"
-        : null;
+    public ObjeXFactory() : this(
+        Path.Combine(Path.GetTempPath(), $"objex-test-{Guid.NewGuid():N}"),
+        Environment.GetEnvironmentVariable(PostgresVariable) is { Length: > 0 } server ? $"{server};Database=objex_test_{Guid.NewGuid():N}" : null,
+        ownsData: true)
+    {
+    }
+
+    private ObjeXFactory(string tempDir, string? postgres, bool ownsData)
+    {
+        _tempDir = tempDir;
+        _postgres = postgres;
+        _ownsData = ownsData;
+    }
+
+    /// <summary>A second host on the same database and blobs, as after a process restart. This factory keeps ownership of the data.</summary>
+    public ObjeXFactory Restart() => new(_tempDir, _postgres, ownsData: false);
 
     /// <summary>Test-only header that stands in for the TCP port a request arrived on.</summary>
     public const string PortHeader = "X-ObjeX-Test-Port";
@@ -108,7 +123,7 @@ public class ObjeXFactory : WebApplicationFactory<ApiAssemblyMarker>
     protected override void Dispose(bool disposing)
     {
         base.Dispose(disposing);
-        if (disposing && Directory.Exists(_tempDir))
+        if (disposing && _ownsData && Directory.Exists(_tempDir))
         {
             try { Directory.Delete(_tempDir, recursive: true); }
             catch { /* best-effort cleanup */ }
