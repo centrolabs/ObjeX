@@ -4,9 +4,13 @@ namespace ObjeX.Api.S3;
 
 public static class ObjectDeletion
 {
-    /// <summary>Row first, blob second: a row must never point at a missing blob, while a leftover blob is collected by the orphan cleanup job.</summary>
+    /// <summary>
+    /// Row first, blob second: a row must never point at a missing blob, while a leftover blob is collected by the orphan cleanup job.
+    /// Behind <see cref="IKeyGate"/>, so an upload of the key cannot put its file between the two.
+    /// </summary>
     public static async Task DeleteAsync(HttpContext ctx, IMetadataService metadata, IObjectStorageService storage, string bucket, string key, string? auditUserId)
     {
+        using var gate = await ctx.RequestServices.GetRequiredService<IKeyGate>().EnterAsync(bucket, [key], ctx.RequestAborted);
         await metadata.DeleteObjectAsync(bucket, key, auditUserId, ctx.RequestAborted);
         await DeleteBlobAsync(ctx, storage, bucket, key);
     }
@@ -14,6 +18,7 @@ public static class ObjectDeletion
     /// <summary>Same order as <see cref="DeleteAsync"/>, but the rows go in one transaction and one stats update; the blobs stay per file.</summary>
     public static async Task<int> DeleteManyAsync(HttpContext ctx, IMetadataService metadata, IObjectStorageService storage, string bucket, IReadOnlyCollection<string> keys, string? auditUserId)
     {
+        using var gate = await ctx.RequestServices.GetRequiredService<IKeyGate>().EnterAsync(bucket, keys, ctx.RequestAborted);
         var deleted = await metadata.DeleteObjectsAsync(bucket, keys, auditUserId, ctx.RequestAborted);
         foreach (var key in keys)
             await DeleteBlobAsync(ctx, storage, bucket, key);

@@ -5,10 +5,9 @@ using ObjeX.Infrastructure.Data;
 namespace ObjeX.Infrastructure.Metadata;
 
 /// <summary>A singleton: the gates of <see cref="WriteWithinQuotaAsync"/> must be the same for every request of the process.</summary>
-public class StorageQuotaService(IDbContextFactory<ObjeXDbContext> dbFactory) : IStorageQuotaService
+public class StorageQuotaService(IDbContextFactory<ObjeXDbContext> dbFactory, IKeyGate keyGate) : IStorageQuotaService
 {
     private readonly NamedGates _ownerGates = new();
-    private readonly NamedGates _keyGates = new();
 
     public async Task<StorageQuotaStatus> GetAsync(string userId, CancellationToken ctk = default)
     {
@@ -61,7 +60,7 @@ public class StorageQuotaService(IDbContextFactory<ObjeXDbContext> dbFactory) : 
         // Owner gate first, key gate second, in every call, so two calls never wait for each other in a circle.
         // The write ends with the row and the owner's new TotalSize, so the next check behind the owner gate counts it.
         using var ownerGate = limitedOwner is null ? null : await _ownerGates.EnterAsync(limitedOwner, ctk);
-        using var keyGate = await _keyGates.EnterAsync($"{bucketName}/{key}", ctk);
+        using var keyEntry = await keyGate.EnterAsync(bucketName, [key], ctk);
         if (limitedOwner is not null && await CheckWriteAsync(bucketName, key, newSize, ctk) is { } exceeded)
             return exceeded;
         await write();

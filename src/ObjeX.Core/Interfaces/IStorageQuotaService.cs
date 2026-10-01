@@ -23,7 +23,7 @@ public interface IStorageQuotaService
     /// <summary>
     /// Runs write, the commit and the row, unless <see cref="CheckWriteAsync"/> refuses it. For an owner with a quota the check and
     /// the write run one at a time, so parallel uploads cannot pass the check together; an owner without one writes in parallel.
-    /// Writes of the same key always run one at a time, so the bytes in place and the row come from the same upload.
+    /// The write runs behind <see cref="IKeyGate"/>, so the bytes in place and the row come from the same upload.
     /// </summary>
     Task<QuotaExceeded?> WriteWithinQuotaAsync(string bucketName, string key, long newSize, Func<Task> write, CancellationToken ctk = default);
 }
