@@ -1,9 +1,7 @@
 using System.Security.Claims;
 
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Options;
 
-using ObjeX.Api.Options;
 using ObjeX.Api.S3;
 using ObjeX.Core.Interfaces;
 using ObjeX.Core.Models;
@@ -37,7 +35,7 @@ public static class S3ObjectEndpoint
             string key,
             HttpRequest request,
             HttpContext ctx,
-            IOptions<StorageOptions> storageOptions,
+            IStorageSpaceService space,
             IMetadataService metadata,
             IObjectStorageService storage,
             FileSystemStorageService fs,
@@ -65,7 +63,7 @@ public static class S3ObjectEndpoint
                 if (!IsPrivileged(ctx) && upload.InitiatedByUserId != GetCallerId(ctx))
                     return S3Xml.Error(S3Errors.NoSuchUpload, "The specified upload does not exist.", 404);
 
-                if (fs.GetAvailableFreeSpace() < storageOptions.Value.MinimumFreeDiskBytes)
+                if (space.Get().IsBelowMinimum)
                     return S3Xml.Error(S3Errors.EntityTooLarge, "Insufficient disk space.", 507);
 
                 if (!ContentMd5.TryParse(request.Headers.ContentMD5, out var expectedPartMd5))
@@ -191,7 +189,7 @@ public static class S3ObjectEndpoint
             if (await metadata.GetBucketAsync(bucket, IsPrivileged(ctx) ? null : GetCallerId(ctx)) is null)
                 return S3Xml.Error(S3Errors.NoSuchBucket, "The specified bucket does not exist.", 404);
 
-            if (fs.GetAvailableFreeSpace() < storageOptions.Value.MinimumFreeDiskBytes)
+            if (space.Get().IsBelowMinimum)
                 return S3Xml.Error(S3Errors.EntityTooLarge, "Insufficient disk space.", 507);
 
             if (Preconditions.HasWriteConditions(request) && Preconditions.CheckWrite(request, await metadata.GetObjectAsync(bucket, key)) is { } conditionFailed)

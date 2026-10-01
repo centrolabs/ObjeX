@@ -5,7 +5,6 @@ using System.Xml.Linq;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 
-using ObjeX.Api.Options;
 using ObjeX.Api.S3;
 using ObjeX.Core.Interfaces;
 using ObjeX.Core.Models;
@@ -36,7 +35,7 @@ public static class S3MultipartEndpoint
             IMetadataService metadata,
             ObjeXDbContext db,
             FileSystemStorageService fs,
-            IOptions<StorageOptions> storageOptions,
+            IStorageSpaceService space,
             IOptions<S3Options> s3Options,
             HttpContext ctx) =>
         {
@@ -50,7 +49,7 @@ public static class S3MultipartEndpoint
                 return await Initiate(bucket, key, request, db, ctx);
 
             if (request.Query.TryGetValue("uploadId", out var uploadIdStr))
-                return await Complete(bucket, key, uploadIdStr!, request, metadata, db, fs, storageOptions.Value, s3Options.Value, ctx);
+                return await Complete(bucket, key, uploadIdStr!, request, metadata, db, fs, space, s3Options.Value, ctx);
 
             return S3Xml.Error(S3Errors.InvalidArgument, "Missing uploads or uploadId query parameter.");
         });
@@ -102,7 +101,7 @@ public static class S3MultipartEndpoint
         string bucket, string key, string uploadIdStr,
         HttpRequest request, IMetadataService metadata,
         ObjeXDbContext db, FileSystemStorageService fs,
-        StorageOptions storage, S3Options s3, HttpContext ctx)
+        IStorageSpaceService space, S3Options s3, HttpContext ctx)
     {
         if (!Guid.TryParse(uploadIdStr, out var uploadId))
             return S3Xml.Error(S3Errors.NoSuchUpload, "The specified upload does not exist.", 404);
@@ -166,7 +165,7 @@ public static class S3MultipartEndpoint
         }
 
         // Check disk space
-        if (fs.GetAvailableFreeSpace() < storage.MinimumFreeDiskBytes)
+        if (space.Get().IsBelowMinimum)
             return S3Xml.Error(S3Errors.EntityTooLarge, "Insufficient disk space.", 507);
 
         var totalSize = upload.Parts
