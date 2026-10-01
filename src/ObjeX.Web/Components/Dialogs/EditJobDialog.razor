@@ -4,6 +4,15 @@
 @inject BrowserTimeZone Tz
 
 <OxStack Gap="7">
+    @if (Job.Warning is { } warning)
+    {
+        <OxAlert Tone="OxTone.Warning">@warning Saving stores a schedule this server can run.</OxAlert>
+    }
+    @if (Tz.UnknownId is { } browserZone)
+    {
+        <OxAlert Tone="OxTone.Warning">This server does not know your browser's time zone @browserZone. Times here are in UTC.</OxAlert>
+    }
+
     <OxSwitch Checked="_enabled" CheckedChanged="@(v => Change(() => _enabled = v))">Enabled</OxSwitch>
 
     <OxField Label="Frequency">
@@ -50,7 +59,7 @@
         <OxButton Disabled="Job.IsDefault" OnClick="@(() => DialogService.Close(new Result(null)))">Reset to default</OxButton>
         <OxStack Row="true" Gap="4">
             <OxButton OnClick="@(() => DialogService.Close(null))">Cancel</OxButton>
-            <OxButton Variant="OxButtonVariant.Primary" Disabled="@(!_dirty || _check.Error is not null)" OnClick="Save">Save</OxButton>
+            <OxButton Variant="OxButtonVariant.Primary" Disabled="@(!(_dirty || Job.Warning is not null) || _check.Error is not null)" OnClick="Save">Save</OxButton>
         </OxStack>
     </OxStack>
 </OxStack>

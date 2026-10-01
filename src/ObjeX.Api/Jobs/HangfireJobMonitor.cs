@@ -36,17 +36,19 @@ public class HangfireJobMonitor(
                 var schedule = schedules.GetValueOrDefault(d.Id);
                 var enabled = schedule?.Enabled ?? true;
                 var parameter = d.Parameter?.Read(settings);
+                var effective = HangfireJobScheduler.Resolve(d, schedule);
                 return new RecurringJobStatus(
                     d.Id,
                     d.Name,
-                    schedule?.Cron ?? d.DefaultCron,
-                    schedule?.TimeZone ?? "UTC",
+                    effective.Cron,
+                    effective.Zone.Id,
                     enabled,
                     schedule is null && parameter?.Value is null,
                     enabled ? entry?.NextExecution : null,
                     entry?.LastExecution,
                     entry?.LastJobId is { Length: > 0 } lastId ? ReadRun(monitor, lastId) : null,
-                    parameter);
+                    parameter,
+                    effective.Warning);
             })
             .ToList();
     }

@@ -16,6 +16,28 @@ public class BrowserTimeZoneTests
     }
 
     [Fact]
+    public void AZoneTheServerDoesNotKnow_IsUtc_AndRemembered()
+    {
+        var tz = new BrowserTimeZone();
+        tz.Set("Mars/Olympus_Mons");
+
+        Assert.Equal(TimeZoneInfo.Utc, tz.Zone);
+        Assert.Equal("Mars/Olympus_Mons", tz.UnknownId);
+    }
+
+    [Theory]
+    [InlineData("Europe/Zurich")]
+    [InlineData(null)]
+    [InlineData("")]
+    public void AKnownOrMissingZone_IsNotUnknown(string? id)
+    {
+        var tz = new BrowserTimeZone();
+        tz.Set(id);
+
+        Assert.Null(tz.UnknownId);
+    }
+
+    [Fact]
     public void Zurich_Applies_Standard_And_Daylight_Offset()
     {
         var tz = new BrowserTimeZone();
