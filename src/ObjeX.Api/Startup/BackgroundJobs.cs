@@ -63,7 +63,7 @@ public static class BackgroundJobs
         {
             var schedules = db.JobSchedules.AsNoTracking().ToDictionary(s => s.JobId);
             foreach (var definition in JobDefinitions.All)
-                HangfireJobScheduler.Apply(manager, definition, schedules.GetValueOrDefault(definition.Id));
+                HangfireJobScheduler.Apply(manager, definition, schedules.GetValueOrDefault(definition.Id), logger);
         }
 
         using var connection = storage.GetConnection();

@@ -4,7 +4,10 @@ using Hangfire.States;
 using Hangfire.Storage;
 using Microsoft.Extensions.DependencyInjection;
 using ObjeX.Api.Startup;
+using Microsoft.EntityFrameworkCore;
 using ObjeX.Core.Interfaces;
+using ObjeX.Core.Models;
+using ObjeX.Infrastructure.Data;
 using ObjeX.Infrastructure.Jobs;
 
 namespace ObjeX.Tests.Integration;
@@ -65,5 +68,45 @@ public class BackgroundJobsTests(ObjeXFactory factory) : IClassFixture<ObjeXFact
 
         Assert.Equal("15 1 * * 2", job.Cron);
         Assert.Equal("Europe/Zurich", job.TimeZoneId);
+    }
+
+    [Fact]
+    public async Task OnAHostThatDoesNotKnowTheStoredZone_TheAppStarts_AndRunsTheCronInUtc()
+    {
+        using var first = new ObjeXFactory();
+        await StoreAsync(first, new JobSchedule { JobId = "verify-blob-integrity", Cron = "15 1 * * 2", TimeZone = "Mars/Olympus_Mons" });
+
+        using var second = first.Restart();
+        var jobs = RecurringJobs(second);
+
+        Assert.Equal(("15 1 * * 2", "UTC"), (jobs["verify-blob-integrity"].Cron, jobs["verify-blob-integrity"].TimeZoneId));
+        Assert.Equal(3, jobs.Count);
+    }
+
+    [Fact]
+    public async Task WithAStoredCronHangfireCannotRead_TheAppStarts_AndTheJobRunsOnItsDefault()
+    {
+        using var first = new ObjeXFactory();
+        await StoreAsync(first, new JobSchedule { JobId = "cleanup-orphaned-blobs", Cron = "61 * * * *", TimeZone = "Europe/Zurich" });
+
+        using var second = first.Restart();
+        var jobs = RecurringJobs(second);
+
+        Assert.Equal(("0 3 * * 0", "UTC"), (jobs["cleanup-orphaned-blobs"].Cron, jobs["cleanup-orphaned-blobs"].TimeZoneId));
+        Assert.Equal(3, jobs.Count);
+    }
+
+    // Written past the scheduler's checks, as a database moved from another host or edited by hand would hold it.
+    private static async Task StoreAsync(ObjeXFactory host, JobSchedule schedule)
+    {
+        await using var db = await host.Services.GetRequiredService<IDbContextFactory<ObjeXDbContext>>().CreateDbContextAsync();
+        db.JobSchedules.Add(schedule);
+        await db.SaveChangesAsync();
+    }
+
+    private static Dictionary<string, RecurringJobDto> RecurringJobs(ObjeXFactory host)
+    {
+        using var connection = host.Services.GetRequiredService<JobStorage>().GetConnection();
+        return connection.GetRecurringJobs().ToDictionary(j => j.Id);
     }
 }
