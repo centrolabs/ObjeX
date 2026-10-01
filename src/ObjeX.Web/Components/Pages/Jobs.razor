@@ -18,15 +18,10 @@
 </OxPageHeader>
 
 <OxCard Title="Recurring jobs" Flush="true">
-    <RadzenDataGrid class="@OxSizes.RoomyGridClass" Data="_jobs" TItem="RecurringJobStatus" AllowSorting="false" AllowAlternatingRows="false" EmptyText="No recurring jobs.">
+    <RadzenDataGrid Data="_jobs" TItem="RecurringJobStatus" AllowSorting="false" AllowAlternatingRows="false" EmptyText="No recurring jobs.">
         <Columns>
             <RadzenDataGridColumn TItem="RecurringJobStatus" Property="Name" Title="Job" Width="@OxSizes.NameColumn">
-                <Template Context="job">
-                    <OxStack Gap="1">
-                        <OxText Truncate="true"><strong>@job.Name</strong></OxText>
-                        <OxText Variant="OxTextVariant.Small" Truncate="true" title="@($"{job.Cron} ({job.TimeZone})")">@(CronText.Describe(job.Cron, job.NextRun, Tz, job.TimeZone) ?? $"{job.Cron} ({job.TimeZone})")</OxText>
-                    </OxStack>
-                </Template>
+                <Template Context="job"><OxText Truncate="true"><strong>@job.Name</strong></OxText></Template>
             </RadzenDataGridColumn>
             <RadzenDataGridColumn TItem="RecurringJobStatus" Title="Status" Width="@OxSizes.NumberColumn">
                 <Template Context="job">
@@ -44,20 +39,16 @@
                     }
                 </Template>
             </RadzenDataGridColumn>
+            <RadzenDataGridColumn TItem="RecurringJobStatus" Property="Cron" Title="Schedule">
+                <Template Context="job">
+                    <OxText Truncate="true" title="@($"{job.Cron} ({job.TimeZone})")">@(CronText.Describe(job.Cron, job.NextRun, Tz, job.TimeZone) ?? $"{job.Cron} ({job.TimeZone})")</OxText>
+                </Template>
+            </RadzenDataGridColumn>
             <RadzenDataGridColumn TItem="RecurringJobStatus" Property="LastRun" Title="Last run" Width="@OxSizes.DateColumn" CssClass="ox-col-muted">
                 <Template Context="job">@Tz.Format(job.LastRun)</Template>
             </RadzenDataGridColumn>
             <RadzenDataGridColumn TItem="RecurringJobStatus" Property="NextRun" Title="Next run" Width="@OxSizes.DateColumn" CssClass="ox-col-muted">
                 <Template Context="job">@Tz.Format(job.NextRun)</Template>
-            </RadzenDataGridColumn>
-            <RadzenDataGridColumn TItem="RecurringJobStatus" Title="Result" CssClass="ox-col-muted">
-                <Template Context="job">
-                    @if (job.LastJob is { } last)
-                    {
-                        var (text, tone) = JobRunText.Summary(last);
-                        <OxText Truncate="true" Tone="@tone" title="@text">@text</OxText>
-                    }
-                </Template>
             </RadzenDataGridColumn>
             <RadzenDataGridColumn TItem="RecurringJobStatus" Title="" Width="@OxSizes.ActionsColumn" CssClass="ox-col-actions">
                 <Template Context="job">
