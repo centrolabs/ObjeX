@@ -32,6 +32,10 @@ public class CronTextTests
     public void WithoutNextRun_ReadsTheCronAsUtc()
         => Assert.Equal("Every Sunday at 03:00 UTC", CronText.Describe("0 3 * * 0", null, Zone("Europe/Zurich")));
 
+    [Fact]
+    public void WithoutNextRun_ReadsTheCronInItsOwnZone()
+        => Assert.Equal("Every day at 02:15 Europe/Zurich", CronText.Describe("15 2 * * *", null, Zone("UTC"), "Europe/Zurich"));
+
     [Theory]
     [InlineData("*/5 * * * *")]
     [InlineData("0 3 1 * *")]

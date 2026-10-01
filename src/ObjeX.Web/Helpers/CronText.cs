@@ -8,9 +8,9 @@ public static class CronText
     /// <summary>
     /// "Every Sunday at 05:00" for a weekly cron, "Every day at 05:00" for a daily one, null for anything else.
     /// Day and time come from the next run in the browser's zone, so a zone shift or daylight saving time is
-    /// already applied; without a next run they come from the cron and carry "UTC".
+    /// already applied; without a next run they come from the cron and carry the zone it is read in.
     /// </summary>
-    public static string? Describe(string cron, DateTime? nextRunUtc, BrowserTimeZone tz)
+    public static string? Describe(string cron, DateTime? nextRunUtc, BrowserTimeZone tz, string cronZone = "UTC")
     {
         var fields = cron.Split(' ', StringSplitOptions.RemoveEmptyEntries);
         if (fields is not [var minute, var hour, "*", "*", var weekday]
@@ -29,7 +29,7 @@ public static class CronText
                 : $"Every {local.DayOfWeek} at {local.ToString("HH:mm", CultureInfo.InvariantCulture)}";
         }
 
-        var time = $"{h:00}:{m:00} UTC";
+        var time = $"{h:00}:{m:00} {cronZone}";
         return day is null ? $"Every day at {time}" : $"Every {(DayOfWeek)day} at {time}";
     }
 }
