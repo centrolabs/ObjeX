@@ -43,7 +43,7 @@ sequenceDiagram
   A->>E: context.User = SigV4 identity
   E->>E: ObjectKeyValidator (400 InvalidArgument)
   E->>M: GetBucketAsync(bucket, owner filter) (404 NoSuchBucket)
-  E->>FS: GetAvailableFreeSpace() (507 below Storage:MinimumFreeDiskBytes)
+  E->>E: IStorageSpaceService IsBelowMinimum (507 below Storage:MinimumFreeDiskBytes)
   E->>Q: CheckAsync with declared Content-Length
   Q->>DB: bucket owner · quota · used bytes (507 over quota)
   E->>E: ContentMd5.TryParse (400 InvalidDigest)
@@ -93,7 +93,7 @@ sequenceDiagram
   loop each part 1..10000
     C->>OE: PUT /{bucket}/{key}?partNumber=N&uploadId=X
     OE->>DB: MultipartUpload exists · caller is initiator or Admin/Manager (404 NoSuchUpload)
-    OE->>FS: GetAvailableFreeSpace() (507)
+    OE->>OE: free disk below the minimum (507)
     OE->>FS: StagePartAsync(uploadId, N, decoded body)
     FS->>D: _multipart/{uploadId}/{N}.part.tmp → commit
     OE->>OE: Content-MD5 vs part ETag (400 BadDigest)
@@ -104,7 +104,7 @@ sequenceDiagram
   C->>MP: POST /{bucket}/{key}?uploadId=X · XML part list
   MP->>DB: MultipartUpload + Parts (404 NoSuchUpload)
   MP->>MP: parts ascending (400 InvalidPartOrder) · ETag matches (400 InvalidPart) · ≥ 5 MB except last (400 EntityTooSmall)
-  MP->>FS: GetAvailableFreeSpace() (507)
+  MP->>MP: free disk below the minimum (507)
   MP->>DB: StorageQuota.CheckAsync(sum of part sizes) (507)
   MP->>FS: AssemblePartsAsync(bucket, key, ordered paths)
   FS->>D: concatenate parts into {hash}.blob
@@ -339,6 +339,45 @@ stateDiagram-v2
     CleanupOrphanedBlobsJob (default Sun 03:00 UTC) deletes .blob files
     with no row, unless modified within the last hour
   end note
+```
+
+</details>
+
+## 8. Browser upload
+
+The Objects page uploads over HTTP, not through the circuit. The page's script keeps the files and sends each one with `XMLHttpRequest` to `PUT /api/upload`, three at a time; the circuit only decides keys and URLs and renders the progress. The endpoint applies the rules of PutObject: free disk first, then the staged write, the bucket owner's quota on the real size, the commit, and the row with its audit entry.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="diagrams/08-browser-upload.dark.svg">
+  <img alt="Browser upload" src="diagrams/08-browser-upload.svg">
+</picture>
+
+<details><summary>Mermaid source</summary>
+
+```mermaid
+sequenceDiagram
+  autonumber
+  participant B as Browser · Objects.razor.js
+  participant P as Objects.razor · circuit
+  participant U as PUT /api/upload
+  participant S as Storage services
+  participant DB as Metadata DB
+
+  B->>P: OnFilesAdded(id, path, size, type) in batches under 32 KB
+  P->>P: key = folder shown + relative path · ObjectKeyValidator (refused key → failed row, never sent)
+  P->>B: start(id, url, type)
+  loop three files at a time
+    B->>U: PUT raw body · login cookie · antiforgery header
+    U->>U: token (400) · key (400) · bucket with owner filter (404) · free disk (507)
+    U->>S: StageAsync(HashingStream over the body)
+    U->>S: CheckWriteAsync(real size): owner quota, an overwrite pays its growth (507, staged file disposed)
+    U->>S: CommitAsync · SaveObjectAsync(auditUserId)
+    S->>DB: row · stats delta · PutObject audit
+    U-->>B: 200 {key, size, etag} or {error}
+  end
+  B->>P: OnUploadEvents(progress, done, failed, cancelled) at most every 250 ms
+  P->>P: panel rows and totals · refresh the listing
+  Note over B,U: xhr.abort() cancels: the server deletes the staged file, the previous object stays
 ```
 
 </details>
