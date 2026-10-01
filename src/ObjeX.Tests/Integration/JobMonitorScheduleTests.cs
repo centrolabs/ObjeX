@@ -54,4 +54,20 @@ public class JobMonitorScheduleTests(ObjeXFactory factory) : IClassFixture<ObjeX
         Assert.False(job.Enabled);
         Assert.Null(job.NextRun);
     }
+
+    [Fact]
+    public async Task TheParameter_ShowsItsStoredValueAndItsDefault()
+    {
+        Assert.Null(Job("verify-blob-integrity").Parameter);
+        Assert.Equal((null, 60, 15, 10080), Parameter(Job("cleanup-orphaned-blobs")));
+
+        await Scheduler.SaveAsync(new JobScheduleChange("cleanup-orphaned-blobs", true, "0 3 * * 0", "UTC", 90), "test");
+
+        var job = Job("cleanup-orphaned-blobs");
+        Assert.Equal((90, 60, 15, 10080), Parameter(job));
+        Assert.False(job.IsDefault);
+        await Scheduler.ResetAsync("cleanup-orphaned-blobs", "test");
+
+        static (int?, int, int, int) Parameter(RecurringJobStatus job) => (job.Parameter!.Value, job.Parameter.Default, job.Parameter.Min, job.Parameter.Max);
+    }
 }
