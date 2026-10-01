@@ -63,9 +63,9 @@
                 <Template Context="job">
                     <OxRowActions>
                         <OxIconButton Icon="info" Label="Details of the last run" Href="@(job.LastJob is { } last ? JobRunText.DetailsUrl(last.Id) : null)" Disabled="@(job.LastJob is null)" />
-                        <OxIconButton Icon="play_arrow" Label="Run now" Disabled="@IsActive(job.LastJob)" OnClick="@(() => RunNow(job))" />
+                        <OxIconButton Icon="edit" Label="Edit schedule" OnClick="@(() => Edit(job))" />
                         <OxMenuButton Label="@($"More actions for {job.Name}")">
-                            <OxMenuItem Icon="edit" OnClick="@(() => Edit(job))">Edit schedule</OxMenuItem>
+                            <OxMenuItem Icon="play_arrow" Disabled="@IsActive(job.LastJob)" OnClick="@(() => RunNow(job))">Run now</OxMenuItem>
                             @if (!job.IsDefault)
                             {
                                 <OxMenuItem Icon="restart_alt" OnClick="@(() => Reset(job))">Reset to default</OxMenuItem>
