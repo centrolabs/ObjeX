@@ -1,6 +1,8 @@
 using System.Diagnostics;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using ObjeX.Core.Interfaces;
+using ObjeX.Infrastructure.Data;
 using ObjeX.Infrastructure.Storage;
 
 namespace ObjeX.Infrastructure.Jobs;
@@ -10,16 +12,17 @@ public record CleanupResult(int FilesChecked, int FilesDeleted, double DurationS
 public class CleanupOrphanedBlobsJob(
     IMetadataService metadataService,
     FileSystemStorageService storageService,
+    IDbContextFactory<ObjeXDbContext> dbFactory,
     ILogger<CleanupOrphanedBlobsJob> logger)
 {
     // A blob is written before its row; anything this recent may belong to an upload still in flight.
-    private static readonly TimeSpan Grace = TimeSpan.FromHours(1);
+    public const int DefaultGraceMinutes = 60;
 
     public async Task<CleanupResult> ExecuteAsync()
     {
         logger.LogInformation("Orphaned blob cleanup started");
         var sw = Stopwatch.StartNew();
-        var cutoff = DateTime.UtcNow - Grace;
+        var cutoff = DateTime.UtcNow - TimeSpan.FromMinutes(await GraceMinutesAsync());
 
         // Known paths are derived from bucket and key, so a moved data directory never turns every blob into an orphan.
         var allObjects = await metadataService.ListAllObjectsAsync();
@@ -48,5 +51,11 @@ public class CleanupOrphanedBlobsJob(
             result.FilesChecked, result.FilesDeleted, result.DurationSeconds);
 
         return result;
+    }
+
+    private async Task<int> GraceMinutesAsync()
+    {
+        await using var db = await dbFactory.CreateDbContextAsync();
+        return await db.SystemSettings.Select(s => s.OrphanGraceMinutes).SingleAsync() ?? DefaultGraceMinutes;
     }
 }
