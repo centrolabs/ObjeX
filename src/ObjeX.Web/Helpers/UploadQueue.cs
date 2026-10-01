@@ -1,3 +1,5 @@
+using System.Collections.ObjectModel;
+
 using ObjeX.Core.Validation;
 
 namespace ObjeX.Web.Helpers;
@@ -33,7 +35,10 @@ public sealed class UploadQueue
     private readonly List<UploadItem> _items = [];
     private readonly Dictionary<int, UploadItem> _byId = [];
 
-    public IReadOnlyList<UploadItem> Items => _items;
+    public UploadQueue() => Items = _items.AsReadOnly();
+
+    /// <summary>A collection, not just a list, so <c>Virtualize</c> takes it as Items.</summary>
+    public ReadOnlyCollection<UploadItem> Items { get; }
 
     public static string KeyFor(string prefix, string path) => prefix + path.TrimStart('/');
 

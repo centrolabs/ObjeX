@@ -1,30 +1,41 @@
 @implements IAsyncDisposable
 @inject IJSRuntime JS
 
-<div class="ox-file-drop @(Hidden ? "is-hidden" : null)" @ref="_zone">
+<div class="ox-file-drop" @ref="_zone">
     <OxIcon Name="upload" />
     <span>@ChildContent</span>
-    <InputFile @ref="_input" OnChange="OnChange" multiple="@Multiple" aria-label="Choose files" />
+    <input type="file" multiple aria-label="Choose files" />
+    @if (FolderLabel is not null)
+    {
+        <button type="button" class="ox-file-drop-folder">@FolderLabel</button>
+        <input type="file" webkitdirectory hidden tabindex="-1" aria-hidden="true" />
+    }
 </div>
 
 @code {
     ElementReference _zone;
-    InputFile? _input;
     IJSObjectReference? _module;
+    DotNetObjectReference<OxFileDrop>? _self;
 
     /// <summary>The area a user clicks or drops files on. The text inside says so.</summary>
     [Parameter] public RenderFragment? ChildContent { get; set; }
-    [Parameter] public bool Multiple { get; set; } = true;
-    /// <summary>Keeps the input in the page but out of sight: the files a user chose are read through it.</summary>
-    [Parameter] public bool Hidden { get; set; }
-    [Parameter] public EventCallback<InputFileChangeEventArgs> OnChange { get; set; }
+    /// <summary>Receives the dropped or picked files, folders with their subfolders, through its add method.</summary>
+    [Parameter, EditorRequired] public IJSObjectReference? Sink { get; set; }
+    /// <summary>Text of a button that picks a whole folder; null leaves it out.</summary>
+    [Parameter] public string? FolderLabel { get; set; }
+    /// <summary>Raised once the files went to the sink.</summary>
+    [Parameter] public EventCallback OnPicked { get; set; }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (!firstRender || _input?.Element is null) return;
+        if (!firstRender || Sink is null) return;
+        _self = DotNetObjectReference.Create(this);
         _module = await JS.InvokeAsync<IJSObjectReference>("import", "./_content/ObjeX.Web/Components/Ui/OxDropZone.razor.js");
-        await _module.InvokeVoidAsync("initDropZone", _zone, _input.Element);
+        await _module.InvokeVoidAsync("initFileDrop", _zone, Sink, _self);
     }
+
+    [JSInvokable]
+    public Task Picked() => OnPicked.InvokeAsync();
 
     public async ValueTask DisposeAsync()
     {
@@ -33,5 +44,6 @@
             if (_module is not null) await _module.DisposeAsync();
         }
         catch (JSDisconnectedException) { }
+        _self?.Dispose();
     }
 }
