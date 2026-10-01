@@ -149,6 +149,7 @@ app.MapRazorComponents<App>()
     .AddAdditionalAssemblies(typeof(ObjeX.Web.Components.Routes).Assembly);
 
 app.MapDownloadEndpoints();
+app.MapUploadEndpoints();
 app.MapPresignEndpoints();
 app.MapAccountEndpoints();
 
