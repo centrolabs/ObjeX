@@ -22,6 +22,9 @@ public static class UploadEndpoints
     static IResult Error(int statusCode, string message) =>
         Results.Json(new { error = message }, statusCode: statusCode);
 
+    static IResult QuotaError(QuotaExceeded exceeded) =>
+        Error(507, $"Storage quota of the bucket owner exceeded ({FileHelper.FormatBytes(exceeded.RequestedBytes)} of {FileHelper.FormatBytes(exceeded.QuotaBytes)}).");
+
     public static void MapUploadEndpoints(this WebApplication app)
     {
         // Browser upload from the Objects page: one file per request, raw body, same rules as PUT Object on the S3 port.
@@ -44,8 +47,13 @@ public static class UploadEndpoints
             if (space.Get().IsBelowMinimum)
                 return Error(507, "Not enough free disk space on the server.");
 
-            // No early quota check on Content-Length: an answer before the body is read reaches a browser that is still
-            // sending as a dropped connection, so the quota is checked once the staged file has its real size.
+            // The browser always declares the size. Checking it first keeps a body over the owner's quota off the disk;
+            // the check after staging stays the binding one.
+            if (ctx.Request.ContentLength is not { } declaredSize)
+                return Error(411, "The upload must declare its size (Content-Length).");
+            if (await quota.CheckWriteAsync(bucketName, key, declaredSize, ctx.RequestAborted) is { } early)
+                return QuotaError(early);
+
             try
             {
                 await using var hashingStream = new HashingStream(ctx.Request.Body);
@@ -67,7 +75,7 @@ public static class UploadEndpoints
                     }, GetCallerId(ctx));
                 }, ctx.RequestAborted);
                 if (exceeded is not null)
-                    return Error(507, $"Storage quota of the bucket owner exceeded ({FileHelper.FormatBytes(exceeded.RequestedBytes)} of {FileHelper.FormatBytes(exceeded.QuotaBytes)}).");
+                    return QuotaError(exceeded);
 
                 return Results.Ok(new { key, size = staged.Size, etag });
             }
@@ -77,7 +85,7 @@ public static class UploadEndpoints
                     ? "The file is larger than the server accepts."
                     : ex.Message);
             }
-            catch (Exception) when (ctx.RequestAborted.IsCancellationRequested)
+            catch (Exception ex) when (ex is IOException or OperationCanceledException && ctx.RequestAborted.IsCancellationRequested)
             {
                 // The browser cancelled or lost the connection; the staged file is already gone and nobody reads an answer.
                 return Results.Empty;

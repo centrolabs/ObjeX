@@ -50,6 +50,7 @@ public class EfCoreMetadataService(IDbContextFactory<ObjeXDbContext> contexts) :
     public async Task DeleteBucketAsync(string bucketName, string userId, bool isPrivileged, string? auditUserId = null, CancellationToken ctk = default)
     {
         await using var ctx = await contexts.CreateDbContextAsync(ctk);
+        await using var tx = await BeginBucketWriteAsync(ctx, bucketName, ctk);
         var bucket = await ctx.Buckets.FirstOrDefaultAsync(b => b.Name == bucketName, ctk);
         if (bucket is null) return;
 
@@ -62,6 +63,7 @@ public class EfCoreMetadataService(IDbContextFactory<ObjeXDbContext> contexts) :
         if (auditUserId is not null)
             ctx.AuditEntries.Add(new AuditEntry { UserId = auditUserId, Action = "DeleteBucket", BucketName = bucketName, Details = $"Objects deleted: {objects.Count}" });
         await ctx.SaveChangesAsync(ctk);
+        await tx.CommitAsync(ctk);
     }
 
     public async Task<bool> ExistsBucketAsync(string bucketName, CancellationToken ctk = default)

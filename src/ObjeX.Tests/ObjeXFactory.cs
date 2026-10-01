@@ -110,9 +110,12 @@ public class ObjeXFactory : WebApplicationFactory<ApiAssemblyMarker>
     /// Client whose requests enter the S3 pipeline. S3 clients never follow redirects, so a
     /// redirect coming out of the S3 port is always a bug worth asserting on.
     /// </summary>
-    public HttpClient CreateS3Client()
+    public HttpClient CreateS3Client() => CreateS3Client(this);
+
+    /// <summary>The same for a host derived with <c>WithWebHostBuilder</c>.</summary>
+    public static HttpClient CreateS3Client(WebApplicationFactory<ApiAssemblyMarker> host)
     {
-        var client = CreateDefaultClient(new RawTargetHandler());
+        var client = host.CreateDefaultClient(new RawTargetHandler());
         client.DefaultRequestHeaders.Host = "localhost:9000";
         client.DefaultRequestHeaders.Add(PortHeader, S3Port.ToString());
         return client;
