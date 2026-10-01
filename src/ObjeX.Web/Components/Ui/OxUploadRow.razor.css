@@ -1,0 +1,18 @@
+.ox-upload-row {
+    position: relative;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-content: center;
+    column-gap: var(--ox-space-4);
+    height: var(--ox-size-upload-row);
+    padding: 0 var(--ox-space-4) var(--ox-space-4) var(--ox-space-7);
+    border-bottom: var(--ox-border) solid var(--ox-line);
+}
+
+.ox-upload-row:last-child { border-bottom: 0; }
+
+.ox-upload-row ::deep > .ox-text { grid-column: 1; padding-left: calc(var(--ox-size-icon) + var(--ox-space-5)); }
+
+.ox-upload-row-actions { display: flex; grid-row: span 2; align-items: center; justify-content: center; min-width: var(--ox-size-ctl-sm); }
+
+.ox-upload-row ::deep > .ox-meter { position: absolute; right: var(--ox-space-7); bottom: var(--ox-space-3); left: calc(var(--ox-space-7) + var(--ox-size-icon) + var(--ox-space-5)); }

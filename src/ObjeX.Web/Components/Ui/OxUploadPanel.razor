@@ -1,0 +1,34 @@
+<section class="ox-upload-panel @(Floating ? "is-floating" : null)" aria-label="Uploads">
+    <header class="ox-upload-head">
+        <div class="ox-upload-heading">
+            <span class="ox-upload-title" aria-live="polite">@Title</span>
+            <span class="ox-upload-detail">@Detail</span>
+        </div>
+        <div class="ox-upload-actions">
+            @Actions
+            <OxIconButton Icon="@(_collapsed ? "expand_less" : "expand_more")" Label="@(_collapsed ? "Show uploads" : "Hide uploads")"
+                          aria-expanded="@(_collapsed ? "false" : "true")" OnClick="@(() => _collapsed = !_collapsed)" />
+        </div>
+    </header>
+    <OxMeter Value="@Progress" Tone="@Tone" Label="Upload progress" />
+    @if (!_collapsed && ChildContent is not null)
+    {
+        <div class="ox-upload-list">@ChildContent</div>
+    }
+</section>
+
+@code {
+    bool _collapsed;
+
+    [Parameter] public string? Title { get; set; }
+    [Parameter] public string? Detail { get; set; }
+    /// <summary>All files together, 0 to 100.</summary>
+    [Parameter] public double Progress { get; set; }
+    [Parameter] public OxTone Tone { get; set; }
+    /// <summary>Icon buttons in the header, ahead of the collapse button.</summary>
+    [Parameter] public RenderFragment? Actions { get; set; }
+    /// <summary>The <see cref="OxUploadRow"/>s; the list scrolls, so it can hold a <c>Virtualize</c>.</summary>
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+    /// <summary>Fixed at the bottom right of the window, above the page; off for the styleguide.</summary>
+    [Parameter] public bool Floating { get; set; } = true;
+}

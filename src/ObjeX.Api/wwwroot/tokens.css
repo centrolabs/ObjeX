@@ -103,6 +103,9 @@
     --ox-size-field-sm: 110px;
     --ox-size-label: 120px;
     --ox-size-drop: 120px;
+    --ox-size-upload-panel: 400px;
+    --ox-size-upload-list: 320px;
+    --ox-size-upload-row: 60px;
     --ox-size-preview: 70vh;
     --ox-size-page: 760px;
 
@@ -110,6 +113,7 @@
     --ox-border-check: 1.5px;
     --ox-ring: 2px;
 
+    --ox-z-panel: 800;
     --ox-z-drawer: 900;
     --ox-z-popup: 1100;
 }
