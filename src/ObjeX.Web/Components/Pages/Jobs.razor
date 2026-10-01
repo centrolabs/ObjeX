@@ -1,6 +1,7 @@
 @page "/jobs"
 @attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Admin")]
 @implements IDisposable
+@using Microsoft.EntityFrameworkCore
 @using ObjeX.Core.Interfaces
 @using ObjeX.Web.Components.Dialogs
 @inject IJobMonitor Monitor
@@ -165,7 +166,7 @@
         if (result is not EditJobDialog.Result r) return;
 
         if (r.Change is null)
-            await ApplyAsync(job, "Reset", userId => Scheduler.ResetAsync(job.Id, userId));
+            await Reset(job);
         else
             await ApplyAsync(job, "Saved", userId => Scheduler.SaveAsync(r.Change, userId));
     }
@@ -188,6 +189,10 @@
         catch (ArgumentException e)
         {
             NotificationService.Notify(NotificationSeverity.Error, "Not saved", e.Message);
+        }
+        catch (DbUpdateException)
+        {
+            NotificationService.Notify(NotificationSeverity.Error, "Not saved", $"\"{job.Name}\" was saved elsewhere at the same time. Check it and try again.");
         }
         Load();
     }
