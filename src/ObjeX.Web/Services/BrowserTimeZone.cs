@@ -10,11 +10,21 @@ public sealed class BrowserTimeZone
 
     public TimeZoneInfo Zone { get; private set; } = TimeZoneInfo.Utc;
 
+    /// <summary>The browser's zone when this server does not know it; Zone is UTC then.</summary>
+    public string? UnknownId { get; private set; }
+
     public void Set(string? id)
     {
-        Zone = id is { Length: > 0 and <= MaxIdLength } && TimeZoneInfo.TryFindSystemTimeZoneById(id, out var zone)
-            ? zone
-            : TimeZoneInfo.Utc;
+        if (id is { Length: > 0 and <= MaxIdLength } && TimeZoneInfo.TryFindSystemTimeZoneById(id, out var zone))
+        {
+            Zone = zone;
+            UnknownId = null;
+        }
+        else
+        {
+            Zone = TimeZoneInfo.Utc;
+            UnknownId = string.IsNullOrEmpty(id) ? null : id;
+        }
     }
 
     // Stored timestamps come back from the database with Kind Unspecified; say out loud that they are UTC.

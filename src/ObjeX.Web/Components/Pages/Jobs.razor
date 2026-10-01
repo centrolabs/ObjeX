@@ -41,7 +41,13 @@
             </RadzenDataGridColumn>
             <RadzenDataGridColumn TItem="RecurringJobStatus" Property="Cron" Title="Schedule">
                 <Template Context="job">
-                    <OxText Truncate="true" title="@($"{job.Cron} ({job.TimeZone})")">@(CronText.Describe(job.Cron, job.NextRun, Tz, job.TimeZone) ?? $"{job.Cron} ({job.TimeZone})")</OxText>
+                    <OxStack Row="true" Gap="2" Align="OxAlign.Center">
+                        <OxText Truncate="true" title="@($"{job.Cron} ({job.TimeZone})")">@(CronText.Describe(job.Cron, job.NextRun, Tz, job.TimeZone) ?? $"{job.Cron} ({job.TimeZone})")</OxText>
+                        @if (job.Warning is { } warning)
+                        {
+                            <span title="@warning" role="img" aria-label="@warning"><OxIcon Name="warning" Small="true" Tone="OxTone.Warning" /></span>
+                        }
+                    </OxStack>
                 </Template>
             </RadzenDataGridColumn>
             <RadzenDataGridColumn TItem="RecurringJobStatus" Property="LastRun" Title="Last run" Width="@OxSizes.DateColumn" CssClass="ox-col-muted">
