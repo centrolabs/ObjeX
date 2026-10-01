@@ -14,21 +14,13 @@ namespace ObjeX.Api.Jobs;
 /// </summary>
 public class HangfireJobMonitor(JobStorage storage, IRecurringJobManager manager, IBackgroundJobClient client) : IJobMonitor
 {
-    // In the order the page lists them: the order of their schedule.
-    private static readonly (Type Type, string Name)[] Known =
-    [
-        (typeof(CleanupOrphanedBlobsJob), "Orphaned blob cleanup"),
-        (typeof(VerifyBlobIntegrityJob), "Blob integrity check"),
-        (typeof(CleanupAbandonedMultipartJob), "Abandoned multipart cleanup"),
-    ];
-
     public IReadOnlyList<RecurringJobStatus> GetRecurringJobs()
     {
         var monitor = storage.GetMonitoringApi();
         using var connection = storage.GetConnection();
 
         return connection.GetRecurringJobs()
-            .OrderBy(j => Array.FindIndex(Known, known => known.Type == j.Job?.Type) is var i and >= 0 ? i : int.MaxValue)
+            .OrderBy(j => JobDefinitions.Of(j.Job?.Type) is { } d ? JobDefinitions.All.ToList().IndexOf(d) : int.MaxValue)
             .ThenBy(j => j.Id, StringComparer.Ordinal)
             .Select(j => new RecurringJobStatus(
                 j.Id,
@@ -124,7 +116,7 @@ public class HangfireJobMonitor(JobStorage storage, IRecurringJobManager manager
         => state.Data is not null && state.Data.TryGetValue(key, out var value) ? value : null;
 
     private static string? NameOf(Job? job)
-        => job is null ? null : Array.Find(Known, known => known.Type == job.Type).Name ?? job.Type.Name;
+        => job is null ? null : JobDefinitions.Of(job.Type)?.Name ?? job.Type.Name;
 
     /// <summary>The stored result is JSON; the job method's Task&lt;T&gt; says which record it is.</summary>
     private static object? ReadResult(Job? job, string? json)
