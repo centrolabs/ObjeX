@@ -524,9 +524,17 @@ namespace ObjeX.Migrations.PostgreSql.Migrations
                         .HasColumnType("integer")
                         .HasColumnName("id");
 
+                    b.Property<int?>("AbandonedMultipartDays")
+                        .HasColumnType("integer")
+                        .HasColumnName("abandoned_multipart_days");
+
                     b.Property<long?>("DefaultStorageQuotaBytes")
                         .HasColumnType("bigint")
                         .HasColumnName("default_storage_quota_bytes");
+
+                    b.Property<int?>("OrphanGraceMinutes")
+                        .HasColumnType("integer")
+                        .HasColumnName("orphan_grace_minutes");
 
                     b.Property<int>("PresignedUrlDefaultExpirySeconds")
                         .HasColumnType("integer")

@@ -15,14 +15,15 @@ public class CleanupAbandonedMultipartJob(
     FileSystemStorageService storageService,
     ILogger<CleanupAbandonedMultipartJob> logger)
 {
-    private static readonly TimeSpan AbandonedThreshold = TimeSpan.FromDays(7);
+    public const int DefaultAbandonedDays = 7;
 
     public async Task<AbandonedMultipartResult> ExecuteAsync()
     {
         logger.LogInformation("Abandoned multipart upload cleanup started");
         var sw = Stopwatch.StartNew();
 
-        var cutoff = DateTime.UtcNow - AbandonedThreshold;
+        var days = await db.SystemSettings.Select(s => s.AbandonedMultipartDays).SingleAsync() ?? DefaultAbandonedDays;
+        var cutoff = DateTime.UtcNow - TimeSpan.FromDays(days);
         var stale = await db.MultipartUploads
             .Where(u => u.CreatedAt < cutoff)
             .ToListAsync();

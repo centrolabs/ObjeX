@@ -6,4 +6,6 @@ public class SystemSettings
     public int PresignedUrlDefaultExpirySeconds { get; set; } = 3600;
     public int PresignedUrlMaxExpirySeconds { get; set; } = 604800;
     public long? DefaultStorageQuotaBytes { get; set; } // null = unlimited
+    public int? OrphanGraceMinutes { get; set; } // null = CleanupOrphanedBlobsJob.DefaultGraceMinutes
+    public int? AbandonedMultipartDays { get; set; } // null = CleanupAbandonedMultipartJob.DefaultAbandonedDays
 }
