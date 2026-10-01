@@ -52,21 +52,22 @@ public static class UploadEndpoints
                 await using var staged = await storage.StageAsync(bucketName, key, hashingStream, ctx.RequestAborted);
                 var etag = hashingStream.GetETag();
 
-                if (await quota.CheckWriteAsync(bucketName, key, staged.Size, ctx.RequestAborted) is { } exceeded)
-                    return Error(507, $"Storage quota of the bucket owner exceeded ({FileHelper.FormatBytes(exceeded.RequestedBytes)} of {FileHelper.FormatBytes(exceeded.QuotaBytes)}).");
-
-                var storagePath = await staged.CommitAsync(ctx.RequestAborted);
-
-                // Not cancellable once the bytes are in place: the row must follow them even if the browser is gone.
-                await metadata.SaveObjectAsync(new BlobObject
+                var exceeded = await quota.WriteWithinQuotaAsync(bucketName, key, staged.Size, async () =>
                 {
-                    BucketName = bucketName,
-                    Key = key,
-                    Size = staged.Size,
-                    ContentType = string.IsNullOrEmpty(ctx.Request.ContentType) ? "application/octet-stream" : ctx.Request.ContentType,
-                    ETag = etag,
-                    StoragePath = storagePath
-                }, GetCallerId(ctx));
+                    var storagePath = await staged.CommitAsync(ctx.RequestAborted);
+                    // Not cancellable once the bytes are in place: the row must follow them even if the browser is gone.
+                    await metadata.SaveObjectAsync(new BlobObject
+                    {
+                        BucketName = bucketName,
+                        Key = key,
+                        Size = staged.Size,
+                        ContentType = string.IsNullOrEmpty(ctx.Request.ContentType) ? "application/octet-stream" : ctx.Request.ContentType,
+                        ETag = etag,
+                        StoragePath = storagePath
+                    }, GetCallerId(ctx));
+                }, ctx.RequestAborted);
+                if (exceeded is not null)
+                    return Error(507, $"Storage quota of the bucket owner exceeded ({FileHelper.FormatBytes(exceeded.RequestedBytes)} of {FileHelper.FormatBytes(exceeded.QuotaBytes)}).");
 
                 return Results.Ok(new { key, size = staged.Size, etag });
             }

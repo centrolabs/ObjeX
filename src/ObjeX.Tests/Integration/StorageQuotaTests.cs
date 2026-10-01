@@ -147,6 +147,26 @@ public class StorageQuotaTests(ObjeXFactory factory) : IClassFixture<ObjeXFactor
         Assert.Contains("<Code>EntityTooLarge</Code>", await response.Content.ReadAsStringAsync());
     }
 
+    [Fact]
+    public async Task ParallelPuts_NeverPassTheOwnersQuotaTogether()
+    {
+        var (userId, accessKeyId, secretKey) = await CreateUserWithQuota("quota-race", quotaBytes: 1000);
+        var bucket = await CreateBucketForUser(userId, "quota-race-bucket");
+
+        // Each object fits on its own, any two together do not.
+        var responses = await Task.WhenAll(Enumerable.Range(1, 3).Select(i =>
+        {
+            var content = new byte[600];
+            var put = new HttpRequestMessage(HttpMethod.Put, $"/{bucket}/part-{i}.bin") { Content = new ByteArrayContent(content) };
+            put.Content.Headers.ContentLength = content.Length;
+            S3RequestSigner.SignRequest(put, accessKeyId, secretKey, content);
+            return _client.SendAsync(put);
+        }));
+
+        Assert.Equal(1, responses.Count(r => r.StatusCode == HttpStatusCode.OK));
+        Assert.Equal(2, responses.Count(r => r.StatusCode == (HttpStatusCode)507));
+    }
+
     private async Task<(string UserId, string AccessKeyId, string SecretKey)> CreateUserWithQuota(
         string username, long? quotaBytes)
     {

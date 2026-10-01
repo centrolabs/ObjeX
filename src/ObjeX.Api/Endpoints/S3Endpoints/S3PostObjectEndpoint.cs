@@ -109,18 +109,23 @@ public static class S3PostObjectEndpoint
         await using var staged = await storage.StageAsync(bucket, key, hashingStream, ctx.RequestAborted);
         var size = staged.Size;
         var etag = hashingStream.GetETag();
-        var storagePath = await staged.CommitAsync(ctx.RequestAborted);
 
-        await metadata.SaveObjectAsync(new BlobObject
+        var postQuotaError = await StorageQuota.WriteAsync(ctx, bucket, key, size, async () =>
         {
-            BucketName = bucket,
-            Key = key,
-            Size = size,
-            ContentType = contentType,
-            ETag = etag,
-            StoragePath = storagePath,
-            CustomMetadata = customMetadata
-        }, GetCallerId(ctx));
+            var storagePath = await staged.CommitAsync(ctx.RequestAborted);
+            await metadata.SaveObjectAsync(new BlobObject
+            {
+                BucketName = bucket,
+                Key = key,
+                Size = size,
+                ContentType = contentType,
+                ETag = etag,
+                StoragePath = storagePath,
+                CustomMetadata = customMetadata
+            }, GetCallerId(ctx));
+        });
+        if (postQuotaError is not null)
+            return postQuotaError;
 
         ctx.Response.Headers.ETag = $"\"{etag}\"";
         ctx.Response.Headers.Location = $"{s3Options.PublicUrl}/{bucket}/{key}";
