@@ -13,7 +13,7 @@ src/
 │   │   └── S3Endpoints/ # S3BucketEndpoint, S3ObjectEndpoint, S3MultipartEndpoint, S3PostObjectEndpoint
 │   ├── Middleware/      # SigV4AuthMiddleware, SecurityHeadersMiddleware
 │   ├── Auth/            # HangfireAuthorizationFilter
-│   ├── Jobs/            # HangfireJobMonitor (IJobMonitor: recurring jobs, recent runs, run details, run now, retry, delete, results in words)
+│   ├── Jobs/            # JobDefinitions (the recurring jobs: id, name, default cron, setting), HangfireJobMonitor (IJobMonitor: recurring jobs, recent runs, run details, run now, retry, delete, results in words), HangfireJobScheduler (IJobScheduler: save, reset, apply), JobCron (Cronos check)
 │   ├── Options/         # ServerOptions (ports), ReverseProxyOptions, AuthOptions (lockout, RememberMeDays), DatabaseOptions, StorageOptions (blob root, upload cap, min free disk), SeedOptions
 │   ├── Startup/         # ServiceCollectionExtensions (AddObjeX* per concern), DatabaseInitializer (migrate, pragmas, legacy blob paths, roles, admin, seeding), BackgroundJobs (Hangfire wiring, recurring schedule, stale-job prune)
 │   ├── Components/      # App.razor (host document), _Imports.razor
@@ -21,8 +21,8 @@ src/
 │   ├── S3/              # S3Pipeline (the S3 port's request pipeline), SigV4Parser, SigV4Signer, S3Xml, S3Errors, S3Subresources (501 for unsupported ?acl, ?tagging, …), ObjectHeaders (stored x-amz-meta-* and system headers), Preconditions (conditional writes), ContinuationToken, CopySourceRange, LimitedStream (UploadPartCopy), S3RequestBody, AwsChunkedStream, ObjectDeletion, StorageQuota, ContentMd5
 │   └── Metrics/         # ObjeXMetrics, BucketMetricsSyncJob
 ├── ObjeX.Core/          # Domain — zero framework dependencies
-│   ├── Interfaces/      # IMetadataService, IObjectStorageService, IStorageQuotaService, IStorageSpaceService, IJobMonitor, IHashService, IHasTimestamps
-│   ├── Models/          # Bucket, BlobObject, S3Credential, User, AuditEntry, ListObjectsResult, MultipartUpload, MultipartUploadPart, SystemSettings
+│   ├── Interfaces/      # IMetadataService, IObjectStorageService, IStorageQuotaService, IStorageSpaceService, IJobMonitor, IJobScheduler, IHashService, IHasTimestamps
+│   ├── Models/          # Bucket, BlobObject, S3Credential, User, AuditEntry, ListObjectsResult, MultipartUpload, MultipartUploadPart, SystemSettings, JobSchedule
 │   ├── Utilities/       # HashingStream (MD5 passthrough for ETag computation during upload), PresignedUrlGenerator, S3Conventions (region, addressing style), InlineMediaTypes (download/preview allowlist), ETags (multipart ETag detection)
 │   └── Validation/      # BucketNameValidator (GetValidationError)
 ├── ObjeX.Infrastructure/
@@ -36,14 +36,14 @@ src/
 │   └── Storage/         # FileSystemStorageService, StorageSpaceService (free disk of the blob volume), LegacyKeyPathMigration (moves pre-1.2.5 alias blobs to their raw-key path at startup)
 ├── ObjeX.Migrations.PostgreSql/  # PostgreSQL-specific EF Core migrations
 ├── ObjeX.Tests/         # xUnit — unit (Core validators, hashing) + integration (WebApplicationFactory, real SQLite, or PostgreSQL with OBJEX_TEST_POSTGRES)
-│   ├── Unit/            # BucketNameValidator, ObjectKeyValidator, HashingStream, Sha256HashService, StorageSpaceStatus, ETags, CustomMetadata, InlineMediaTypes, S3ClientSnippets, TextPreview, BrowserTimeZone, CronText, AppVersion, SearchPattern, UiRules (design rules, reads the UI sources as text), ThemeMode
+│   ├── Unit/            # BucketNameValidator, ObjectKeyValidator, HashingStream, Sha256HashService, StorageSpaceStatus, ETags, CustomMetadata, InlineMediaTypes, S3ClientSnippets, TextPreview, BrowserTimeZone, CronText, CronPreset, JobCron, AppVersion, SearchPattern, UiRules (design rules, reads the UI sources as text), ThemeMode
 │   └── Integration/     # S3 API round-trips, S3 conformance and pagination, auth, multipart, quotas, storage space, resilience, cookie auth, health, styleguide, background jobs and the Hangfire dashboard
 └── ObjeX.Web/           # Razor class library: components, pages, dialogs, layout — no host, no wwwroot
-    ├── Helpers/         # FileHelper, AppVersion, S3ClientSnippets, TextPreview, CustomMetadata, CronText (cron in words)
+    ├── Helpers/         # FileHelper, AppVersion, S3ClientSnippets, TextPreview, CustomMetadata, CronText (cron in words), CronPreset (daily and weekly presets ↔ cron), JobRunText
     ├── Services/        # ThemeMode (objex-theme cookie → Radzen theme and token mode class), BrowserTimeZone (the circuit's browser zone, set by Routes from the objex-tz cookie)
     └── Components/      # Routes, RedirectToLogin, S3ConnectSnippets
         ├── Pages/       # Dashboard, Buckets, Objects, Settings, Login, NotFound, Users, ChangePassword, AuditLog, Jobs, Error, Profile, Styleguide (Development only)
-        ├── Dialogs/     # CreateBucketDialog, UploadObjectDialog, CreateS3CredentialDialog, ShowS3CredentialDialog, CreateFolderDialog, CreateUserDialog, ShowUserPasswordDialog, ChangeOwnerDialog, FilePreviewDialog, FileMetadataDialog, PresignedUrlDialog, S3ConnectDialog, ConfirmDialog, SetQuotaDialog
+        ├── Dialogs/     # CreateBucketDialog, UploadObjectDialog, CreateS3CredentialDialog, ShowS3CredentialDialog, CreateFolderDialog, CreateUserDialog, ShowUserPasswordDialog, ChangeOwnerDialog, FilePreviewDialog, FileMetadataDialog, PresignedUrlDialog, S3ConnectDialog, ConfirmDialog, SetQuotaDialog, EditJobDialog
         ├── Layout/      # MainLayout, NavMenu, SidebarFooter, EmptyLayout, ReconnectModal
         └── Ui/          # the UI library: Ox* components with scoped CSS, OxEnums.cs (enums, OxSizes)
 ```
@@ -220,15 +220,17 @@ The Hangfire dashboard is mapped at `/hangfire` in every environment (`Program.c
 
 Hangfire is wired in `ObjeX.Api` only. Job classes live in `ObjeX.Infrastructure/Jobs/` — no job logic in the API layer.
 
-**Packages (ObjeX.Api only):** `Hangfire.Core`, `Hangfire.AspNetCore`, `Hangfire.Storage.SQLite`
+**Packages (ObjeX.Api only):** `Hangfire.Core`, `Hangfire.AspNetCore`, `Hangfire.Storage.SQLite`, `Cronos` (Hangfire embeds it internally, so cron checks need the package itself)
 
 **Storage:** Hangfire reuses the same `objex.db` SQLite file. Note: `Hangfire.Storage.SQLite` takes a **file path** (`/path/objex.db`), not an EF Core connection string (`Data Source=...`). `DatabaseOptions.SqliteFilePath` carries that absolute path; `BackgroundJobs.AddObjeXBackgroundJobs` (`Startup/`) passes it to `UseSQLiteStorage`, or uses `UsePostgreSqlStorage` for PostgreSQL.
 
-**Recurring schedule and pruning:** `BackgroundJobs.RegisterRecurringJobs(app.Services)` declares the three jobs below and then removes every recurring job Hangfire still holds in storage that this version does not declare. Without that, a removed or renamed job class stays in storage and fails to load on every scheduler tick. Covered by `BackgroundJobsTests`.
+**Recurring schedule and pruning:** `JobDefinitions` (`Api/Jobs/`) lists the three jobs below with id, name, default cron (UTC) and their one setting. `BackgroundJobs.RegisterRecurringJobs(app.Services)` declares each of them on its stored schedule (`job_schedules` row) or its default through `HangfireJobScheduler.Apply`, then removes every recurring job Hangfire still holds in storage that this version does not declare. Without that, a removed or renamed job class stays in storage and fails to load on every scheduler tick. A disabled job is declared with `Cron.Never()`, never removed, so its last run stays visible and Run now still works. Covered by `BackgroundJobsTests`.
+
+**Schedules and settings:** the Admin edits a job on `/jobs` (More menu → Edit schedule, `EditJobDialog`): enabled, daily or weekly with day and time, or a custom five-field cron, plus the job's setting. `IJobScheduler` (`ObjeX.Core/Interfaces`) is implemented by `HangfireJobScheduler` (singleton, `IDbContextFactory`). `SaveAsync` checks cron and zone with Cronos (`JobCron`; `ArgumentException` for an invalid or never-firing cron, an unknown zone or a setting out of range, nothing is stored), writes the `JobSchedule` row, the setting in `SystemSettings` (a value equal to the default is stored as null) and an `UpdateJobSchedule` audit entry with old → new in one `SaveChanges`, then calls `AddOrUpdate` with `RecurringJobOptions.TimeZone`. The dialog saves in the browser's zone (`BrowserTimeZone`), so "Sunday 04:00" stays 04:00 across daylight saving time; the defaults stay UTC. It fills the presets from the next run in the browser's zone (`CronPreset.Read`), and Save stays disabled until a field changes. `ResetAsync` deletes the row, clears the setting and writes `ResetJobSchedule`. The jobs read their setting from `SystemSettings` when they run. Covered by `JobSchedulerTests`, `JobMonitorScheduleTests`, `JobParameterTests`, `JobCronTests`, `CronPresetTests`.
 
 **Retention:** `WithJobExpirationTimeout(BackgroundJobs.RunRetention)` in `AddObjeXBackgroundJobs` keeps succeeded and deleted runs 30 days instead of Hangfire's one day, so the Jobs page still shows the last run of a weekly job. Failed runs never expire.
 
-**Jobs page:** `/jobs` (`Pages/Jobs.razor`, Admin only) replaces the dashboard. It reads `IJobMonitor` (`ObjeX.Core/Interfaces`, plain records), implemented by `HangfireJobMonitor` (`ObjeX.Api/Jobs/`, singleton from `AddObjeXBackgroundJobs`), because `ObjeX.Web` cannot reference Hangfire or `ObjeX.Api`. The monitor lists the recurring jobs via `GetRecurringJobs()`, collects run ids from `IMonitoringApi` (`ProcessingJobs`, `SucceededJobs`, `FailedJobs`) and reads every run from `JobDetails(id).History`, whose data the Hangfire state classes write themselves (the `StateData` of the list DTOs is null on SQLite). The job result is deserialized with `SerializationHelper` into its record and put in words (`HangfireJobMonitor.Describe`); a new job needs a name in `HangfireJobMonitor.Known` and a case in `Describe`. "Run now" calls `IRecurringJobManager.Trigger`. Every run links to `/jobs/runs/{id}` (`Pages/JobRunDetailsPage.razor`, `IJobMonitor.GetRun`): summary (created from the oldest history entry, started, finished, duration, server, method), the result in words plus its JSON without Hangfire's `$type`, the exception type, message and stack trace, and the full state history. Failed and retrying runs have Retry (`IBackgroundJobClient.Requeue`); runs that are not running have Delete (`IBackgroundJobClient.Delete`). The recent runs list also holds retrying runs (`ScheduledJobs`). Display rules live in `Helpers/JobRunText`. A failed attempt that `AutomaticRetry` (default 10 attempts) reschedules shows as Retrying with the retry reason. The page reloads every 3 s while a run is queued or running. Covered by `JobMonitorTests`.
+**Jobs page:** `/jobs` (`Pages/Jobs.razor`, Admin only) replaces the dashboard. It reads `IJobMonitor` (`ObjeX.Core/Interfaces`, plain records), implemented by `HangfireJobMonitor` (`ObjeX.Api/Jobs/`, singleton from `AddObjeXBackgroundJobs`), because `ObjeX.Web` cannot reference Hangfire or `ObjeX.Api`. The monitor lists the jobs of `JobDefinitions` with their Hangfire entry and stored schedule (cron, zone, enabled, `IsDefault`, setting with default and range; a disabled job has no next run), collects run ids from `IMonitoringApi` (`ProcessingJobs`, `SucceededJobs`, `FailedJobs`) and reads every run from `JobDetails(id).History`, whose data the Hangfire state classes write themselves (the `StateData` of the list DTOs is null on SQLite). The job result is deserialized with `SerializationHelper` into its record and put in words (`HangfireJobMonitor.Describe`); a new job needs an entry in `JobDefinitions` and a case in `Describe`. "Run now" calls `IRecurringJobManager.Trigger`, also for a disabled job. Both tables share one layout: Job, Status, time, Result as plain text, and row actions with Details first (the last run, or the run). Recurring rows have Details, Run now and a More menu (Edit schedule, Reset to default); a disabled job shows the badge Disabled. Run rows have Details, Retry when possible and a More menu with Delete. Every run links to `/jobs/runs/{id}` (`Pages/JobRunDetailsPage.razor`, `IJobMonitor.GetRun`): summary (created from the oldest history entry, started, finished, duration, server, method), the result in words plus its JSON without Hangfire's `$type`, the exception type, message and stack trace, and the full state history. Failed and retrying runs have Retry (`IBackgroundJobClient.Requeue`); runs that are not running have Delete (`IBackgroundJobClient.Delete`). The recent runs list also holds retrying runs (`ScheduledJobs`). Display rules live in `Helpers/JobRunText`. A failed attempt that `AutomaticRetry` (default 10 attempts) reschedules shows as Retrying with the retry reason. The page reloads every 3 s while a run is queued or running. Covered by `JobMonitorTests`.
 
 **DI registration:** `FileSystemStorageService` is registered as a singleton under its **concrete type first**, then aliased as `IObjectStorageService` (`ServiceCollectionExtensions.AddObjeXStorage`). This lets the job inject the concrete type directly (no cast) while the rest of the app uses the interface:
 ```csharp
@@ -240,9 +242,9 @@ services.AddSingleton<IObjectStorageService>(sp => sp.GetRequiredService<FileSys
 
 | Job class | Location | Schedule | Return type | What it does |
 |---|---|---|---|---|
-| `CleanupOrphanedBlobsJob` | `Infrastructure/Jobs/` | Weekly Sun 03:00 UTC | `Task<CleanupResult>` | Derives the expected path of every object from bucket + key (never from the stored `StoragePath`, which goes stale when the data directory moves), scans `*.blob` files on disk, deletes any not in that set unless modified within the last hour (an upload's blob exists before its row) |
-| `VerifyBlobIntegrityJob` | `Infrastructure/Jobs/` | Weekly Sun 04:00 UTC | `Task<IntegrityResult>` | Reads every blob file, recomputes MD5, compares against stored ETag — logs errors for corrupted or missing blobs. Multipart objects (`ETags.IsMultipart`, ETag carries `-N`) count as `Skipped` and are never hashed, because their ETag is the MD5 of the part MD5s; a missing blob is still reported for them |
-| `CleanupAbandonedMultipartJob` | `Infrastructure/Jobs/` | Weekly Sun 05:00 UTC | `Task<AbandonedMultipartResult>` | Deletes multipart uploads older than 7 days (DB rows + part files on disk), also removes orphaned `_multipart` directories |
+| `CleanupOrphanedBlobsJob` | `Infrastructure/Jobs/` | Default weekly Sun 03:00 UTC | `Task<CleanupResult>` | Derives the expected path of every object from bucket + key (never from the stored `StoragePath`, which goes stale when the data directory moves), scans `*.blob` files on disk, deletes any not in that set unless modified within the grace (`SystemSettings.OrphanGraceMinutes`, default 60, 15 to 10 080; an upload's blob exists before its row) |
+| `VerifyBlobIntegrityJob` | `Infrastructure/Jobs/` | Default weekly Sun 04:00 UTC | `Task<IntegrityResult>` | Reads every blob file, recomputes MD5, compares against stored ETag — logs errors for corrupted or missing blobs. Multipart objects (`ETags.IsMultipart`, ETag carries `-N`) count as `Skipped` and are never hashed, because their ETag is the MD5 of the part MD5s; a missing blob is still reported for them |
+| `CleanupAbandonedMultipartJob` | `Infrastructure/Jobs/` | Default weekly Sun 05:00 UTC | `Task<AbandonedMultipartResult>` | Deletes multipart uploads older than `SystemSettings.AbandonedMultipartDays` (default 7, 1 to 365; DB rows + part files on disk), also removes orphaned `_multipart` directories |
 
 `CleanupResult` (record, defined in same file): `FilesChecked`, `FilesDeleted`, `DurationSeconds`, `Timestamp`.
 `IntegrityResult` (record, defined in same file): `Checked`, `Corrupted`, `Missing`, `Skipped`, `DurationSeconds`, `Timestamp`.
@@ -348,6 +350,8 @@ public interface IHashService
 // BlobObject: Id (Guid), BucketName, Key, Size, ContentType, ETag, StoragePath, CustomMetadata (JSON), Bucket (nav), CreatedAt, UpdatedAt
 // S3Credential: Id (Guid), Name, AccessKeyId, SecretAccessKey (plain), UserId, User (nav), LastUsedAt, CreatedAt, UpdatedAt
 // AuditEntry: Id (long autoincrement), UserId (required), Action (required), BucketName?, Key?, Details?, Timestamp (DateTime.UtcNow default)
+// SystemSettings: Id (always 1), PresignedUrlDefaultExpirySeconds, PresignedUrlMaxExpirySeconds, DefaultStorageQuotaBytes?, OrphanGraceMinutes?, AbandonedMultipartDays? (null = default)
+// JobSchedule: JobId (PK, recurring job id), Cron (five fields), TimeZone (the zone the cron is read in), Enabled, CreatedAt, UpdatedAt — no row = default schedule
 // User: extends IdentityUser — adds StorageUsedBytes, StorageQuotaBytes (nullable, per-user override), IsDeactivated, MustChangePassword, TemporaryPasswordExpiresAt, CreatedAt, UpdatedAt
 // All implement IHasTimestamps (User via explicit properties; AuditEntry does not — immutable append-only)
 ```
@@ -504,7 +508,7 @@ GET    /health            → liveness (200 if process is up, no checks); also a
 GET    /health/ready      → readiness (checks DB connectivity + blob storage writability)
 GET    /metrics           → Prometheus metrics (HTTP request stats + per-bucket storage gauges, synced every 30s, deleted buckets dropped); open unless Metrics:Token is set (Bearer)
 GET    /audit             → Audit log (Admin only); server-side paginated table of bucket/object operations
-GET    /jobs              → Jobs page (Admin only); recurring jobs, recent runs, run now, retry, delete
+GET    /jobs              → Jobs page (Admin only); recurring jobs, recent runs, run now, edit schedule and setting, reset, retry, delete
 GET    /jobs/runs/{id}    → one run: summary, result, error with stack trace, state history
 GET    /hangfire          → Hangfire dashboard (Admin role); anonymous and other roles are redirected to /not-found
 GET    /styleguide        → Ui library styleguide (Development only, 404 otherwise)
@@ -561,7 +565,7 @@ POST   /                        → S3 POST Object (bucketEndpoint mode); bucket
 # - S3MultipartEndpoint (ObjeX.Api/Endpoints/S3Endpoints/) — Initiate + Complete (single MapPost dispatch on ?uploads vs ?uploadId)
 # - Parts stored at {BasePath}/_multipart/{uploadId}/{partNumber}.part; cleaned up after Complete or Abort
 # - Final ETag: MD5(binary concat of part MD5 bytes) + "-" + partCount (S3 multipart format)
-# - CleanupAbandonedMultipartJob — weekly Hangfire job, deletes uploads older than 7 days
+# - CleanupAbandonedMultipartJob — weekly by default, deletes uploads older than SystemSettings.AbandonedMultipartDays (default 7)
 # - UI single-file downloads use /api/objects/{bucket}/{*key}?download=true on port 9001 (cookie auth)
 # - ZIP downloads use /api/objects/{bucket}/download?prefix= on port 9001
 # - Presigned URL generation: GET /api/presign/{bucket}/{*key}?expires=N (port 9001, cookie auth)
@@ -584,6 +588,7 @@ POST   /                        → S3 POST Object (bucketEndpoint mode); bucket
 | `Hangfire.Core` | Background job scheduling |
 | `Hangfire.AspNetCore` | Hangfire DI + ASP.NET Core host integration |
 | `Hangfire.Storage.SQLite` | Hangfire job store (reuses `objex.db`) |
+| `Cronos` | Cron check and next-run preview for job schedules |
 | `Radzen.Blazor` | UI component library |
 
 ---
