@@ -13,4 +13,7 @@ public interface IJobScheduler
 
     /// <summary>Stores the schedule with an audit entry and applies it to Hangfire. ArgumentException for an unknown job or an invalid schedule.</summary>
     Task SaveAsync(JobScheduleChange change, string auditUserId, CancellationToken ctk = default);
+
+    /// <summary>Removes the stored schedule with an audit entry; the job runs on its default schedule in UTC again.</summary>
+    Task ResetAsync(string jobId, string auditUserId, CancellationToken ctk = default);
 }

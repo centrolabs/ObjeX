@@ -84,4 +84,21 @@ public class JobSchedulerTests(ObjeXFactory factory) : IClassFixture<ObjeXFactor
         Assert.Equal("0 4 * * 0", Hangfire("verify-blob-integrity").Cron);
         Assert.NotNull(Hangfire("verify-blob-integrity").NextExecution);
     }
+
+    [Fact]
+    public async Task Reset_RemovesTheStoredSchedule_AndRestoresTheDefaultInUtc()
+    {
+        var admin = await AdminIdAsync();
+        await Scheduler.SaveAsync(new JobScheduleChange("cleanup-orphaned-blobs", false, "0 2 * * *", "Europe/Zurich"), admin);
+
+        await Scheduler.ResetAsync("cleanup-orphaned-blobs", admin);
+
+        await using var db = await DbAsync();
+        Assert.False(await db.JobSchedules.AnyAsync(s => s.JobId == "cleanup-orphaned-blobs"));
+        var entry = await db.AuditEntries.OrderByDescending(e => e.Id).FirstAsync();
+        Assert.Equal(("ResetJobSchedule", "cleanup-orphaned-blobs: 0 2 * * * Europe/Zurich, disabled → 0 3 * * 0 UTC, enabled"), (entry.Action, entry.Details));
+
+        var job = Hangfire("cleanup-orphaned-blobs");
+        Assert.Equal(("0 3 * * 0", "UTC"), (job.Cron, job.TimeZoneId));
+    }
 }
