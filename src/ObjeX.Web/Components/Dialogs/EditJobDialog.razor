@@ -16,29 +16,29 @@
     <OxSwitch Checked="_enabled" CheckedChanged="@(v => Change(() => _enabled = v))">Enabled</OxSwitch>
 
     <OxField Label="Frequency">
-        <RadzenDropDown TValue="JobFrequency" Value="_preset.Frequency" Data="Frequencies" TextProperty="Text" ValueProperty="Value"
-                        ValueChanged="@((JobFrequency f) => Change(() => OnFrequency(f)))" />
+        <RadzenDropDown TValue="JobFrequency" Value="_draft.Preset.Frequency" Data="Frequencies" TextProperty="Text" ValueProperty="Value"
+                        ValueChanged="@((JobFrequency f) => Change(() => _draft.SetFrequency(f)))" />
     </OxField>
 
-    @if (_preset.Frequency == JobFrequency.Weekly)
+    @if (_draft.Preset.Frequency == JobFrequency.Weekly)
     {
         <OxField Label="Day">
-            <RadzenDropDown TValue="DayOfWeek" Value="_preset.Day" Data="Days" TextProperty="Text" ValueProperty="Value"
-                            ValueChanged="@((DayOfWeek d) => Change(() => _preset = _preset with { Day = d }))" />
+            <RadzenDropDown TValue="DayOfWeek" Value="_draft.Preset.Day" Data="Days" TextProperty="Text" ValueProperty="Value"
+                            ValueChanged="@((DayOfWeek d) => Change(() => _draft.SetDay(d)))" />
         </OxField>
     }
 
-    @if (_preset.Frequency == JobFrequency.Custom)
+    @if (_draft.Preset.Frequency == JobFrequency.Custom)
     {
-        <OxField Label="Cron (expert)" Error="@_check.Error" Hint="minute hour day-of-month month day-of-week">
-            <OxTextInput Mono="true" Value="@_cron" ValueChanged="@(v => Change(() => _cron = v))" />
+        <OxField Label="Cron (expert)" Error="@_check.Error" Hint="@($"minute hour day-of-month month day-of-week, read in {_draft.CustomZone}")">
+            <OxTextInput Mono="true" Value="@_draft.CustomCron" ValueChanged="@(v => Change(() => _draft.SetCron(v)))" />
         </OxField>
     }
     else
     {
         <OxField Label="Time" Error="@_check.Error">
             <OxBox Width="OxWidth.Sm">
-                <OxTextInput Type="time" Value="@_preset.Time.ToString("HH:mm")" ValueChanged="OnTime" />
+                <OxTextInput Type="time" Value="@_draft.Preset.Time.ToString("HH:mm")" ValueChanged="OnTime" />
             </OxBox>
         </OxField>
     }
@@ -79,14 +79,12 @@
         [.. new[] { 1, 2, 3, 4, 5, 6, 0 }.Select(d => new Option<DayOfWeek>((DayOfWeek)d, ((DayOfWeek)d).ToString()))];
 
     bool _enabled;
-    JobPreset _preset = null!;
-    string _cron = string.Empty;
+    JobScheduleDraft _draft = null!;
     int _parameter;
     bool _dirty;
     JobScheduleCheck _check = null!;
 
-    string Cron => _preset.Frequency == JobFrequency.Custom ? _cron : CronPreset.ToCron(_preset);
-
+    // The preset fields are in the browser's zone; a custom cron names its own zone in the field hint.
     string Preview => _check.NextRun is not { } next
         ? $"Times are in {Tz.Zone.Id}."
         : _enabled
@@ -97,33 +95,24 @@
     {
         var next = Scheduler.Check(Job.Cron, Job.TimeZone).NextRun;
         _enabled = Job.Enabled;
-        _preset = CronPreset.Read(Job.Cron, next is { } n ? Tz.ToLocal(n) : null);
-        _cron = Job.Cron;
+        _draft = new JobScheduleDraft(Job.Cron, Job.TimeZone, next is { } n ? Tz.ToLocal(n) : null, Tz.Zone.Id);
         _parameter = Job.Parameter is { } p ? p.Value ?? p.Default : 0;
-        _check = Scheduler.Check(Cron, Tz.Zone.Id);
+        _check = Scheduler.Check(_draft.Cron, _draft.Zone);
     }
 
     void Change(Action apply)
     {
         apply();
         _dirty = true;
-        _check = Scheduler.Check(Cron, Tz.Zone.Id);
-    }
-
-    // A custom cron starts from the preset it replaces.
-    void OnFrequency(JobFrequency frequency)
-    {
-        if (frequency == JobFrequency.Custom && _preset.Frequency != JobFrequency.Custom)
-            _cron = CronPreset.ToCron(_preset);
-        _preset = _preset with { Frequency = frequency };
+        _check = Scheduler.Check(_draft.Cron, _draft.Zone);
     }
 
     void OnTime(string value)
     {
         if (TimeOnly.TryParse(value, out var time))
-            Change(() => _preset = _preset with { Time = time });
+            Change(() => _draft.SetTime(time));
     }
 
     void Save() => DialogService.Close(new Result(
-        new JobScheduleChange(Job.Id, _enabled, Cron, Tz.Zone.Id, Job.Parameter is null ? null : _parameter)));
+        new JobScheduleChange(Job.Id, _enabled, _draft.Cron, _draft.Zone, Job.Parameter is null ? null : _parameter)));
 }
