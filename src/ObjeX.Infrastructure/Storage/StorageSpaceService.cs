@@ -20,6 +20,4 @@ public class StorageSpaceService : IStorageSpaceService
         var drive = new DriveInfo(_basePath);
         return new StorageSpaceStatus(drive.AvailableFreeSpace, drive.TotalSize, _minimumFreeBytes);
     }
-
-    internal static long AvailableFreeSpace(string path) => new DriveInfo(path).AvailableFreeSpace;
 }

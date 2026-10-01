@@ -122,9 +122,6 @@ public class FileSystemStorageService : IObjectStorageService
         return Task.FromResult(new FileInfo(filePath).Length);
     }
 
-    public long GetAvailableFreeSpace() =>
-        StorageSpaceService.AvailableFreeSpace(BasePath);
-
     public async Task<StagedPart> StagePartAsync(
         Guid uploadId, int partNumber, Stream data, CancellationToken ctk = default)
     {

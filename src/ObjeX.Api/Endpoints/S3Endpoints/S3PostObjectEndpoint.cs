@@ -4,7 +4,6 @@ using System.Xml.Linq;
 
 using Microsoft.Extensions.Options;
 
-using ObjeX.Api.Options;
 using ObjeX.Api.S3;
 using ObjeX.Core.Interfaces;
 using ObjeX.Core.Models;
@@ -12,7 +11,6 @@ using ObjeX.Core.Utilities;
 using ObjeX.Core.Validation;
 using ObjeX.Infrastructure.Data;
 using ObjeX.Infrastructure.Options;
-using ObjeX.Infrastructure.Storage;
 
 namespace ObjeX.Api.Endpoints.S3Endpoints;
 
@@ -28,21 +26,21 @@ public static class S3PostObjectEndpoint
     {
         // POST /{bucket} dispatches: ?delete → batch delete, otherwise → POST Object upload
         s3.MapPost("/{bucket}", async (string bucket, HttpRequest request, HttpContext ctx,
-            IOptions<StorageOptions> storageOptions, IOptions<S3Options> s3Options,
+            IStorageSpaceService space, IOptions<S3Options> s3Options,
             IMetadataService metadata, IObjectStorageService storage,
-            FileSystemStorageService fs, ObjeXDbContext db) =>
+            ObjeXDbContext db) =>
         {
             if (request.Query.ContainsKey("delete") || request.QueryString.Value?.Contains("delete") == true)
                 return await HandleDeleteObjects(bucket, request, ctx, metadata, storage);
-            return await HandlePostObject(bucket, request, ctx, storageOptions.Value, s3Options.Value, metadata, storage, fs, db);
+            return await HandlePostObject(bucket, request, ctx, space, s3Options.Value, metadata, storage, db);
         }).DisableAntiforgery();
 
         // POST / (bucketEndpoint mode: bucket is in form fields, not in URL)
         s3.MapPost("/", (HttpRequest request, HttpContext ctx,
-            IOptions<StorageOptions> storageOptions, IOptions<S3Options> s3Options,
+            IStorageSpaceService space, IOptions<S3Options> s3Options,
             IMetadataService metadata, IObjectStorageService storage,
-            FileSystemStorageService fs, ObjeXDbContext db) =>
-            HandlePostObject(null, request, ctx, storageOptions.Value, s3Options.Value, metadata, storage, fs, db))
+            ObjeXDbContext db) =>
+            HandlePostObject(null, request, ctx, space, s3Options.Value, metadata, storage, db))
             .DisableAntiforgery();
     }
 
@@ -50,11 +48,10 @@ public static class S3PostObjectEndpoint
         string? bucket,
         HttpRequest request,
         HttpContext ctx,
-        StorageOptions storageOptions,
+        IStorageSpaceService space,
         S3Options s3Options,
         IMetadataService metadata,
         IObjectStorageService storage,
-        FileSystemStorageService fs,
         ObjeXDbContext db)
     {
         if (!request.HasFormContentType)
@@ -87,7 +84,7 @@ public static class S3PostObjectEndpoint
         if (await metadata.GetBucketAsync(bucket, IsPrivileged(ctx) ? null : GetCallerId(ctx)) is null)
             return S3Xml.Error(S3Errors.NoSuchBucket, "The specified bucket does not exist.", 404);
 
-        if (fs.GetAvailableFreeSpace() < storageOptions.MinimumFreeDiskBytes)
+        if (space.Get().IsBelowMinimum)
             return S3Xml.Error(S3Errors.EntityTooLarge, "Insufficient disk space.", 507);
 
         var file = form.Files.FirstOrDefault();
