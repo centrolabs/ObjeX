@@ -18,7 +18,11 @@
 
 <PageTitle>Users — ObjeX</PageTitle>
 
-<OxPageHeader Title="Users" Meta="@(_users.Count == 1 ? "1 user" : $"{_users.Count:N0} users")">
+<OxPageHeader Title="Users" Meta="@HeaderCaption">
+    @if (_users.Count > 1)
+    {
+        <OxSearch Value="@_search" ValueChanged="OnSearch" OnClear="@(() => OnSearch(string.Empty))" Placeholder="Search name or email" />
+    }
     <OxButton Variant="OxButtonVariant.Primary" Icon="person_add" OnClick="CreateUser">New user</OxButton>
 </OxPageHeader>
 
@@ -28,7 +32,67 @@
 }
 else
 {
-    <RadzenDataGrid class="@OxSizes.WideGridClass" Data="_users" TItem="UserRow" AllowSorting="true" AllowAlternatingRows="false">
+    @* Without the chart the figures take the whole row, with it they share it. *@
+    <OxStack Row="true" Wrap="true" Gap="7">
+        <OxStack Grow="true">
+            <OxCard>
+                <OxStack Row="true" Wrap="true" Gap="9">
+                    <OxStat Label="Users" Value="@_users.Count.ToString("N0")" Hint="@RoleSummary" />
+                    <OxStat Label="Active" Value="@CountOf("Active").ToString("N0")" Hint="@StatusSummary" />
+                    <OxStat Label="Storage" Value="@FileHelper.FormatBytes(_users.Sum(u => u.StorageUsed))" Hint="all users" />
+                    <OxStat Label="Near quota" Value="@_users.Count(u => u.NearQuota).ToString("N0")" Hint="above 90 % of their quota" />
+                </OxStack>
+            </OxCard>
+        </OxStack>
+        @if (_slices.Count >= 2)
+        {
+            <OxStack Grow="true">
+                <OxCard Title="Storage by user">
+                    <OxText Variant="OxTextVariant.Small">Top 5 by size · click a slice to show that user</OxText>
+                    <OxChart Clickable="true">
+                        <RadzenChart SeriesClick="OnSliceClick">
+                            <RadzenDonutSeries Data="@_slices" CategoryProperty="Name" ValueProperty="Bytes" TItem="UserSlice" InnerRadius="60"
+                                               Fills="@OxChart.Slots" Strokes="@SurfaceStrokes" StrokeWidth="2">
+                                <TooltipTemplate Context="slice">
+                                    <OxStack Gap="1">
+                                        <OxText><strong>@slice.Name</strong></OxText>
+                                        <OxText Variant="OxTextVariant.Small">@FileHelper.FormatBytes(slice.Bytes)@(TotalStorage > 0 ? $" · {(double)slice.Bytes / TotalStorage * 100:F1}%" : null)</OxText>
+                                    </OxStack>
+                                </TooltipTemplate>
+                            </RadzenDonutSeries>
+                        </RadzenChart>
+                    </OxChart>
+                </OxCard>
+            </OxStack>
+        }
+    </OxStack>
+
+    @if (_users.Count > 1)
+    {
+        @* Chips of one group combine with "or", the groups with "and"; no chip in a group means all of it. *@
+        <OxStack Row="true" Wrap="true" Align="OxAlign.Center" Gap="6">
+            <OxStack Row="true" Wrap="true" Align="OxAlign.Center" Gap="2">
+                <OxText Variant="OxTextVariant.Label">Role</OxText>
+                @foreach (var role in Roles)
+                {
+                    <OxChip Active="@_roles.Contains(role)" OnClick="@(() => Toggle(_roles, role))">@role</OxChip>
+                }
+            </OxStack>
+            <OxStack Row="true" Wrap="true" Align="OxAlign.Center" Gap="2">
+                <OxText Variant="OxTextVariant.Label">Status</OxText>
+                @foreach (var status in Statuses)
+                {
+                    <OxChip Active="@_statuses.Contains(status)" OnClick="@(() => Toggle(_statuses, status))">@status</OxChip>
+                }
+            </OxStack>
+            @if (IsFiltered)
+            {
+                <OxLink OnClick="ClearFilters">Clear filters</OxLink>
+            }
+        </OxStack>
+    }
+
+    <RadzenDataGrid class="@OxSizes.WideGridClass" Data="_shown" TItem="UserRow" AllowSorting="true" AllowAlternatingRows="false" EmptyText="No users match.">
         <Columns>
             <RadzenDataGridColumn TItem="UserRow" Property="Username" Title="User" Width="@OxSizes.ShortColumn">
                 <Template Context="row">
@@ -40,47 +104,72 @@ else
                     <OxTooltip WhenTruncated="true"><OxText Variant="OxTextVariant.Muted" Truncate="true">@row.Email</OxText></OxTooltip>
                 </Template>
             </RadzenDataGridColumn>
-            <RadzenDataGridColumn TItem="UserRow" Property="Role" Title="Role" Width="@OxSizes.NumberColumn">
+            <RadzenDataGridColumn TItem="UserRow" Property="Role" Title="Role" Width="@OxSizes.BadgeColumn">
                 <Template Context="row"><OxBadge Tone="@(row.Role == "Admin" ? OxTone.Accent : OxTone.Default)">@row.Role</OxBadge></Template>
             </RadzenDataGridColumn>
-            <RadzenDataGridColumn TItem="UserRow" Property="Status" Title="Status" Width="@OxSizes.ShortColumn">
+            <RadzenDataGridColumn TItem="UserRow" Property="Status" Title="Status" Width="@OxSizes.BadgeColumn">
                 <Template Context="row">
-                    @if (row.IsDeactivated)
+                    @switch (row.Status)
                     {
-                        <OxBadge Tone="OxTone.Danger">Deactivated</OxBadge>
-                    }
-                    else if (row.IsLocked)
-                    {
-                        <OxStack Row="true" Gap="4" Align="OxAlign.Center">
-                            <OxBadge Tone="OxTone.Warning">Locked</OxBadge>
-                            <OxLink OnClick="@(() => Unlock(row))">Unlock</OxLink>
-                        </OxStack>
-                    }
-                    else
-                    {
-                        <OxText Variant="OxTextVariant.Muted">Active</OxText>
+                        case "Deactivated":
+                            <OxBadge Tone="OxTone.Danger">Deactivated</OxBadge>
+                            break;
+                        case "Locked":
+                            <OxTooltip Text="Too many failed sign-ins. Unlock it in the row's menu."><OxBadge Tone="OxTone.Warning">Locked</OxBadge></OxTooltip>
+                            break;
+                        default:
+                            <OxText Variant="OxTextVariant.Muted">Active</OxText>
+                            break;
                     }
                 </Template>
             </RadzenDataGridColumn>
-            <RadzenDataGridColumn TItem="UserRow" Title="Storage" Width="@OxSizes.TypeColumn" Sortable="false">
+            <RadzenDataGridColumn TItem="UserRow" Property="BucketCount" Title="Buckets" Width="@OxSizes.CountColumn" TextAlign="TextAlign.End">
+                <Template Context="row">
+                    @if (row.BucketCount > 0)
+                    {
+                        <OxLink Href="@($"/buckets?owner={Uri.EscapeDataString(row.Username)}")">@row.BucketCount.ToString("N0")</OxLink>
+                    }
+                    else
+                    {
+                        <OxText Variant="OxTextVariant.Muted">0</OxText>
+                    }
+                </Template>
+            </RadzenDataGridColumn>
+            <RadzenDataGridColumn TItem="UserRow" Property="StorageUsed" Title="Storage" Width="@OxSizes.QuotaColumn">
                 <Template Context="row">
                     <OxStack Gap="2">
                         <OxText Variant="OxTextVariant.Small">@FileHelper.FormatBytes(row.StorageUsed)@(row.Quota.HasValue ? $" / {FileHelper.FormatBytes(row.Quota.Value)}" : " / ∞")</OxText>
                         @if (row.Quota is > 0)
                         {
                             <OxMeter Value="@((double)row.StorageUsed / row.Quota.Value * 100)" Label="Quota used"
-                                     Tone="@(row.StorageUsed > row.Quota.Value * 0.9 ? OxTone.Danger : OxTone.Default)" />
+                                     Tone="@(row.NearQuota ? OxTone.Danger : OxTone.Default)" />
                         }
                     </OxStack>
                 </Template>
             </RadzenDataGridColumn>
-            <RadzenDataGridColumn TItem="UserRow" Property="CreatedAt" Title="Created" Width="@OxSizes.DateColumn" CssClass="ox-col-muted">
-                <Template Context="row"><OxTime Value="@row.CreatedAt" /></Template>
+            <RadzenDataGridColumn TItem="UserRow" Property="LastActivity" Title="Last activity" Width="@OxSizes.DateColumn" CssClass="ox-col-muted">
+                <HeaderTemplate>
+                    <OxTooltip Text="The latest S3 request or recorded change. Sign-ins are not recorded.">Last activity</OxTooltip>
+                </HeaderTemplate>
+                <Template Context="row">
+                    @if (row.LastActivity is { } at)
+                    {
+                        <OxTime Value="@at" />
+                    }
+                    else
+                    {
+                        <OxTooltip Text="@($"Created {Tz.Format(row.CreatedAt)}. No S3 request and no recorded change since.")"><OxBadge>No activity</OxBadge></OxTooltip>
+                    }
+                </Template>
             </RadzenDataGridColumn>
             <RadzenDataGridColumn TItem="UserRow" Title="" Width="@OxSizes.MenuColumn" Sortable="false" CssClass="ox-col-actions">
                 <Template Context="row">
                     <OxRowActions>
                         <OxMenuButton Label="@($"More actions for {row.Username}")">
+                            @if (row.IsLocked)
+                            {
+                                <OxMenuItem Icon="lock_open" OnClick="@(() => Unlock(row))">Unlock</OxMenuItem>
+                            }
                             <OxMenuItem Icon="sd_storage" OnClick="@(() => SetQuota(row))">Set storage quota</OxMenuItem>
                             @if (row.Id != _currentUserId && row.Role != "Admin")
                             {
@@ -105,15 +194,54 @@ else
 }
 
 @code {
-    record UserRow(string Id, string Username, string Email, string Role, bool IsDeactivated, bool IsLocked, DateTime CreatedAt, long StorageUsed, long? Quota)
+    record UserRow(string Id, string Username, string Email, string Role, bool IsDeactivated, bool IsLocked, DateTime CreatedAt,
+        long StorageUsed, long? Quota, int BucketCount, DateTime? LastActivity)
     {
         public string Status => IsDeactivated ? "Deactivated" : IsLocked ? "Locked" : "Active";
+        public bool NearQuota => Quota is > 0 && StorageUsed >= Quota.Value * 0.9;
     }
 
+    record UserSlice(string Name, long Bytes);
+
+    static readonly string[] Roles = ["Admin", "Manager", "User"];
+    static readonly string[] Statuses = ["Active", "Locked", "Deactivated"];
+    static readonly IEnumerable<string> SurfaceStrokes = Enumerable.Repeat(OxChart.Surface, 5);
+
     List<UserRow> _users = [];
+    List<UserRow> _shown = [];
+    List<UserSlice> _slices = [];
     string _currentUserId = string.Empty;
     bool _currentUserIsAdmin;
     bool _loaded;
+    string _search = string.Empty;
+    readonly HashSet<string> _roles = [];
+    readonly HashSet<string> _statuses = [];
+
+    string Term => _search.Trim();
+
+    bool IsFiltered => Term.Length > 0 || _roles.Count > 0 || _statuses.Count > 0;
+
+    string HeaderCaption => IsFiltered ? $"{_shown.Count:N0} of {Plural(_users.Count, "user")}" : Plural(_users.Count, "user");
+
+    // Only what exists: "1 admin · 3 users", not "0 managers".
+    string RoleSummary => string.Join(" · ", Roles.Select(r => (Count: _users.Count(u => u.Role == r), Role: r))
+        .Where(x => x.Count > 0).Select(x => Plural(x.Count, x.Role.ToLowerInvariant())));
+
+    string StatusSummary
+    {
+        get
+        {
+            var parts = new[] { "Locked", "Deactivated" }.Select(st => (Count: CountOf(st), Status: st))
+                .Where(x => x.Count > 0).Select(x => $"{x.Count:N0} {x.Status.ToLowerInvariant()}").ToList();
+            return parts.Count == 0 ? "none locked or deactivated" : string.Join(" · ", parts);
+        }
+    }
+
+    long TotalStorage => _users.Sum(u => u.StorageUsed);
+
+    int CountOf(string status) => _users.Count(u => u.Status == status);
+
+    static string Plural(int count, string noun) => count == 1 ? $"1 {noun}" : $"{count:N0} {noun}s";
 
     protected override async Task OnInitializedAsync()
     {
@@ -129,10 +257,21 @@ else
         await using var db = await DbFactory.CreateDbContextAsync();
         var users = await db.Users.OrderBy(u => u.UserName).ToListAsync();
         var settings = await db.SystemSettings.FindAsync(1);
-        var bucketSizes = await db.Buckets
+        var buckets = await db.Buckets
             .GroupBy(b => b.OwnerId)
-            .Select(g => new { OwnerId = g.Key, Total = g.Sum(b => b.TotalSize) })
-            .ToDictionaryAsync(x => x.OwnerId, x => x.Total);
+            .Select(g => new { OwnerId = g.Key, Total = g.Sum(b => b.TotalSize), Count = g.Count() })
+            .ToDictionaryAsync(x => x.OwnerId);
+
+        // Activity is the later of the last S3 request and the last audited change; both columns are indexed per user.
+        var lastS3 = await db.S3Credentials
+            .Where(c => c.LastUsedAt != null)
+            .GroupBy(c => c.UserId)
+            .Select(g => new { UserId = g.Key, Last = g.Max(c => c.LastUsedAt) })
+            .ToDictionaryAsync(x => x.UserId, x => x.Last);
+        var lastChange = await db.AuditEntries
+            .GroupBy(a => a.UserId)
+            .Select(g => new { UserId = g.Key, Last = g.Max(a => a.Timestamp) })
+            .ToDictionaryAsync(x => x.UserId, x => x.Last);
 
         // Batch-load all user-role mappings in a single query to avoid N+1
         var userRoles = await db.UserRoles
@@ -147,13 +286,55 @@ else
         {
             var roles = rolesByUser.GetValueOrDefault(u.Id, []);
             var role = roles.Contains("Admin") ? "Admin" : roles.Contains("Manager") ? "Manager" : "User";
-            var used = bucketSizes.GetValueOrDefault(u.Id, 0);
+            var owned = buckets.GetValueOrDefault(u.Id);
             var isPrivileged = role is "Admin" or "Manager";
             var quota = u.StorageQuotaBytes ?? (isPrivileged ? null : settings?.DefaultStorageQuotaBytes);
+            DateTime? s3 = lastS3.GetValueOrDefault(u.Id);
+            DateTime? change = lastChange.TryGetValue(u.Id, out var c) ? c : null;
+            var lastActivity = s3 is null ? change : change is null ? s3 : s3 > change ? s3 : change;
             rows.Add(new UserRow(u.Id, u.UserName ?? string.Empty, u.Email ?? string.Empty, role, u.IsDeactivated,
-                u.LockoutEnd > now, u.CreatedAt, used, quota));
+                u.LockoutEnd > now, u.CreatedAt, owned?.Total ?? 0, quota, owned?.Count ?? 0, lastActivity));
         }
         _users = rows;
+        _slices = rows.Where(r => r.StorageUsed > 0).OrderByDescending(r => r.StorageUsed).Take(5)
+            .Select(r => new UserSlice(r.Username, r.StorageUsed)).ToList();
+        ApplyFilters();
+    }
+
+    void ApplyFilters() => _shown = _users
+        .Where(u => Term.Length == 0
+                    || u.Username.Contains(Term, StringComparison.OrdinalIgnoreCase)
+                    || u.Email.Contains(Term, StringComparison.OrdinalIgnoreCase))
+        .Where(u => _roles.Count == 0 || _roles.Contains(u.Role))
+        .Where(u => _statuses.Count == 0 || _statuses.Contains(u.Status))
+        .ToList();
+
+    void OnSearch(string value)
+    {
+        _search = value;
+        ApplyFilters();
+    }
+
+    void Toggle(HashSet<string> set, string value)
+    {
+        if (!set.Remove(value)) set.Add(value);
+        ApplyFilters();
+    }
+
+    void ClearFilters()
+    {
+        _search = string.Empty;
+        _roles.Clear();
+        _statuses.Clear();
+        ApplyFilters();
+    }
+
+    // A slice is one user: the table narrows to them.
+    void OnSliceClick(SeriesClickEventArgs args)
+    {
+        if (args.Data is not UserSlice slice) return;
+        _search = slice.Name;
+        ApplyFilters();
     }
 
     static string GeneratePassword()

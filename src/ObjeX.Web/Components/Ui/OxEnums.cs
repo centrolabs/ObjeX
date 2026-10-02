@@ -60,6 +60,12 @@ public static class OxSizes
     public const string ShortColumn = "140px";
     public const string NumberColumn = "110px";
     public const string NameColumn = "240px";
+    /// <summary>For one short badge: a role, a status.</summary>
+    public const string BadgeColumn = "100px";
+    /// <summary>For a small count, such as a number of buckets.</summary>
+    public const string CountColumn = "90px";
+    /// <summary>For used of quota with its meter.</summary>
+    public const string QuotaColumn = "160px";
     /// <summary>Row class for a selected grid row. RowRender replaces the class attribute, so Radzen's own row class is repeated.</summary>
     public const string SelectedRowClass = "rz-data-row ox-row-selected";
     /// <summary>Grid class for rows whose cells stack two lines: the row grows instead of squeezing them.</summary>
