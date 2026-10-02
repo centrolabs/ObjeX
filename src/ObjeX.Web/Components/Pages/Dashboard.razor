@@ -11,10 +11,15 @@
 @inject AuthenticationStateProvider AuthStateProvider
 @inject IServiceScopeFactory ScopeFactory
 @inject BrowserTimeZone Tz
+@inject NotificationService NotificationService
+@inject IJobMonitor Jobs
+@inject NavigationManager Navigation
 
 <PageTitle>Dashboard — ObjeX</PageTitle>
 
-<OxPageHeader Title="Dashboard" Meta="@($"Updated {Tz.FormatSeconds(_lastUpdated)}")" />
+<OxPageHeader Title="Dashboard" Meta="@($"Updated {Tz.FormatSeconds(_lastUpdated)}")">
+    <OxIconButton Icon="refresh" Label="Refresh" OnClick="Refresh" Busy="@_refreshing" />
+</OxPageHeader>
 
 @if (_disk is { IsBelowMinimum: true })
 {
@@ -23,6 +28,11 @@
 else if (_disk is { IsNearMinimum: true })
 {
     <OxAlert Tone="OxTone.Warning">The disk has @FileHelper.FormatBytes(_disk.FreeBytes) free. Uploads stop below @FileHelper.FormatBytes(_disk.MinimumFreeBytes).</OxAlert>
+}
+
+@if (_failedJobs.Count > 0)
+{
+    <OxAlert Tone="OxTone.Warning">@FailedJobsText <OxLink Href="/jobs">Open Jobs</OxLink></OxAlert>
 }
 
 <OxCard>
@@ -110,7 +120,8 @@ else if (_disk is { IsNearMinimum: true })
 @if (_buckets.Count > 0)
 {
     <OxCard Title="Buckets" Flush="true">
-        <RadzenDataGrid Data="@_buckets" TItem="Bucket" AllowSorting="true" AllowAlternatingRows="false">
+        <RadzenDataGrid class="@($"{OxSizes.WideGridClass} {OxSizes.ClickableGridClass}")" Data="@_buckets" TItem="Bucket" AllowSorting="true" AllowAlternatingRows="false"
+                        RowClick="@OpenBucket">
             <Columns>
                 <RadzenDataGridColumn TItem="Bucket" Property="Name" Title="Name">
                     <Template Context="b"><OxFileName Kind="OxFileKind.Bucket" Href="@($"/buckets/{b.Name}")">@b.Name</OxFileName></Template>
@@ -133,8 +144,14 @@ else if (_disk is { IsNearMinimum: true })
                         }
                     </Template>
                 </RadzenDataGridColumn>
-                <RadzenDataGridColumn TItem="Bucket" Property="CreatedAt" Title="Created" Width="@OxSizes.DateColumn" CssClass="ox-col-muted">
-                    <Template Context="b">@Tz.Format(b.CreatedAt)</Template>
+                @if (_isPrivileged)
+                {
+                    <RadzenDataGridColumn TItem="Bucket" Property="Owner.UserName" Title="Owner" Width="@OxSizes.TypeColumn" CssClass="ox-col-muted">
+                        <Template Context="b">@b.Owner?.UserName</Template>
+                    </RadzenDataGridColumn>
+                }
+                <RadzenDataGridColumn TItem="Bucket" Property="UpdatedAt" Title="Modified" Width="@OxSizes.DateColumn" CssClass="ox-col-muted">
+                    <Template Context="b"><OxTime Value="@b.UpdatedAt" /></Template>
                 </RadzenDataGridColumn>
             </Columns>
         </RadzenDataGrid>
@@ -164,17 +181,21 @@ else
     Timer? _timer;
     string _currentUserId = string.Empty;
     bool _isPrivileged;
+    bool _isAdmin;
+    List<RecurringJobStatus> _failedJobs = [];
     StorageQuotaStatus? _myStorage;
     StorageSpaceStatus? _disk;
     static readonly TimeSpan PollInterval = TimeSpan.FromSeconds(30);
     string? _fingerprint;
     int _polling;
+    bool _refreshing;
 
     protected override async Task OnInitializedAsync()
     {
         var auth = await AuthStateProvider.GetAuthenticationStateAsync();
         _currentUserId = auth.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? string.Empty;
         _isPrivileged = auth.User.IsInRole("Admin") || auth.User.IsInRole("Manager");
+        _isAdmin = auth.User.IsInRole("Admin");
         await LoadStats(MetadataService, QuotaService);
         _timer = new Timer(async _ =>
         {
@@ -200,20 +221,54 @@ else
         }, null, PollInterval, PollInterval);
     }
 
+    // Shares the timer's guard, so a click and a tick never write the fields at the same time. During a tick the click only spins; the tick renders.
+    async Task Refresh()
+    {
+        if (_refreshing) return;
+        _refreshing = true;
+        var ownsGuard = Interlocked.Exchange(ref _polling, 1) == 0;
+        try
+        {
+            var feedback = Task.Delay(OxMotion.SpinTurn);
+            if (ownsGuard)
+            {
+                // A click always reloads and moves the timestamp, even when the fingerprint is unchanged.
+                _fingerprint = null;
+                await LoadStats(MetadataService, QuotaService);
+            }
+            await feedback;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Dashboard refresh failed");
+            NotificationService.Notify(NotificationSeverity.Error, "Refresh failed", ex.Message);
+        }
+        finally
+        {
+            _refreshing = false;
+            if (ownsGuard) Interlocked.Exchange(ref _polling, 0);
+        }
+    }
+
     // The bucket rows are few and change with every upload or delete, so they decide whether the GROUP BY over all objects runs at all.
     async Task<bool> LoadStats(IMetadataService metadata, IStorageQuotaService quotas)
     {
-        // Free space moves without any bucket changing, so the disk card carries its own change check.
+        // Free space moves without any bucket changing, so the disk alert carries its own change check.
         var disk = SpaceService.Get();
-        var diskChanged = DiskLabel(disk) != DiskLabel(_disk);
+        var statusChanged = DiskLabel(disk) != DiskLabel(_disk);
         _disk = disk;
+
+        // Jobs fail without any bucket changing too.
+        List<RecurringJobStatus> failedJobs = _isAdmin ? FailedJobs() : [];
+        statusChanged |= JobsLabel(failedJobs) != JobsLabel(_failedJobs);
+        _failedJobs = failedJobs;
 
         var buckets = (await metadata.ListBucketsAsync(_isPrivileged ? null : _currentUserId)).OrderByDescending(b => b.TotalSize).ToList();
         var fingerprint = string.Join("|", buckets.Select(b => $"{b.Name}:{b.ObjectCount}:{b.TotalSize}:{b.UpdatedAt.Ticks}"));
         if (fingerprint == _fingerprint)
         {
-            if (diskChanged) _lastUpdated = DateTime.UtcNow;
-            return diskChanged;
+            if (statusChanged) _lastUpdated = DateTime.UtcNow;
+            return statusChanged;
         }
 
         _fingerprint = fingerprint;
@@ -242,6 +297,36 @@ else
     // Only what the disk card renders, so the card refreshes when it would look different.
     static string DiskLabel(StorageSpaceStatus? disk) =>
         disk is null ? "" : $"{FileHelper.FormatBytes(disk.FreeBytes)}|{disk.IsBelowMinimum}|{disk.IsNearMinimum}";
+
+    // Only the last run of each job counts: a failure that a later run fixed needs no alert.
+    List<RecurringJobStatus> FailedJobs()
+    {
+        try
+        {
+            return Jobs.GetRecurringJobs().Where(j => j.LastJob?.State is JobRunState.Failed or JobRunState.Retrying).ToList();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Job states could not be read for the dashboard");
+            return [];
+        }
+    }
+
+    static string JobsLabel(List<RecurringJobStatus> jobs) => string.Join("|", jobs.Select(j => $"{j.Id}:{j.LastJob?.Id}:{j.LastJob?.State}"));
+
+    string FailedJobsText => _failedJobs switch
+    {
+        [var job] => $"The background job \"{job.Name}\" {(job.LastJob!.State == JobRunState.Retrying ? "failed and is retrying" : "failed")}"
+                     + (job.LastJob.StartedAt is { } at ? $" (run started {Tz.Format(at)})." : "."),
+        var jobs => $"{jobs.Count} background jobs failed on their last run: {string.Join(", ", jobs.Select(j => j.Name))}."
+    };
+
+    // A modified click on the name link opens a new tab; the page itself stays where it is.
+    void OpenBucket(DataGridRowMouseEventArgs<Bucket> args)
+    {
+        if (args.Data is null || args.CtrlKey || args.MetaKey || args.ShiftKey) return;
+        Navigation.NavigateTo($"/buckets/{Uri.EscapeDataString(args.Data.Name)}");
+    }
 
     static string MimeToExtension(string contentType) => contentType switch
     {
