@@ -24,12 +24,12 @@ public static class CronText
         if (nextRunUtc is { } next)
         {
             var local = tz.ToLocal(next);
-            return day is null
-                ? $"Every day at {local.ToString("HH:mm", CultureInfo.InvariantCulture)}"
-                : $"Every {local.DayOfWeek} at {local.ToString("HH:mm", CultureInfo.InvariantCulture)}";
+            var at = tz.FormatClock(TimeOnly.FromDateTime(local));
+            return day is null ? $"Every day at {at}" : $"Every {local.DayOfWeek} at {at}";
         }
 
-        var time = cronZone == tz.Zone.Id ? $"{h:00}:{m:00}" : $"{h:00}:{m:00} {cronZone}";
+        var clock = h is >= 0 and <= 23 && m is >= 0 and <= 59 ? tz.FormatClock(new TimeOnly(h, m)) : $"{h:00}:{m:00}";
+        var time = cronZone == tz.Zone.Id ? clock : $"{clock} {cronZone}";
         return day is null ? $"Every day at {time}" : $"Every {(DayOfWeek)day} at {time}";
     }
 }

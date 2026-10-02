@@ -14,8 +14,15 @@
 
 @code {
     [Parameter] public string? TimeZoneId { get; set; }
+    /// <summary>The preference cookies of the request, from UiPreferences.CookiesFrom.</summary>
+    [Parameter] public Dictionary<string, string>? PreferenceCookies { get; set; }
 
     [Inject] BrowserTimeZone Tz { get; set; } = null!;
+    [Inject] UiPreferences Preferences { get; set; } = null!;
 
-    protected override void OnParametersSet() => Tz.Set(TimeZoneId);
+    protected override void OnParametersSet()
+    {
+        Tz.Set(TimeZoneId);
+        Preferences.Load(PreferenceCookies);
+    }
 }

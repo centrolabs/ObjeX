@@ -96,4 +96,16 @@ public class BrowserTimeZoneTests
         Assert.Equal("—", tz.Format((DateTime?)null));
         Assert.Equal("—", tz.Format((DateTimeOffset?)null));
     }
+
+    [Fact]
+    public void TwelveHourClock_ShowsAmAndPm()
+    {
+        var tz = new BrowserTimeZone { Hour12 = true };
+        var evening = new DateTime(2026, 1, 15, 17, 5, 9, DateTimeKind.Utc);
+
+        Assert.Equal("2026-01-15 5:05 PM", tz.Format(evening));
+        Assert.Equal("2026-01-15 5:05:09 PM", tz.FormatSeconds(evening));
+        Assert.Equal("12:30 AM", tz.FormatClock(new TimeOnly(0, 30)));
+        Assert.Equal("00:30", new BrowserTimeZone().FormatClock(new TimeOnly(0, 30)));
+    }
 }
