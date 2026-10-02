@@ -139,6 +139,7 @@ public static class ServiceCollectionExtensions
         services.AddRadzenComponents();
         services.AddScoped<ThemeService>();
         services.AddScoped<BrowserTimeZone>();
+        services.AddScoped<UiPreferences>();
         services.AddCascadingAuthenticationState();
         services.AddResponseCompression(options => options.EnableForHttps = true);
 

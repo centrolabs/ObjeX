@@ -40,6 +40,15 @@ public class CronTextTests
     public void WithoutNextRun_LeavesOutTheZone_WhenItIsTheBrowsers()
         => Assert.Equal("Every day at 02:15", CronText.Describe("15 2 * * *", null, Zone("Europe/Zurich"), "Europe/Zurich"));
 
+    [Fact]
+    public void TwelveHourClock_ReachesTheSchedule()
+    {
+        var tz = Zone("UTC");
+        tz.Hour12 = true;
+        Assert.Equal("Every day at 5:30 PM", CronText.Describe("30 17 * * *", null, tz));
+        Assert.Equal("Every Sunday at 5:00 AM", CronText.Describe("0 5 * * 0", new DateTime(2026, 10, 4, 5, 0, 0, DateTimeKind.Utc), tz));
+    }
+
     [Theory]
     [InlineData("*/5 * * * *")]
     [InlineData("0 3 1 * *")]
