@@ -32,41 +32,6 @@
 }
 else
 {
-    @* Without the chart the figures take the whole row, with it they share it. *@
-    <OxStack Row="true" Wrap="true" Gap="7">
-        <OxStack Grow="true">
-            <OxCard>
-                <OxStack Row="true" Wrap="true" Gap="9">
-                    <OxStat Label="Users" Value="@_users.Count.ToString("N0")" Hint="@RoleSummary" />
-                    <OxStat Label="Active" Value="@CountOf("Active").ToString("N0")" Hint="@StatusSummary" />
-                    <OxStat Label="Storage" Value="@FileHelper.FormatBytes(_users.Sum(u => u.StorageUsed))" Hint="all users" />
-                    <OxStat Label="Near quota" Value="@_users.Count(u => u.NearQuota).ToString("N0")" Hint="above 90 % of their quota" />
-                </OxStack>
-            </OxCard>
-        </OxStack>
-        @if (_slices.Count >= 2)
-        {
-            <OxStack Grow="true">
-                <OxCard Title="Storage by user">
-                    <OxText Variant="OxTextVariant.Small">Top 5 by size · click a slice to show that user</OxText>
-                    <OxChart Clickable="true">
-                        <RadzenChart SeriesClick="OnSliceClick">
-                            <RadzenDonutSeries Data="@_slices" CategoryProperty="Name" ValueProperty="Bytes" TItem="UserSlice" InnerRadius="60"
-                                               Fills="@OxChart.Slots" Strokes="@SurfaceStrokes" StrokeWidth="2">
-                                <TooltipTemplate Context="slice">
-                                    <OxStack Gap="1">
-                                        <OxText><strong>@slice.Name</strong></OxText>
-                                        <OxText Variant="OxTextVariant.Small">@FileHelper.FormatBytes(slice.Bytes)@(TotalStorage > 0 ? $" · {(double)slice.Bytes / TotalStorage * 100:F1}%" : null)</OxText>
-                                    </OxStack>
-                                </TooltipTemplate>
-                            </RadzenDonutSeries>
-                        </RadzenChart>
-                    </OxChart>
-                </OxCard>
-            </OxStack>
-        }
-    </OxStack>
-
     @if (_users.Count > 1)
     {
         @* Chips of one group combine with "or", the groups with "and"; no chip in a group means all of it. *@
@@ -201,15 +166,11 @@ else
         public bool NearQuota => Quota is > 0 && StorageUsed >= Quota.Value * 0.9;
     }
 
-    record UserSlice(string Name, long Bytes);
-
     static readonly string[] Roles = ["Admin", "Manager", "User"];
     static readonly string[] Statuses = ["Active", "Locked", "Deactivated"];
-    static readonly IEnumerable<string> SurfaceStrokes = Enumerable.Repeat(OxChart.Surface, 5);
 
     List<UserRow> _users = [];
     List<UserRow> _shown = [];
-    List<UserSlice> _slices = [];
     string _currentUserId = string.Empty;
     bool _currentUserIsAdmin;
     bool _loaded;
@@ -222,24 +183,6 @@ else
     bool IsFiltered => Term.Length > 0 || _roles.Count > 0 || _statuses.Count > 0;
 
     string HeaderCaption => IsFiltered ? $"{_shown.Count:N0} of {Plural(_users.Count, "user")}" : Plural(_users.Count, "user");
-
-    // Only what exists: "1 admin · 3 users", not "0 managers".
-    string RoleSummary => string.Join(" · ", Roles.Select(r => (Count: _users.Count(u => u.Role == r), Role: r))
-        .Where(x => x.Count > 0).Select(x => Plural(x.Count, x.Role.ToLowerInvariant())));
-
-    string StatusSummary
-    {
-        get
-        {
-            var parts = new[] { "Locked", "Deactivated" }.Select(st => (Count: CountOf(st), Status: st))
-                .Where(x => x.Count > 0).Select(x => $"{x.Count:N0} {x.Status.ToLowerInvariant()}").ToList();
-            return parts.Count == 0 ? "none locked or deactivated" : string.Join(" · ", parts);
-        }
-    }
-
-    long TotalStorage => _users.Sum(u => u.StorageUsed);
-
-    int CountOf(string status) => _users.Count(u => u.Status == status);
 
     static string Plural(int count, string noun) => count == 1 ? $"1 {noun}" : $"{count:N0} {noun}s";
 
@@ -296,8 +239,6 @@ else
                 u.LockoutEnd > now, u.CreatedAt, owned?.Total ?? 0, quota, owned?.Count ?? 0, lastActivity));
         }
         _users = rows;
-        _slices = rows.Where(r => r.StorageUsed > 0).OrderByDescending(r => r.StorageUsed).Take(5)
-            .Select(r => new UserSlice(r.Username, r.StorageUsed)).ToList();
         ApplyFilters();
     }
 
@@ -326,14 +267,6 @@ else
         _search = string.Empty;
         _roles.Clear();
         _statuses.Clear();
-        ApplyFilters();
-    }
-
-    // A slice is one user: the table narrows to them.
-    void OnSliceClick(SeriesClickEventArgs args)
-    {
-        if (args.Data is not UserSlice slice) return;
-        _search = slice.Name;
         ApplyFilters();
     }
 
