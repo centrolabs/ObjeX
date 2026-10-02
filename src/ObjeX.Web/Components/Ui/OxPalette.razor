@@ -41,7 +41,7 @@
                 </li>
             }
         </ul>
-        <div class="ox-palette-keys"><kbd>↑</kbd><kbd>↓</kbd> move <kbd>Enter</kbd> open <kbd>Esc</kbd> close</div>
+        <div class="ox-palette-keys"><kbd>↑</kbd><kbd>↓</kbd> or <kbd>Tab</kbd> move <kbd>Enter</kbd> open <kbd>Esc</kbd> close</div>
     </div>
 }
 
@@ -57,7 +57,7 @@
     bool _attach;
     bool _reveal;
 
-    /// <summary>Cmd+K or Ctrl+K toggles it from anywhere; Escape, a click outside and a pick close it.</summary>
+    /// <summary>Cmd+K or Ctrl+K toggles it from anywhere; Escape, a click outside and a pick close it. ↑ ↓ and Tab move the choice.</summary>
     [Parameter] public bool Open { get; set; }
     [Parameter] public EventCallback<bool> OpenChanged { get; set; }
     [Parameter] public string Query { get; set; } = string.Empty;
