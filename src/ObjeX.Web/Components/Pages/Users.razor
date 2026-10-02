@@ -28,20 +28,22 @@
 }
 else
 {
-    <RadzenDataGrid Data="_users" TItem="UserRow" AllowSorting="true" AllowAlternatingRows="false">
+    <RadzenDataGrid class="@OxSizes.WideGridClass" Data="_users" TItem="UserRow" AllowSorting="true" AllowAlternatingRows="false">
         <Columns>
-            <RadzenDataGridColumn TItem="UserRow" Property="Username" Title="User">
+            <RadzenDataGridColumn TItem="UserRow" Property="Username" Title="User" Width="@OxSizes.ShortColumn">
                 <Template Context="row">
-                    <OxStack Row="true" Gap="5" Align="OxAlign.Baseline">
-                        <OxText><strong>@row.Username</strong></OxText>
-                        <OxTooltip Text="@row.Email" WhenTruncated="true"><OxText Variant="OxTextVariant.Small" Truncate="true">@row.Email</OxText></OxTooltip>
-                    </OxStack>
+                    <OxTooltip WhenTruncated="true"><OxText Truncate="true"><strong>@row.Username</strong></OxText></OxTooltip>
+                </Template>
+            </RadzenDataGridColumn>
+            <RadzenDataGridColumn TItem="UserRow" Property="Email" Title="Email">
+                <Template Context="row">
+                    <OxTooltip WhenTruncated="true"><OxText Variant="OxTextVariant.Muted" Truncate="true">@row.Email</OxText></OxTooltip>
                 </Template>
             </RadzenDataGridColumn>
             <RadzenDataGridColumn TItem="UserRow" Property="Role" Title="Role" Width="@OxSizes.NumberColumn">
                 <Template Context="row"><OxBadge Tone="@(row.Role == "Admin" ? OxTone.Accent : OxTone.Default)">@row.Role</OxBadge></Template>
             </RadzenDataGridColumn>
-            <RadzenDataGridColumn TItem="UserRow" Property="Status" Title="Status" Width="@OxSizes.DateColumn">
+            <RadzenDataGridColumn TItem="UserRow" Property="Status" Title="Status" Width="@OxSizes.ShortColumn">
                 <Template Context="row">
                     @if (row.IsDeactivated)
                     {
