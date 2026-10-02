@@ -1,20 +1,20 @@
 @inject AuthenticationStateProvider AuthStateProvider
 
-<OxNavItem Href="/" Icon="dashboard">Dashboard</OxNavItem>
-<OxNavItem Href="/buckets" Icon="inventory_2">Buckets</OxNavItem>
+<OxNavItem Href="/" Icon="dashboard" Label="Dashboard" />
+<OxNavItem Href="/buckets" Icon="inventory_2" Label="Buckets" />
 @if (_isAdmin)
 {
-    <OxNavItem Href="/audit" Icon="history">Audit Log</OxNavItem>
+    <OxNavItem Href="/audit" Icon="history" Label="Audit Log" />
 }
 @if (_isAdmin || _isManager)
 {
-    <OxNavItem Href="/users" Icon="group">Users</OxNavItem>
+    <OxNavItem Href="/users" Icon="group" Label="Users" />
 }
 @if (_isAdmin)
 {
-    <OxNavItem Href="/jobs" Icon="schedule">Jobs</OxNavItem>
+    <OxNavItem Href="/jobs" Icon="schedule" Label="Jobs" />
 }
-<OxNavItem Href="/settings" Icon="settings">Settings</OxNavItem>
+<OxNavItem Href="/settings" Icon="settings" Label="Settings" />
 
 @code {
     bool _isAdmin;

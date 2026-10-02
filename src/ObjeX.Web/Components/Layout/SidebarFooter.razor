@@ -3,13 +3,18 @@
 @inject NavigationManager Navigation
 @inject AuthenticationStateProvider AuthStateProvider
 @inject IStorageSpaceService StorageSpace
+@inject UiPreferences Preferences
 
-<OxSideInfo>
+<OxSideInfo Tooltip="@($"{FileHelper.FormatBytes(_disk.FreeBytes)} free of {FileHelper.FormatBytes(_disk.TotalBytes)}")">
     <ChildContent><b>@FileHelper.FormatBytes(_disk.FreeBytes)</b> free of @FileHelper.FormatBytes(_disk.TotalBytes)</ChildContent>
     <Meter><OxMeter Value="@_disk.UsedPercent" Tone="@DiskTone" Label="Disk used" /></Meter>
 </OxSideInfo>
 <OxUserBar Name="@_username" Version="@AppVersion.Display"
-           OnSignOut="@(() => Navigation.NavigateTo("/account/logout", forceLoad: true))" />
+           OnSignOut="@(() => Navigation.NavigateTo("/account/logout", forceLoad: true))">
+    <OxSideItem Label="@(Preferences.IsDark ? "Light mode" : "Dark mode")" OnClick="@(() => Preferences.SetDarkAsync(!Preferences.IsDark))">
+        <Leading><OxIcon Name="@(Preferences.IsDark ? "light_mode" : "dark_mode")" /></Leading>
+    </OxSideItem>
+</OxUserBar>
 
 @code {
     string _username = string.Empty;
@@ -21,7 +26,10 @@
     {
         _disk = StorageSpace.Get();
         Navigation.LocationChanged += OnLocationChanged;
+        Preferences.Changed += OnPreferencesChanged;
     }
+
+    void OnPreferencesChanged() => InvokeAsync(StateHasChanged);
 
     protected override async Task OnInitializedAsync()
     {
@@ -36,5 +44,9 @@
         InvokeAsync(StateHasChanged);
     }
 
-    public void Dispose() => Navigation.LocationChanged -= OnLocationChanged;
+    public void Dispose()
+    {
+        Navigation.LocationChanged -= OnLocationChanged;
+        Preferences.Changed -= OnPreferencesChanged;
+    }
 }

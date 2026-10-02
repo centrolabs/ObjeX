@@ -1,2 +1,13 @@
-.ox-side-info { display: flex; flex-direction: column; gap: var(--ox-space-3); padding: 0 var(--ox-space-4); font-size: var(--ox-fs-sm); color: var(--ox-text-side-muted); }
+/* The text keeps its line in the rail, so the meter below it does not move. */
+.ox-side-info { --ox-tooltip: off; display: flex; flex-direction: column; gap: var(--ox-space-3); padding: 0 var(--ox-space-4); font-size: var(--ox-fs-sm); color: var(--ox-text-side-muted); }
+.ox-side-info-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; transition: opacity .12s ease-out; }
 .ox-side-info-text ::deep b { font-weight: var(--ox-fw-medium); color: var(--ox-text); }
+
+@container ox-side (max-width: 120px) {
+    .ox-side-info { --ox-tooltip: on; }
+    .ox-side-info-text { opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .ox-side-info-text { transition: none; }
+}

@@ -4,7 +4,8 @@ namespace ObjeX.Tests.Unit;
 
 /// <summary>
 /// Guards the design system by reading the UI sources as text: colours live in tokens.css only, inline styles
-/// in Components/Ui only, and Radzen serves grids, charts, popups, dropdowns and numeric inputs, not layout.
+/// in Components/Ui only, Radzen serves grids, charts, popups, dropdowns and numeric inputs, not layout,
+/// and hints go through the tooltip system instead of the browser's title attribute.
 /// </summary>
 public class UiRulesTests
 {
@@ -21,6 +22,9 @@ public class UiRulesTests
 
     private static readonly Regex LayoutComponent = new(
         @"<Radzen(?:Stack|Text|Button|Card|Layout|Sidebar|PanelMenu|PanelMenuItem|Badge|FormField)\b", RegexOptions.Compiled);
+
+    // Lower case only: Title="…" is a component parameter, title="…" the HTML attribute. An iframe keeps it as its accessible name.
+    private static readonly Regex NativeTitle = new(@"(?<![\w-])title\s*=\s*""", RegexOptions.Compiled);
 
     private static readonly Regex RadzenComponent = new(@"<(Radzen\w+)", RegexOptions.Compiled);
 
@@ -59,6 +63,13 @@ public class UiRulesTests
                 .Select(m => $"{Relative(f)}:{i + 1}  {m.Groups[1].Value}")))
             .ToList();
         Assert.True(hits.Count == 0, Report("Radzen component that the Ui library replaces", hits));
+    }
+
+    [Fact]
+    public void NativeTitles_AreNotUsed()
+    {
+        var hits = Scan(Razor(), NativeTitle).Where(hit => !hit.Contains("<iframe", StringComparison.Ordinal)).ToList();
+        Assert.True(hits.Count == 0, Report("title attribute instead of OxTooltip or data-ox-tooltip", hits));
     }
 
     [Fact]

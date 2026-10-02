@@ -1,4 +1,4 @@
-<div class="ox-side-info">
+<div class="ox-side-info" data-ox-tooltip="@Tooltip" data-ox-tooltip-placement="right">
     <div class="ox-side-info-text">@ChildContent</div>
     @Meter
 </div>
@@ -7,4 +7,6 @@
     /// <summary>A short line of text in the sidebar, with an optional meter below: free disk space.</summary>
     [Parameter] public RenderFragment? ChildContent { get; set; }
     [Parameter] public RenderFragment? Meter { get; set; }
+    /// <summary>The line as plain text, the tooltip of the rail, where only the meter shows.</summary>
+    [Parameter] public string? Tooltip { get; set; }
 }

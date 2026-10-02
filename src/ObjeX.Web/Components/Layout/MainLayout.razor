@@ -3,11 +3,14 @@
 @inject NavigationManager Navigation
 @inject AuthenticationStateProvider AuthStateProvider
 @inject IDbContextFactory<ObjeX.Infrastructure.Data.ObjeXDbContext> DbFactory
+@inject UiPreferences Preferences
 @using Microsoft.EntityFrameworkCore
 
 <AuthorizeView>
     <Authorized>
-        <OxShell>
+        <OxShell Collapsed="@Preferences.SidebarCollapsed" CollapsedChanged="@Preferences.SetSidebarCollapsedAsync"
+                 Width="@Preferences.SidebarWidth" WidthChanged="@Preferences.SetSidebarWidthAsync"
+                 MinWidth="@UiPreferences.SidebarMinWidth" MaxWidth="@UiPreferences.SidebarMaxWidth">
             <Nav><NavMenu /></Nav>
             <SideFooter><SidebarFooter /></SideFooter>
             <ChildContent>@Body</ChildContent>
@@ -25,7 +28,10 @@
     protected override void OnInitialized()
     {
         Navigation.LocationChanged += OnLocationChanged;
+        Preferences.Changed += OnPreferencesChanged;
     }
+
+    void OnPreferencesChanged() => InvokeAsync(StateHasChanged);
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -58,5 +64,6 @@
     public void Dispose()
     {
         Navigation.LocationChanged -= OnLocationChanged;
+        Preferences.Changed -= OnPreferencesChanged;
     }
 }

@@ -1,0 +1,35 @@
+.ox-side-item {
+    --ox-tooltip: off;
+    display: flex;
+    align-items: center;
+    gap: var(--ox-space-4);
+    width: 100%;
+    height: var(--ox-size-ctl);
+    padding: 0 var(--ox-space-4);
+    border: 0;
+    border-radius: var(--ox-radius-md);
+    background: none;
+    color: var(--ox-text-side-muted);
+    font: inherit;
+    text-align: left;
+    text-decoration: none;
+    cursor: pointer;
+}
+
+.ox-side-item:hover { background: var(--ox-surface-nav-hover); color: var(--ox-text); }
+.ox-side-item.is-active { background: var(--ox-surface-nav-active); color: var(--ox-text); font-weight: var(--ox-fw-semibold); }
+.ox-side-item:focus-visible { outline: var(--ox-ring) solid var(--ox-accent-text); outline-offset: calc(-1 * var(--ox-ring)); }
+
+.ox-side-item-slot { flex: none; display: grid; place-items: center; width: var(--ox-size-avatar); height: var(--ox-size-avatar); }
+
+.ox-side-item-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; transition: opacity .12s ease-out; }
+
+/* The rail: the label fades, and the tooltip takes over its job. */
+@container ox-side (max-width: 120px) {
+    .ox-side-item { --ox-tooltip: on; }
+    .ox-side-item-label { opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .ox-side-item-label { transition: none; }
+}
