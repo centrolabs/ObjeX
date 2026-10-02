@@ -1,6 +1,6 @@
 ﻿@inject IHttpContextAccessor HttpContextAccessor
 <!DOCTYPE html>
-<html lang="en" class="@ThemeMode.CssClass(ThemeCookie)">
+<html lang="en" class="@UiPreferences.HtmlClass(HttpContextAccessor.HttpContext?.Request.Cookies)">
 
 <head>
     <meta charset="utf-8" />
@@ -28,7 +28,7 @@
     <ReconnectModal />
     <script src="@Assets["_framework/blazor.web.js"]"></script>
     <script src="_content/Radzen.Blazor/Radzen.Blazor.js?v=@(typeof(Colors).Assembly.GetName().Version)"></script>
-    <script>window.ObjeX={triggerDownload:function(u,n){var a=document.createElement('a');a.href=u;a.download=n;document.body.appendChild(a);a.click();document.body.removeChild(a);},getCookie:function(k){var m=document.cookie.split('; ').find(function(r){return r.startsWith(k+'=')});return m?m.split('=')[1]:'';},setCookie:function(k,v){document.cookie=k+'='+v+';path=/;max-age=31536000';},setTheme:function(dark){var c=document.documentElement.classList;c.toggle('ox-dark',dark);c.toggle('ox-light',!dark);}}</script>
+    <script>window.ObjeX={triggerDownload:function(u,n){var a=document.createElement('a');a.href=u;a.download=n;document.body.appendChild(a);a.click();document.body.removeChild(a);},getCookie:function(k){var m=document.cookie.split('; ').find(function(r){return r.startsWith(k+'=')});return m?m.split('=')[1]:'';},setCookie:function(k,v){document.cookie=k+'='+v+';path=/;max-age=31536000';},setTheme:function(dark){var c=document.documentElement.classList;c.toggle('ox-dark',dark);c.toggle('ox-light',!dark);},setClass:function(name,on){document.documentElement.classList.toggle(name,on);}}</script>
 </body>
 
 </html>
