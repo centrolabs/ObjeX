@@ -1,8 +1,10 @@
-<div class="ox-chart">@ChildContent</div>
+<div class="ox-chart @(Clickable ? "ox-chart--clickable" : null)">@ChildContent</div>
 
 @code {
     /// <summary>Frame for one RadzenChart: fixes the height and lets the chart fill it. Series take the chart colour tokens in order.</summary>
     [Parameter] public RenderFragment? ChildContent { get; set; }
+    /// <summary>The slices open something on click (RadzenChart.SeriesClick); the pointer shows it.</summary>
+    [Parameter] public bool Clickable { get; set; }
 
     /// <summary>The surface colour, for the gap between two slices.</summary>
     public const string Surface = "var(--ox-surface)";

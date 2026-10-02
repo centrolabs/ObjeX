@@ -35,33 +35,48 @@ else if (_disk is { IsNearMinimum: true })
     <OxAlert Tone="OxTone.Warning">@FailedJobsText <OxLink Href="/jobs">Open Jobs</OxLink></OxAlert>
 }
 
-<OxCard>
-    <OxStack Row="true" Wrap="true" Gap="9">
-        @if (_isPrivileged)
-        {
-            <OxStat Label="Storage used" Value="@FileHelper.FormatBytes(_totalSize)" Hint="all buckets" />
-        }
-        <OxStat Label="My storage" Value="@FileHelper.FormatBytes(_myStorage?.UsedBytes ?? 0)"
-                Hint="@(_myStorage is { HasQuota: true } ? $"of {FileHelper.FormatBytes(_myStorage.QuotaBytes!.Value)}" : "no quota")">
-            @if (_myStorage is { HasQuota: true })
+@* Until the first load ends, shapes stand in for figures and rows, so navigating here never flashes "No buckets yet". *@
+@if (!_loaded)
+{
+    <OxCard>
+        <OxStack Row="true" Wrap="true" Gap="9">
+            @for (var i = 0; i < 4; i++)
             {
-                <OxMeter Value="@_myStorage.UsedPercent" Label="Quota used" Tone="@(_myStorage.UsedPercent > 90 ? OxTone.Danger : OxTone.Default)" />
+                <OxStack Gap="3"><OxSkeleton Shape="OxSkeletonShape.Line" /><OxSkeleton Shape="OxSkeletonShape.Figure" /></OxStack>
             }
-        </OxStat>
-        <OxStat Label="Objects" Value="@_totalObjects.ToString("N0")"
-                Hint="@(_totalObjects > 0 ? $"avg {FileHelper.FormatBytes(_totalSize / _totalObjects)}" : null)" />
-        <OxStat Label="Buckets" Value="@_buckets.Count.ToString("N0")" />
-    </OxStack>
-</OxCard>
+        </OxStack>
+    </OxCard>
+}
+else
+{
+    <OxCard>
+        <OxStack Row="true" Wrap="true" Gap="9">
+            @if (_isPrivileged)
+            {
+                <OxStat Label="Storage used" Value="@FileHelper.FormatBytes(_totalSize)" Hint="all buckets" />
+            }
+            <OxStat Label="My storage" Value="@FileHelper.FormatBytes(_myStorage?.UsedBytes ?? 0)"
+                    Hint="@(_myStorage is { HasQuota: true } ? $"of {FileHelper.FormatBytes(_myStorage.QuotaBytes!.Value)}" : "no quota")">
+                @if (_myStorage is { HasQuota: true })
+                {
+                    <OxMeter Value="@_myStorage.UsedPercent" Label="Quota used" Tone="@(_myStorage.UsedPercent > 90 ? OxTone.Danger : OxTone.Default)" />
+                }
+            </OxStat>
+            <OxStat Label="Objects" Value="@_totalObjects.ToString("N0")"
+                    Hint="@(_totalObjects > 0 ? $"avg {FileHelper.FormatBytes(_totalSize / _totalObjects)}" : null)" />
+            <OxStat Label="Buckets" Value="@_buckets.Count.ToString("N0")" />
+        </OxStack>
+    </OxCard>
+}
 
-@if (_buckets.Count >= 2)
+@if (_loaded && _buckets.Count >= 2)
 {
     <OxStack Row="true" Wrap="true" Gap="7">
         <OxStack Grow="true">
             <OxCard Title="Storage by bucket">
                 <OxText Variant="OxTextVariant.Small">Top 5 by size</OxText>
-                <OxChart>
-                    <RadzenChart>
+                <OxChart Clickable="true">
+                    <RadzenChart SeriesClick="OpenSlice">
                         <RadzenDonutSeries Data="@_topBySize" CategoryProperty="Name" ValueProperty="TotalSize" TItem="Bucket" InnerRadius="60"
                                            Fills="@_topBySize.Select(SlotOf)" Strokes="@SurfaceStrokes" StrokeWidth="2">
                             <TooltipTemplate Context="data">
@@ -78,8 +93,8 @@ else if (_disk is { IsNearMinimum: true })
         <OxStack Grow="true">
             <OxCard Title="Objects by bucket">
                 <OxText Variant="OxTextVariant.Small">Top 5 by count</OxText>
-                <OxChart>
-                    <RadzenChart>
+                <OxChart Clickable="true">
+                    <RadzenChart SeriesClick="OpenSlice">
                         <RadzenDonutSeries Data="@_topByCount" CategoryProperty="Name" ValueProperty="ObjectCount" TItem="Bucket" InnerRadius="60"
                                            Fills="@_topByCount.Select(SlotOf)" Strokes="@SurfaceStrokes" StrokeWidth="2">
                             <TooltipTemplate Context="data">
@@ -117,7 +132,11 @@ else if (_disk is { IsNearMinimum: true })
     </OxStack>
 }
 
-@if (_buckets.Count > 0)
+@if (!_loaded)
+{
+    <OxCard Title="Buckets" Flush="true"><OxSkeleton Shape="OxSkeletonShape.Rows" Count="3" /></OxCard>
+}
+else if (_buckets.Count > 0)
 {
     <OxCard Title="Buckets" Flush="true">
         <RadzenDataGrid class="@($"{OxSizes.WideGridClass} {OxSizes.ClickableGridClass}")" Data="@_buckets" TItem="Bucket" AllowSorting="true" AllowAlternatingRows="false"
@@ -189,6 +208,7 @@ else
     string? _fingerprint;
     int _polling;
     bool _refreshing;
+    bool _loaded;
 
     protected override async Task OnInitializedAsync()
     {
@@ -197,6 +217,7 @@ else
         _isPrivileged = auth.User.IsInRole("Admin") || auth.User.IsInRole("Manager");
         _isAdmin = auth.User.IsInRole("Admin");
         await LoadStats(MetadataService, QuotaService);
+        _loaded = true;
         _timer = new Timer(async _ =>
         {
             if (Interlocked.Exchange(ref _polling, 1) == 1) return;
@@ -320,6 +341,12 @@ else
                      + (job.LastJob.StartedAt is { } at ? $" (run started {Tz.Format(at)})." : "."),
         var jobs => $"{jobs.Count} background jobs failed on their last run: {string.Join(", ", jobs.Select(j => j.Name))}."
     };
+
+    void OpenSlice(SeriesClickEventArgs args)
+    {
+        if (args.Data is Bucket bucket)
+            Navigation.NavigateTo($"/buckets/{Uri.EscapeDataString(bucket.Name)}");
+    }
 
     // A modified click on the name link opens a new tab; the page itself stays where it is.
     void OpenBucket(DataGridRowMouseEventArgs<Bucket> args)
