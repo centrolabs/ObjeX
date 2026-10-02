@@ -179,6 +179,7 @@
     RadzenDataGrid<ListRow>? _grid;
     ListRow? _selectionAnchor;
     IJSObjectReference? _paste;
+    IJSObjectReference? _keys;
     string _currentPrefix = string.Empty;
     readonly UploadQueue _uploads = new();
     IJSObjectReference? _uploadModule;
@@ -223,8 +224,54 @@
 
     void OnRowRender(RowRenderEventArgs<ListRow> args)
     {
-        if (args.Data is not null && _selected.Contains(args.Data))
+        if (args.Data is null) return;
+        if (_selected.Contains(args.Data))
             args.Attributes["class"] = OxSizes.SelectedRowClass;
+        // The keyboard moves through the rows (watchKeys): each row can take the focus and names its key.
+        args.Attributes["tabindex"] = "-1";
+        args.Attributes["data-ox-row"] = RowKey(args.Data);
+    }
+
+    static string RowKey(ListRow row) => row.FolderPath ?? row.Object!.Key;
+
+    ListRow? RowByKey(string? key) => key is null ? null : _rows.FirstOrDefault(r => RowKey(r) == key);
+
+    // Enter: a folder opens, a file shows its preview, or its metadata when it has none.
+    [JSInvokable]
+    public async Task OpenRow(string key)
+    {
+        switch (RowByKey(key))
+        {
+            case { IsFolder: true, FolderPath: { } folder }:
+                Navigation.NavigateTo(PrefixUrl(folder));
+                break;
+            case { Object: { } obj } when IsPreviewable(obj.ContentType):
+                await PreviewObject(obj);
+                break;
+            case { Object: { } obj }:
+                await ShowMetadata(obj);
+                break;
+        }
+    }
+
+    [JSInvokable]
+    public async Task PreviewRow(string key)
+    {
+        if (RowByKey(key) is { Object: { } obj } && IsPreviewable(obj.ContentType))
+            await PreviewObject(obj);
+    }
+
+    // Delete or Backspace: the selection when there is one, else the focused row; both ask first.
+    [JSInvokable]
+    public async Task DeleteRows(string? key)
+    {
+        if (_selected.Count > 0)
+            await BulkDelete();
+        else if (RowByKey(key) is { IsFolder: true, FolderPath: { } folder })
+            await OnDeleteFolder(folder);
+        else if (RowByKey(key) is { Object: { } obj })
+            await OnDeleteObject(obj);
+        StateHasChanged();
     }
 
     protected override async Task OnInitializedAsync()
@@ -387,6 +434,7 @@
         _uploadModule = await JS.InvokeAsync<IJSObjectReference>("import", "./_content/ObjeX.Web/Components/Pages/Objects.razor.js");
         _uploader = await _uploadModule.InvokeAsync<IJSObjectReference>("createUploader", _self, AntiforgeryOptions.Value.HeaderName, token);
         _paste = await _uploadModule.InvokeAsync<IJSObjectReference>("watchPaste", _uploader);
+        _keys = await _uploadModule.InvokeAsync<IJSObjectReference>("watchKeys", _self);
         StateHasChanged();
     }
 
@@ -474,10 +522,11 @@
     {
         try
         {
-            if (_paste is not null)
+            foreach (var watcher in new[] { _paste, _keys })
             {
-                await _paste.InvokeVoidAsync("stop");
-                await _paste.DisposeAsync();
+                if (watcher is null) continue;
+                await watcher.InvokeVoidAsync("stop");
+                await watcher.DisposeAsync();
             }
             if (_uploader is not null)
             {

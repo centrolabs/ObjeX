@@ -160,3 +160,42 @@ function pastedName(file) {
     return `Pasted ${d.getFullYear()}-${two(d.getMonth() + 1)}-${two(d.getDate())} ${two(d.getHours())}.${two(d.getMinutes())}.${two(d.getSeconds())}`
         + file.name.slice(file.name.lastIndexOf("."));
 }
+
+// The grid by keyboard: ↑ ↓ move between rows, Enter opens the row, Space previews it, Delete or Backspace deletes the
+// selection or else the row. Rows carry their key in data-ox-row and can take the focus (tabindex -1). Keys typed into
+// a field, with a modifier, or while a dialog or a menu is open, stay with their owner.
+export function watchKeys(page) {
+    const rows = () => [...document.querySelectorAll(".rz-data-row[data-ox-row]")];
+
+    const onKey = e => {
+        if (e.metaKey || e.ctrlKey || e.altKey || e.defaultPrevented) return;
+        if (e.target instanceof Element && e.target.closest("input, textarea, select, [contenteditable]")) return;
+        if (document.querySelector(".rz-dialog, .ox-menu")) return;
+
+        const row = document.activeElement?.closest?.(".rz-data-row[data-ox-row]") ?? null;
+        const onRow = row !== null && document.activeElement === row;
+
+        if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+            const list = rows();
+            if (list.length === 0) return;
+            e.preventDefault();
+            const at = row ? list.indexOf(row) : -1;
+            const next = at < 0 ? (e.key === "ArrowDown" ? 0 : list.length - 1)
+                : Math.min(list.length - 1, Math.max(0, at + (e.key === "ArrowDown" ? 1 : -1)));
+            list[next].focus();
+            list[next].scrollIntoView({ block: "nearest" });
+        } else if (e.key === "Enter" && onRow) {
+            e.preventDefault();
+            page.invokeMethodAsync("OpenRow", row.dataset.oxRow);
+        } else if (e.key === " " && onRow) {
+            e.preventDefault();
+            page.invokeMethodAsync("PreviewRow", row.dataset.oxRow);
+        } else if (e.key === "Delete" || e.key === "Backspace") {
+            e.preventDefault();
+            page.invokeMethodAsync("DeleteRows", row?.dataset.oxRow ?? null);
+        }
+    };
+
+    document.addEventListener("keydown", onKey);
+    return { stop: () => document.removeEventListener("keydown", onKey) };
+}
