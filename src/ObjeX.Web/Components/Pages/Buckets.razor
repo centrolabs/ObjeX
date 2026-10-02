@@ -24,6 +24,7 @@
     {
         <OxSearch Value="@_searchTerm" ValueChanged="OnSearchInput" OnClear="ClearSearch" Placeholder="Search all buckets" Tooltip="* matches any text, ? one character" />
     }
+    <OxIconButton Icon="refresh" Label="Refresh" OnClick="Refresh" Busy="@_refreshing" />
     <OxButton Variant="OxButtonVariant.Primary" Icon="add" OnClick="OnCreateBucket">New bucket</OxButton>
 </OxPageHeader>
 
@@ -45,7 +46,7 @@
                 <Template Context="obj">@FileHelper.FormatBytes(obj.Size)</Template>
             </RadzenDataGridColumn>
             <RadzenDataGridColumn TItem="BlobObject" Property="UpdatedAt" Title="Modified" Width="@OxSizes.DateColumn" CssClass="ox-col-muted">
-                <Template Context="obj">@Tz.Format(obj.UpdatedAt)</Template>
+                <Template Context="obj"><OxTime Value="@obj.UpdatedAt" /></Template>
             </RadzenDataGridColumn>
             <RadzenDataGridColumn TItem="BlobObject" Title="" Width="@OxSizes.MenuColumn" Sortable="false" CssClass="ox-col-actions">
                 <Template Context="obj">
@@ -60,7 +61,7 @@
 }
 else
 {
-    <RadzenDataGrid Data="@_buckets" TItem="Bucket" AllowSorting="true" AllowAlternatingRows="false" EmptyText="No buckets yet. Create one to store objects.">
+    <RadzenDataGrid class="@OxSizes.WideGridClass" Data="@_buckets" TItem="Bucket" AllowSorting="true" AllowAlternatingRows="false" EmptyText="No buckets yet. Create one to store objects.">
         <Columns>
             <RadzenDataGridColumn TItem="Bucket" Property="Name" Title="Name">
                 <Template Context="bucket">
@@ -80,7 +81,10 @@ else
                 </RadzenDataGridColumn>
             }
             <RadzenDataGridColumn TItem="Bucket" Property="CreatedAt" Title="Created" Width="@OxSizes.DateColumn" CssClass="ox-col-muted">
-                <Template Context="bucket">@Tz.Format(bucket.CreatedAt)</Template>
+                <Template Context="bucket"><OxTime Value="@bucket.CreatedAt" /></Template>
+            </RadzenDataGridColumn>
+            <RadzenDataGridColumn TItem="Bucket" Property="UpdatedAt" Title="Modified" Width="@OxSizes.DateColumn" CssClass="ox-col-muted">
+                <Template Context="bucket"><OxTime Value="@bucket.UpdatedAt" /></Template>
             </RadzenDataGridColumn>
             <RadzenDataGridColumn TItem="Bucket" Title="" Width="@OxSizes.MenuColumn" Sortable="false" CssClass="ox-col-actions">
                 <Template Context="bucket">
@@ -110,6 +114,7 @@ else
     string _searchTerm = string.Empty;
     bool _searchApplied;
     bool _searchLimitHit;
+    bool _refreshing;
     CancellationTokenSource _searchCts = new();
 
     const int SearchLimit = 500;
@@ -149,6 +154,31 @@ else
         // The search box is gone once the last bucket is deleted, so a term left over would be unclearable.
         if (_buckets.Count == 0)
             ClearSearch();
+    }
+
+    // Buckets made through S3 or by another user appear only after a reload; a running search is repeated with them.
+    async Task Refresh()
+    {
+        if (_refreshing) return;
+        _refreshing = true;
+        try
+        {
+            var feedback = Task.Delay(OxMotion.SpinTurn);
+            await LoadBuckets();
+            if (_searchApplied)
+                await RunSearch(_searchCts.Token);
+            await feedback;
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Bucket list refresh failed");
+            NotificationService.Notify(NotificationSeverity.Error, "Refresh failed", ex.Message);
+        }
+        finally
+        {
+            _refreshing = false;
+        }
     }
 
     async Task RunSearch(CancellationToken ctk)

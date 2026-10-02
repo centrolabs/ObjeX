@@ -41,8 +41,8 @@
             @if (_selected.Count > 0)
             {
                 <OxSelectionBar Count="@_selected.Count" OnClear="@(() => _selected.Clear())">
-                    <OxButton Icon="download" OnClick="BulkDownload">Download ZIP</OxButton>
-                    <OxButton Variant="OxButtonVariant.Danger" Icon="delete" OnClick="BulkDelete">Delete</OxButton>
+                    <OxButton Icon="download" OnClick="BulkDownload" Busy="@_bulkDownloading">Download ZIP</OxButton>
+                    <OxButton Variant="OxButtonVariant.Danger" Icon="delete" OnClick="BulkDelete" Busy="@_bulkDeleting">Delete</OxButton>
                 </OxSelectionBar>
             }
             else
@@ -85,7 +85,7 @@
                 <Template Context="row">@(row.IsFolder ? "—" : FileHelper.FormatBytes(row.Object!.Size))</Template>
             </RadzenDataGridColumn>
             <RadzenDataGridColumn TItem="ListRow" Title="Modified" Property="SortDate" Width="@OxSizes.DateColumn" CssClass="ox-col-muted">
-                <Template Context="row">@(row.IsFolder ? "—" : Tz.Format(row.Object!.UpdatedAt))</Template>
+                <Template Context="row">@if (row.IsFolder) { @("—") } else { <OxTime Value="@row.Object!.UpdatedAt" /> }</Template>
             </RadzenDataGridColumn>
             <RadzenDataGridColumn TItem="ListRow" Title="" Width="@OxSizes.ActionsColumn" Sortable="false" Resizable="false" CssClass="ox-col-actions">
                 <Template Context="row">
@@ -184,6 +184,8 @@
     DotNetObjectReference<Objects>? _self;
     DateTime _uploadsListedAt;
     bool _bucketExists = true;
+    bool _bulkDeleting;
+    bool _bulkDownloading;
     Bucket? _bucket;
     string? _loadedPrefix;
     string _currentUserId = string.Empty;
@@ -509,9 +511,23 @@
 
     async Task BulkDelete()
     {
+        if (_bulkDeleting) return;
         var count = _selected.Count;
         if (!await ConfirmDialog.AskAsync(DialogService, "Delete selection", $"Delete {count} selected item(s)? This cannot be undone.", "Delete", danger: true)) return;
 
+        _bulkDeleting = true;
+        try
+        {
+            await DeleteSelectionAsync(count);
+        }
+        finally
+        {
+            _bulkDeleting = false;
+        }
+    }
+
+    async Task DeleteSelectionAsync(int count)
+    {
         var errors = new List<string>();
         try
         {
@@ -543,6 +559,21 @@
     }
 
     async Task BulkDownload()
+    {
+        if (_bulkDownloading) return;
+        _bulkDownloading = true;
+        try
+        {
+            // Listing large folders takes a moment before the browser shows the download; the spin covers it.
+            await Task.WhenAll(DownloadSelectionAsync(), Task.Delay(OxMotion.SpinTurn));
+        }
+        finally
+        {
+            _bulkDownloading = false;
+        }
+    }
+
+    async Task DownloadSelectionAsync()
     {
         var allKeys = new List<string>();
 
