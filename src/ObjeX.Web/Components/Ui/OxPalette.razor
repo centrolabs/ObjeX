@@ -55,6 +55,7 @@
     int _active;
     bool _wasOpen;
     bool _attach;
+    bool _restore;
     bool _reveal;
 
     /// <summary>Cmd+K or Ctrl+K toggles it from anywhere; Escape, a click outside and a pick close it. ↑ ↓ and Tab move the choice.</summary>
@@ -80,6 +81,7 @@
             _reveal = true;
         }
         if (Open && !_wasOpen) _attach = true;
+        if (!Open && _wasOpen) _restore = true;
         _wasOpen = Open;
     }
 
@@ -92,7 +94,13 @@
             _hotkey = await _module.InvokeAsync<IJSObjectReference>("listen", _self);
             await OnPlatform.InvokeAsync(await _module.InvokeAsync<bool>("isMac"));
         }
-        if (_module is null || !Open) return;
+        if (_module is null) return;
+        if (_restore && !Open)
+        {
+            _restore = false;
+            await _module.InvokeVoidAsync("restore");
+        }
+        if (!Open) return;
         if (_attach)
         {
             _attach = false;
