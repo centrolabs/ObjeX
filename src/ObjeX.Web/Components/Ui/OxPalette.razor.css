@@ -1,0 +1,66 @@
+.ox-palette-backdrop { position: fixed; inset: 0; z-index: var(--ox-z-popup); background: var(--ox-overlay); }
+
+/* High on the screen, like Spotlight: the results grow downwards without moving the field. */
+.ox-palette {
+    position: fixed;
+    top: 14vh;
+    left: 50%;
+    z-index: calc(var(--ox-z-popup) + 1);
+    display: flex;
+    flex-direction: column;
+    width: min(var(--ox-size-palette), calc(100vw - 2 * var(--ox-space-7)));
+    border: var(--ox-border) solid var(--ox-line-strong);
+    border-radius: var(--ox-radius-md);
+    background: var(--ox-surface-raised);
+    box-shadow: var(--ox-shadow-pop);
+    transform: translateX(-50%);
+    overflow: hidden;
+}
+
+.ox-palette-search { display: flex; align-items: center; gap: var(--ox-space-5); padding: var(--ox-space-6) var(--ox-space-7); border-bottom: var(--ox-border) solid var(--ox-line); }
+
+.ox-palette-input {
+    flex: 1;
+    min-width: 0;
+    border: 0;
+    outline: none;
+    background: none;
+    color: var(--ox-text);
+    font: inherit;
+    font-size: var(--ox-fs-lg);
+}
+
+.ox-palette-input::placeholder { color: var(--ox-text-faint); }
+
+.ox-palette-list { max-height: var(--ox-size-palette-list); margin: 0; padding: var(--ox-space-2); overflow-y: auto; list-style: none; }
+
+.ox-palette-group { padding: var(--ox-space-4) var(--ox-space-5) var(--ox-space-2); font-size: var(--ox-fs-xs); font-weight: var(--ox-fw-medium); color: var(--ox-text-muted); }
+
+.ox-palette-item {
+    display: flex;
+    align-items: center;
+    gap: var(--ox-space-5);
+    height: var(--ox-size-ctl);
+    padding: 0 var(--ox-space-5);
+    border-radius: var(--ox-radius-md);
+    color: var(--ox-text);
+    cursor: pointer;
+    scroll-margin: var(--ox-space-2);
+}
+
+.ox-palette-item.is-active { background: var(--ox-surface-nav-active); }
+
+.ox-palette-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ox-palette-hint { flex: none; max-width: 40%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--ox-fs-sm); color: var(--ox-text-muted); }
+
+.ox-palette-empty { padding: var(--ox-space-7); color: var(--ox-text-muted); text-align: center; }
+
+.ox-palette-keys { display: flex; align-items: center; gap: var(--ox-space-3); padding: var(--ox-space-4) var(--ox-space-7); border-top: var(--ox-border) solid var(--ox-line); font-size: var(--ox-fs-xs); color: var(--ox-text-muted); }
+
+.ox-palette-keys kbd {
+    padding: 0 var(--ox-space-2);
+    border: var(--ox-border) solid var(--ox-line-strong);
+    border-radius: var(--ox-radius-sm);
+    font-family: inherit;
+    font-size: var(--ox-fs-xs);
+}

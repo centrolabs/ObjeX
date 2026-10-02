@@ -16,6 +16,7 @@
 @inject IOptions<DefaultAdminOptions> DefaultAdmin
 @inject IDbContextFactory<ObjeXDbContext> DbFactory
 @inject BrowserTimeZone Tz
+@inject NavigationManager Navigation
 
 <PageTitle>Buckets — ObjeX</PageTitle>
 
@@ -43,7 +44,7 @@ else if (_searchApplied)
             </RadzenDataGridColumn>
             <RadzenDataGridColumn TItem="BlobObject" Property="Key" Title="Key">
                 <Template Context="obj">
-                    <OxFileName Kind="@OxFileIcon.KindOf(obj.ContentType)" Href="@FolderUrl(obj)">@obj.Key</OxFileName>
+                    <OxFileName Kind="@OxFileIcon.KindOf(obj.ContentType)" Href="@FileHelper.FolderUrl(obj.BucketName, obj.Key)">@obj.Key</OxFileName>
                 </Template>
             </RadzenDataGridColumn>
             <RadzenDataGridColumn TItem="BlobObject" Property="Size" Title="Size" Width="@OxSizes.SizeColumn" TextAlign="TextAlign.End">
@@ -130,15 +131,23 @@ else
             ? $"{_results.Count:N0} results · first {SearchLimit} shown"
             : $"{_results.Count:N0} results";
 
-    /// <summary>Keys may contain URL syntax, so each segment is encoded while the slashes stay readable.</summary>
-    static string FolderUrl(BlobObject obj)
-    {
-        var url = $"/buckets/{Uri.EscapeDataString(obj.BucketName)}";
-        var cut = obj.Key.LastIndexOf('/');
-        if (cut < 0) return url;
+    /// <summary>?new=1, from the command palette's "New bucket": opens the dialog once. A string, so no value can fail to parse.</summary>
+    [SupplyParameterFromQuery(Name = "new")] public string? NewParam { get; set; }
 
-        var folder = obj.Key[..(cut + 1)];
-        return $"{url}?prefix={string.Join("/", folder.Split('/').Select(Uri.EscapeDataString))}";
+    bool _openCreate;
+
+    protected override void OnParametersSet()
+    {
+        if (NewParam is not null) _openCreate = true;
+    }
+
+    // Radzen closes dialogs on every navigation, so the address loses the parameter only once the dialog is done.
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!_openCreate) return;
+        _openCreate = false;
+        await OnCreateBucket();
+        Navigation.NavigateTo("/buckets", replace: true);
     }
 
     protected override async Task OnInitializedAsync()

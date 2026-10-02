@@ -196,6 +196,8 @@
     bool _bucketExists = true;
     bool _bulkDeleting;
     bool _loaded;
+    string? _loadedBucket;
+    List<string> _otherBuckets = [];
     bool _bulkDownloading;
     Bucket? _bucket;
     string? _loadedPrefix;
@@ -220,7 +222,7 @@
     IReadOnlyList<OxCrumb> Crumbs =>
     [
         new("Buckets", "/buckets"),
-        new(BucketName, PrefixUrl(string.Empty)),
+        new(BucketName, PrefixUrl(string.Empty), _otherBuckets.Count > 0 ? BucketSwitcher : null),
         ..GetBreadcrumbSegments().Select(c => new OxCrumb(c.Segment, PrefixUrl(c.PrefixUpTo)))
     ];
 
@@ -230,7 +232,14 @@
     void OnCheckClick(ListRow row, MouseEventArgs e) =>
         _selectionAnchor = RangeSelection.Apply(VisibleRows(), _selected, _selectionAnchor, row, e.ShiftKey);
 
-    void OnRowRender(RowRenderEventArgs<ListRow> args)
+    RenderFragment BucketSwitcher => @<OxMenuButton Icon="unfold_more" Label="Switch bucket">
+        @foreach (var name in _otherBuckets)
+        {
+            <OxMenuItem Icon="inventory_2" Href="@($"/buckets/{Uri.EscapeDataString(name)}")">@name</OxMenuItem>
+        }
+    </OxMenuButton>;
+
+        void OnRowRender(RowRenderEventArgs<ListRow> args)
     {
         if (args.Data is null) return;
         if (_selected.Contains(args.Data))
@@ -287,10 +296,25 @@
         var auth = await AuthStateProvider.GetAuthenticationStateAsync();
         _currentUserId = auth.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? string.Empty;
         _isPrivileged = auth.User.IsInRole("Admin") || auth.User.IsInRole("Manager");
+    }
 
+    // The page component stays when the breadcrumb's switcher opens another bucket; everything of the old one goes.
+    async Task OpenBucketAsync()
+    {
+        _loadedBucket = BucketName;
+        _loaded = false;
+        _selected.Clear();
+        _selectionAnchor = null;
+        _searchCts.Cancel();
+        (_searchTerm, _searchApplied, _searchLimitHit) = (string.Empty, false, false);
+        _rows = [];
         _currentPrefix = PrefixParam ?? string.Empty;
+        _loadedPrefix = null;
+
         _bucket = await MetadataService.GetBucketAsync(BucketName, _isPrivileged ? null : _currentUserId);
         _bucketExists = _bucket is not null;
+        _otherBuckets = (await MetadataService.ListBucketsAsync(_isPrivileged ? null : _currentUserId))
+            .Select(b => b.Name).Where(n => n != BucketName).Order(StringComparer.Ordinal).ToList();
         if (_bucketExists)
             await LoadObjects();
         else
@@ -390,6 +414,11 @@
 
     protected override async Task OnParametersSetAsync()
     {
+        if (BucketName != _loadedBucket)
+        {
+            await OpenBucketAsync();
+            return;
+        }
         var prefix = PrefixParam ?? string.Empty;
         if (!_bucketExists || prefix == _loadedPrefix) return;
 

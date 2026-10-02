@@ -1,0 +1,141 @@
+@implements IAsyncDisposable
+@inject IJSRuntime JS
+
+@if (Open)
+{
+    <div class="ox-palette-backdrop" @onclick="Close"></div>
+    <div class="ox-palette" role="dialog" aria-modal="true" aria-label="@Placeholder">
+        <div class="ox-palette-search">
+            <OxIcon Name="search" Tone="OxTone.Muted" />
+            <input @ref="_input" class="ox-palette-input" type="text" value="@Query" placeholder="@Placeholder" autocomplete="off" spellcheck="false"
+                   role="combobox" aria-expanded="true" aria-controls="ox-palette-list" aria-activedescendant="@(Items.Count > 0 ? $"ox-palette-{_active}" : null)"
+                   @oninput="@(e => QueryChanged.InvokeAsync(e.Value?.ToString() ?? string.Empty))" />
+            @if (Busy)
+            {
+                <OxSpinner Label="Searching" />
+            }
+        </div>
+        <ul class="ox-palette-list" id="ox-palette-list" role="listbox" @ref="_list">
+            @if (Items.Count == 0)
+            {
+                <li class="ox-palette-empty" role="presentation">@EmptyText</li>
+            }
+            @{ string? group = null; }
+            @for (var i = 0; i < Items.Count; i++)
+            {
+                var index = i;
+                var item = Items[i];
+                if (item.Group != group)
+                {
+                    group = item.Group;
+                    <li class="ox-palette-group" role="presentation">@group</li>
+                }
+                <li id="ox-palette-@index" role="option" aria-selected="@(index == _active ? "true" : "false")"
+                    class="ox-palette-item @(index == _active ? "is-active" : null)" @onmouseenter="@(() => _active = index)" @onclick="@(() => Pick(index))">
+                    <OxIcon Name="@item.Icon" />
+                    <span class="ox-palette-label">@item.Label</span>
+                    @if (item.Hint is not null)
+                    {
+                        <span class="ox-palette-hint">@item.Hint</span>
+                    }
+                </li>
+            }
+        </ul>
+        <div class="ox-palette-keys"><kbd>↑</kbd><kbd>↓</kbd> move <kbd>Enter</kbd> open <kbd>Esc</kbd> close</div>
+    </div>
+}
+
+@code {
+    ElementReference _input;
+    ElementReference _list;
+    IJSObjectReference? _module;
+    IJSObjectReference? _hotkey;
+    DotNetObjectReference<OxPalette>? _self;
+    IReadOnlyList<OxPaletteItem>? _shown;
+    int _active;
+    bool _wasOpen;
+    bool _attach;
+    bool _reveal;
+
+    /// <summary>Cmd+K or Ctrl+K toggles it from anywhere; Escape, a click outside and a pick close it.</summary>
+    [Parameter] public bool Open { get; set; }
+    [Parameter] public EventCallback<bool> OpenChanged { get; set; }
+    [Parameter] public string Query { get; set; } = string.Empty;
+    [Parameter] public EventCallback<string> QueryChanged { get; set; }
+    /// <summary>The results in display order, grouped: a new group starts where Group changes.</summary>
+    [Parameter] public IReadOnlyList<OxPaletteItem> Items { get; set; } = [];
+    [Parameter] public EventCallback<OxPaletteItem> OnPick { get; set; }
+    [Parameter] public bool Busy { get; set; }
+    [Parameter] public string Placeholder { get; set; } = "Search";
+    [Parameter] public string EmptyText { get; set; } = "No matches";
+    /// <summary>Once in the browser: true on a Mac, so the caller can write ⌘K instead of Ctrl K.</summary>
+    [Parameter] public EventCallback<bool> OnPlatform { get; set; }
+
+    protected override void OnParametersSet()
+    {
+        if (!ReferenceEquals(Items, _shown))
+        {
+            _shown = Items;
+            _active = 0;
+            _reveal = true;
+        }
+        if (Open && !_wasOpen) _attach = true;
+        _wasOpen = Open;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            _module = await JS.InvokeAsync<IJSObjectReference>("import", "./_content/ObjeX.Web/Components/Ui/OxPalette.razor.js");
+            _self = DotNetObjectReference.Create(this);
+            _hotkey = await _module.InvokeAsync<IJSObjectReference>("listen", _self);
+            await OnPlatform.InvokeAsync(await _module.InvokeAsync<bool>("isMac"));
+        }
+        if (_module is null || !Open) return;
+        if (_attach)
+        {
+            _attach = false;
+            await _module.InvokeVoidAsync("attach", _input, _self);
+        }
+        if (_reveal)
+        {
+            _reveal = false;
+            await _module.InvokeVoidAsync("reveal", _list);
+        }
+    }
+
+    Task Pick(int index) => index >= 0 && index < Items.Count ? OnPick.InvokeAsync(Items[index]) : Task.CompletedTask;
+
+    Task Close() => OpenChanged.InvokeAsync(false);
+
+    [JSInvokable] public Task ToggleFromBrowser() => InvokeAsync(() => OpenChanged.InvokeAsync(!Open));
+
+    [JSInvokable] public Task CloseFromBrowser() => InvokeAsync(Close);
+
+    [JSInvokable] public Task PickFromBrowser() => InvokeAsync(() => Pick(_active));
+
+    [JSInvokable]
+    public Task MoveFromBrowser(int step) => InvokeAsync(() =>
+    {
+        if (Items.Count == 0) return;
+        _active = (_active + step + Items.Count) % Items.Count;
+        _reveal = true;
+        StateHasChanged();
+    });
+
+    public async ValueTask DisposeAsync()
+    {
+        try
+        {
+            if (_hotkey is not null)
+            {
+                await _hotkey.InvokeVoidAsync("stop");
+                await _hotkey.DisposeAsync();
+            }
+            if (_module is not null) await _module.DisposeAsync();
+        }
+        catch (JSDisconnectedException) { }
+        _self?.Dispose();
+    }
+}

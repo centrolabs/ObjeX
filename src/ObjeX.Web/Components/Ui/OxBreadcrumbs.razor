@@ -14,10 +14,11 @@
         {
             <span aria-current="page">@item.Text</span>
         }
+        @item.Menu
     }
 </h1>
 
 @code {
-    /// <summary>From the root to the current location. Only entries before the last one link.</summary>
+    /// <summary>From the root to the current location. Only entries before the last one link; an entry's Menu sits right after it, for example to switch to a sibling.</summary>
     [Parameter, EditorRequired] public IReadOnlyList<OxCrumb> Items { get; set; } = [];
 }
