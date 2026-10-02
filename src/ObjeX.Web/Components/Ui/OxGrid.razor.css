@@ -1,0 +1,6 @@
+/* auto-fill keeps a lone card at column width instead of stretching it across the page. */
+.ox-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, var(--ox-size-card-min)), 1fr));
+    gap: var(--ox-space-8);
+}

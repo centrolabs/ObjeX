@@ -1,13 +1,13 @@
 @if (Href is null)
 {
-    <button type="@Type" class="@Css" disabled="@Disabled" title="@Title" @onclick="OnClick" @attributes="Attributes">
-        @if (Icon is not null) { <OxIcon Name="@Icon" /> }
+    <button type="@Type" class="@Css" disabled="@Disabled" data-ox-tooltip="@Tooltip" aria-busy="@(Busy ? "true" : null)" @onclick="OnClick" @attributes="Attributes">
+        @if (Icon is not null) { <OxIcon Name="@Icon" Class="@(Busy ? "ox-icon--spin" : null)" /> }
         @ChildContent
     </button>
 }
 else
 {
-    <a href="@Href" class="@Css" title="@Title" download="@Download" @attributes="Attributes">
+    <a href="@Href" class="@Css" data-ox-tooltip="@Tooltip" download="@Download" @attributes="Attributes">
         @if (Icon is not null) { <OxIcon Name="@Icon" /> }
         @ChildContent
     </a>
@@ -17,12 +17,14 @@ else
     [Parameter] public OxButtonVariant Variant { get; set; }
     [Parameter] public string? Icon { get; set; }
     [Parameter] public bool Disabled { get; set; }
+    /// <summary>Spins the icon while the action runs. The button keeps its look; the page ignores repeated clicks.</summary>
+    [Parameter] public bool Busy { get; set; }
     /// <summary>"button" or "submit". Ignored when <see cref="Href"/> is set.</summary>
     [Parameter] public string Type { get; set; } = "button";
     /// <summary>Renders a link that looks like a button, for downloads and plain navigation.</summary>
     [Parameter] public string? Href { get; set; }
     [Parameter] public string? Download { get; set; }
-    [Parameter] public string? Title { get; set; }
+    [Parameter] public string? Tooltip { get; set; }
     [Parameter] public bool Block { get; set; }
     [Parameter] public EventCallback<MouseEventArgs> OnClick { get; set; }
     [Parameter] public RenderFragment? ChildContent { get; set; }

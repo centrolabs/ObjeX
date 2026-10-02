@@ -13,5 +13,5 @@
 .ox-text--tone-warning { color: var(--ox-warning); }
 .ox-text--tone-danger { color: var(--ox-danger); }
 
-.ox-text--truncate { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ox-text--truncate { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ox-text--hidden { visibility: hidden; }

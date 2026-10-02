@@ -1,0 +1,6 @@
+<div class="ox-grid">@ChildContent</div>
+
+@code {
+    /// <summary>Cards side by side, as many columns as fit at --ox-size-card-min each; one column on a narrow screen.</summary>
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+}

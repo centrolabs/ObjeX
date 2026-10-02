@@ -28,7 +28,7 @@
             <Template Context="row">
                 <OxStack Row="true" Gap="5" Align="OxAlign.Baseline">
                     <OxText><strong>@row.Username</strong></OxText>
-                    <OxText Variant="OxTextVariant.Small" Truncate="true" title="@row.Email">@row.Email</OxText>
+                    <OxTooltip Text="@row.Email" WhenTruncated="true"><OxText Variant="OxTextVariant.Small" Truncate="true">@row.Email</OxText></OxTooltip>
                 </OxStack>
             </Template>
         </RadzenDataGridColumn>
@@ -67,7 +67,7 @@
             </Template>
         </RadzenDataGridColumn>
         <RadzenDataGridColumn TItem="UserRow" Property="CreatedAt" Title="Created" Width="@OxSizes.DateColumn" CssClass="ox-col-muted">
-            <Template Context="row">@Tz.Format(row.CreatedAt)</Template>
+            <Template Context="row"><OxTime Value="@row.CreatedAt" /></Template>
         </RadzenDataGridColumn>
         <RadzenDataGridColumn TItem="UserRow" Title="" Width="@OxSizes.MenuColumn" Sortable="false" CssClass="ox-col-actions">
             <Template Context="row">
