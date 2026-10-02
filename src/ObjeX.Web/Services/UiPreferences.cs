@@ -7,7 +7,7 @@ using Radzen;
 namespace ObjeX.Web.Services;
 
 /// <summary>
-/// The appearance choices of this browser: theme, sidebar, clock, relative times, start page. Each lives in its own
+/// The appearance choices of this browser: theme, sidebar, density, font, clock, relative times, start page. Each lives in its own
 /// cookie; Routes loads them, so the first render already matches. A change writes the cookie through the browser and
 /// raises Changed for every component that shows it.
 /// </summary>
@@ -17,6 +17,10 @@ public sealed class UiPreferences(IJSRuntime js, ThemeService themes, BrowserTim
     public const string SidebarWidthCookie = "objex-sidebar-width";
     public const string ClockCookie = "objex-clock";
     public const string TimesCookie = "objex-times";
+    public const string DensityCookie = "objex-density";
+    public const string FontCookie = "objex-font";
+    public const string CompactClass = "ox-compact";
+    public const string SystemFontClass = "ox-font-system";
 
     public const int SidebarMinWidth = 200;
     public const int SidebarMaxWidth = 360;
@@ -29,16 +33,28 @@ public sealed class UiPreferences(IJSRuntime js, ThemeService themes, BrowserTim
     public int? SidebarWidth { get; private set; }
     public bool Hour12 { get; private set; }
     public bool RelativeTimes { get; private set; } = true;
+    /// <summary>Grid rows of 32 instead of 40 px.</summary>
+    public bool Compact { get; private set; }
+    /// <summary>The operating system's font instead of Inter.</summary>
+    public bool SystemFont { get; private set; }
     /// <summary>The raw cookie; StartPages.Resolve checks it against the list and the user's roles.</summary>
     public string? StartPage { get; private set; }
 
     public event Action? Changed;
 
-    static readonly string[] Names = [ThemeMode.CookieName, SidebarCookie, SidebarWidthCookie, ClockCookie, TimesCookie, StartPages.CookieName];
+    static readonly string[] Names = [ThemeMode.CookieName, SidebarCookie, SidebarWidthCookie, ClockCookie, TimesCookie, DensityCookie, FontCookie, StartPages.CookieName];
 
     /// <summary>The cookies Routes needs, read while prerendering; inside the circuit there is no request.</summary>
     public static Dictionary<string, string> CookiesFrom(IRequestCookieCollection? cookies) =>
         cookies is null ? [] : Names.Where(cookies.ContainsKey).ToDictionary(n => n, n => cookies[n] ?? string.Empty);
+
+    /// <summary>The classes App.razor puts on &lt;html&gt; while prerendering, so the first paint has theme, density and font.</summary>
+    public static string HtmlClass(IRequestCookieCollection? cookies) => string.Join(' ', new[]
+    {
+        ThemeMode.CssClass(cookies?[ThemeMode.CookieName]),
+        cookies?[DensityCookie] == "compact" ? CompactClass : null,
+        cookies?[FontCookie] == "system" ? SystemFontClass : null
+    }.Where(c => c is not null));
 
     public void Load(IReadOnlyDictionary<string, string>? cookies)
     {
@@ -51,6 +67,8 @@ public sealed class UiPreferences(IJSRuntime js, ThemeService themes, BrowserTim
             : null;
         Hour12 = Get(ClockCookie) == "12";
         RelativeTimes = Get(TimesCookie) != "absolute";
+        Compact = Get(DensityCookie) == "compact";
+        SystemFont = Get(FontCookie) == "system";
         StartPage = Get(StartPages.CookieName);
         tz.Hour12 = Hour12;
     }
@@ -93,6 +111,22 @@ public sealed class UiPreferences(IJSRuntime js, ThemeService themes, BrowserTim
         RelativeTimes = relative;
         Changed?.Invoke();
         await WriteAsync(TimesCookie, relative ? "relative" : "absolute");
+    }
+
+    public async Task SetCompactAsync(bool compact)
+    {
+        Compact = compact;
+        Changed?.Invoke();
+        await WriteAsync(DensityCookie, compact ? "compact" : "comfortable");
+        await js.InvokeVoidAsync("ObjeX.setClass", CompactClass, compact);
+    }
+
+    public async Task SetSystemFontAsync(bool system)
+    {
+        SystemFont = system;
+        Changed?.Invoke();
+        await WriteAsync(FontCookie, system ? "system" : "inter");
+        await js.InvokeVoidAsync("ObjeX.setClass", SystemFontClass, system);
     }
 
     public async Task SetStartPageAsync(string path)

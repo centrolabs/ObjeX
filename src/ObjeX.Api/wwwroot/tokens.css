@@ -212,6 +212,10 @@
     --ox-shadow-pop: 0 12px 30px -8px rgba(0, 0, 0, .65), 0 1px 2px rgba(0, 0, 0, .4);
 }
 
+/* ---- Preferences: classes on <html> from UiPreferences ------------------------------------ */
+.ox-compact { --ox-size-row: 32px; }
+.ox-font-system { --ox-font: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; }
+
 /* ---- Layer 3: Radzen variables, derived from the roles ----------------------------------- */
 /* Repeated on the mode classes so a nested .ox-light / .ox-dark scope (styleguide) re-resolves them. */
 :root, .ox-light, .ox-dark {

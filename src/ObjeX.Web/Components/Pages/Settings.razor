@@ -24,6 +24,12 @@
         <OxSettingRow Label="Dark mode">
             <OxSwitch Label="Dark mode" Checked="@Preferences.IsDark" CheckedChanged="@Preferences.SetDarkAsync" />
         </OxSettingRow>
+        <OxSettingRow Label="Compact rows" Hint="Tables show more rows: 32 instead of 40 px each.">
+            <OxSwitch Label="Compact rows" Checked="@Preferences.Compact" CheckedChanged="@Preferences.SetCompactAsync" />
+        </OxSettingRow>
+        <OxSettingRow Label="System font" Hint="Your operating system's font instead of Inter.">
+            <OxSwitch Label="System font" Checked="@Preferences.SystemFont" CheckedChanged="@Preferences.SetSystemFontAsync" />
+        </OxSettingRow>
     </OxCard>
 
     <OxCard Title="Preferences">
