@@ -2,11 +2,11 @@
     <OxFileIcon Kind="@Kind" />
     @if (Href is not null)
     {
-        <a href="@Href">@ChildContent</a>
+        <a href="@Href" data-ox-tooltip="" data-ox-tooltip-truncated>@ChildContent</a>
     }
     else
     {
-        <span>@ChildContent</span>
+        <span data-ox-tooltip="" data-ox-tooltip-truncated>@ChildContent</span>
     }
 </span>
 
@@ -14,5 +14,6 @@
     [Parameter] public OxFileKind Kind { get; set; }
     /// <summary>Makes the name a link, for a folder or a bucket.</summary>
     [Parameter] public string? Href { get; set; }
+    /// <summary>The name. Cut off with an ellipsis, it shows in full as a tooltip.</summary>
     [Parameter] public RenderFragment? ChildContent { get; set; }
 }

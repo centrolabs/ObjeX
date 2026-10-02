@@ -1,0 +1,45 @@
+@inject IJSRuntime JS
+
+<OxIconButton Icon="@(_copied is null ? Icon : "check")" Label="@(_copied ?? Label)" Busy="@_busy" TooltipPlacement="@TooltipPlacement" OnClick="Copy" />
+
+@code {
+    string? _copied;
+    bool _busy;
+
+    /// <summary>Fixed text to copy.</summary>
+    [Parameter] public string? Text { get; set; }
+    /// <summary>Text made on click, for example a share link. Null means nothing to copy; the caller has said why.</summary>
+    [Parameter] public Func<Task<OxCopyContent?>>? Content { get; set; }
+    [Parameter] public string Label { get; set; } = "Copy";
+    [Parameter] public string Icon { get; set; } = "content_copy";
+    [Parameter] public OxPlacement TooltipPlacement { get; set; }
+
+    // The feedback sits where the click was: the icon turns into a check and the label, which is the tooltip, says what happened.
+    async Task Copy()
+    {
+        if (_busy) return;
+        OxCopyContent? content;
+        if (Text is not null)
+            content = new OxCopyContent(Text);
+        else
+        {
+            _busy = true;
+            try { content = Content is null ? null : await Content(); }
+            finally { _busy = false; }
+        }
+        if (content is null) return;
+
+        try
+        {
+            await JS.InvokeVoidAsync("navigator.clipboard.writeText", content.Text);
+        }
+        catch (JSException)
+        {
+            return; // the browser refused the clipboard
+        }
+        _copied = content.Copied ?? "Copied";
+        StateHasChanged();
+        await Task.Delay(1500);
+        _copied = null;
+    }
+}

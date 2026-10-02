@@ -2,20 +2,48 @@
 
 <OxStack Gap="8">
     <OxText>@Message</OxText>
+    @if (RequireText is not null)
+    {
+        <OxField Label="@($"Type {RequireText} to confirm")">
+            <OxTextInput Value="@_typed" ValueChanged="@(v => _typed = v)" Mono="true" AutoFocus="true" autocomplete="off" spellcheck="false"
+                         OnEnter="OnEnter" OnEscape="@(() => DialogService.Close(false))" />
+        </OxField>
+    }
     <OxStack Row="true" Justify="OxJustify.End" Gap="4">
         <OxButton OnClick="@(() => DialogService.Close(false))">Cancel</OxButton>
-        <OxButton Variant="@(Danger ? OxButtonVariant.Danger : OxButtonVariant.Primary)" OnClick="@(() => DialogService.Close(true))" autofocus>@ConfirmText</OxButton>
+        @if (RequireText is null)
+        {
+            <OxButton Variant="@(Danger ? OxButtonVariant.Danger : OxButtonVariant.Primary)" OnClick="@(() => DialogService.Close(true))" autofocus>@ConfirmText</OxButton>
+        }
+        else
+        {
+            <OxButton Variant="@(Danger ? OxButtonVariant.Danger : OxButtonVariant.Primary)" Disabled="@(!Matches)" OnClick="@(() => DialogService.Close(true))">@ConfirmText</OxButton>
+        }
     </OxStack>
 </OxStack>
 
 @code {
+    string _typed = string.Empty;
+
     [Parameter] public string Message { get; set; } = string.Empty;
     [Parameter] public string ConfirmText { get; set; } = "OK";
     [Parameter] public bool Danger { get; set; }
+    /// <summary>When set, the confirm button stays disabled until exactly this text is typed, for example a bucket's name.</summary>
+    [Parameter] public string? RequireText { get; set; }
+
+    bool Matches => _typed == RequireText;
+
+    void OnEnter()
+    {
+        if (Matches) DialogService.Close(true);
+    }
 
     /// <summary>Asks a yes-or-no question. True only when the user confirms; closing the dialog any other way is a no.</summary>
-    public static async Task<bool> AskAsync(DialogService dialogs, string title, string message, string confirmText, bool danger = false) =>
+    public static async Task<bool> AskAsync(DialogService dialogs, string title, string message, string confirmText, bool danger = false, string? requireText = null) =>
         await dialogs.OpenAsync<ConfirmDialog>(title,
-            new Dictionary<string, object?> { { nameof(Message), message }, { nameof(ConfirmText), confirmText }, { nameof(Danger), danger } },
+            new Dictionary<string, object?>
+            {
+                { nameof(Message), message }, { nameof(ConfirmText), confirmText }, { nameof(Danger), danger }, { nameof(RequireText), requireText }
+            },
             new DialogOptions { Width = OxSizes.DialogSmall, CloseDialogOnOverlayClick = true }) is true;
 }
