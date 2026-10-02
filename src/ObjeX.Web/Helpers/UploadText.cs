@@ -29,6 +29,10 @@ public static class UploadText
         return string.Join(" · ", parts);
     }
 
+    /// <summary>"↑ 3/10" in front of the browser tab's title while files go up, so another tab still shows the progress; null otherwise.</summary>
+    public static string? TabPrefix(UploadQueue queue) =>
+        queue.IsActive ? $"↑ {queue.CountOf(UploadStatus.Done)}/{queue.Items.Count - queue.CountOf(UploadStatus.Cancelled)}" : null;
+
     /// <summary>The bar turns red once a run has ended with files that did not go up.</summary>
     public static OxTone Tone(UploadQueue queue) =>
         !queue.IsActive && queue.CountOf(UploadStatus.Failed) > 0 ? OxTone.Danger : OxTone.Default;

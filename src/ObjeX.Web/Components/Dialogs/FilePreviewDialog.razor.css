@@ -1,0 +1,2 @@
+/* The dialog takes the focus only to receive the arrow keys; its buttons show the keyboard focus. */
+.ox-preview-dialog:focus { outline: none; }

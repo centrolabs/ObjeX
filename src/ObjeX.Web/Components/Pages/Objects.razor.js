@@ -136,3 +136,27 @@ function serverError(xhr) {
         return null;
     }
 }
+
+// Files on the clipboard (Cmd+V of a screenshot or of files copied in the Finder) go to the folder shown, like a drop.
+// Text fields keep their own paste, and an open dialog takes none.
+export function watchPaste(sink) {
+    const onPaste = e => {
+        if (e.target instanceof Element && e.target.closest("input, textarea, [contenteditable]")) return;
+        if (document.querySelector(".rz-dialog")) return;
+        const files = [...(e.clipboardData?.files ?? [])];
+        if (files.length === 0) return;
+        e.preventDefault();
+        sink.add(files.map(file => ({ file, path: pastedName(file) })));
+    };
+    document.addEventListener("paste", onPaste);
+    return { stop: () => document.removeEventListener("paste", onPaste) };
+}
+
+// A screenshot arrives as image.png every time; a timestamp keeps the next one from overwriting it.
+function pastedName(file) {
+    if (!/^image\.\w+$/i.test(file.name)) return file.name;
+    const d = new Date();
+    const two = n => String(n).padStart(2, "0");
+    return `Pasted ${d.getFullYear()}-${two(d.getMonth() + 1)}-${two(d.getDate())} ${two(d.getHours())}.${two(d.getMinutes())}.${two(d.getSeconds())}`
+        + file.name.slice(file.name.lastIndexOf("."));
+}

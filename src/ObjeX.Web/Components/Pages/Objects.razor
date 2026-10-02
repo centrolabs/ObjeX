@@ -24,7 +24,7 @@
 @inject IKeyGate KeyGate
 @inject IOptions<AntiforgeryOptions> AntiforgeryOptions
 
-<PageTitle>@BucketName — ObjeX</PageTitle>
+<PageTitle>@(UploadText.TabPrefix(_uploads) is { } progress ? $"{progress} · " : null)@BucketName — ObjeX</PageTitle>
 
 <NavigationLock ConfirmExternalNavigation="@_uploads.IsActive" OnBeforeInternalNavigation="OnBeforeInternalNavigation" />
 
@@ -53,7 +53,7 @@
         </ChildContent>
     </OxPageHeader>
 
-    <RadzenDataGrid Data="@_rows" TItem="ListRow" AllowSorting="true" AllowAlternatingRows="false" RowRender="OnRowRender"
+    <RadzenDataGrid @ref="_grid" Data="@_rows" TItem="ListRow" AllowSorting="true" AllowAlternatingRows="false" RowRender="OnRowRender"
                     EmptyText="@(_searchApplied ? "No matches." : "No objects yet. Drag files or folders here or click Upload.")">
         <Columns>
             <RadzenDataGridColumn TItem="ListRow" Width="@OxSizes.CheckColumn" Sortable="false" Resizable="false" CssClass="ox-col-check">
@@ -62,8 +62,7 @@
                                 CheckedChanged="@(v => { if (v) _rows.ForEach(r => _selected.Add(r)); else _selected.Clear(); })" />
                 </HeaderTemplate>
                 <Template Context="row">
-                    <OxCheckbox Label="@($"Select {row.Name}")" Checked="@_selected.Contains(row)"
-                                CheckedChanged="@(v => { if (v) _selected.Add(row); else _selected.Remove(row); })" />
+                    <OxCheckbox Label="@($"Select {row.Name}")" Checked="@_selected.Contains(row)" OnClick="@(e => OnCheckClick(row, e))" />
                 </Template>
             </RadzenDataGridColumn>
             <RadzenDataGridColumn TItem="ListRow" Title="Name" Property="Name">
@@ -177,6 +176,9 @@
     List<BlobObject> _objects = [];
     List<string> _folders = [];
     HashSet<ListRow> _selected = [];
+    RadzenDataGrid<ListRow>? _grid;
+    ListRow? _selectionAnchor;
+    IJSObjectReference? _paste;
     string _currentPrefix = string.Empty;
     readonly UploadQueue _uploads = new();
     IJSObjectReference? _uploadModule;
@@ -212,6 +214,12 @@
         new(BucketName, PrefixUrl(string.Empty)),
         ..GetBreadcrumbSegments().Select(c => new OxCrumb(c.Segment, PrefixUrl(c.PrefixUpTo)))
     ];
+
+    // What the grid shows, in its order: a sorted grid differs from _rows, and Shift-click and preview paging follow the screen.
+    List<ListRow> VisibleRows() => _grid?.View?.ToList() ?? _rows;
+
+    void OnCheckClick(ListRow row, MouseEventArgs e) =>
+        _selectionAnchor = RangeSelection.Apply(VisibleRows(), _selected, _selectionAnchor, row, e.ShiftKey);
 
     void OnRowRender(RowRenderEventArgs<ListRow> args)
     {
@@ -378,6 +386,7 @@
         _self = DotNetObjectReference.Create(this);
         _uploadModule = await JS.InvokeAsync<IJSObjectReference>("import", "./_content/ObjeX.Web/Components/Pages/Objects.razor.js");
         _uploader = await _uploadModule.InvokeAsync<IJSObjectReference>("createUploader", _self, AntiforgeryOptions.Value.HeaderName, token);
+        _paste = await _uploadModule.InvokeAsync<IJSObjectReference>("watchPaste", _uploader);
         StateHasChanged();
     }
 
@@ -465,6 +474,11 @@
     {
         try
         {
+            if (_paste is not null)
+            {
+                await _paste.InvokeVoidAsync("stop");
+                await _paste.DisposeAsync();
+            }
             if (_uploader is not null)
             {
                 await _uploader.InvokeVoidAsync("dispose");
@@ -650,18 +664,27 @@
     static bool IsPreviewable(string contentType) =>
         InlineMediaTypes.IsInlineSafe(contentType) || TextPreview.IsTextLike(contentType);
 
+    // The dialog pages with the arrow keys through the previewable files of the list, in the order on screen.
     async Task PreviewObject(BlobObject obj)
     {
-        var url = FileHelper.ObjectUrl(BucketName, obj.Key);
+        var items = VisibleRows()
+            .Where(r => r.Object is { } o && IsPreviewable(o.ContentType))
+            .Select(r => new Dialogs.FilePreviewDialog.Item(r.Object!.Key, r.Object.ContentType))
+            .ToList();
+        var index = items.FindIndex(i => i.Key == obj.Key);
+        if (index < 0)
+        {
+            items = [new(obj.Key, obj.ContentType)];
+            index = 0;
+        }
+
         await DialogService.OpenAsync<Dialogs.FilePreviewDialog>(
-            Path.GetFileName(obj.Key),
+            "Preview",
             new Dictionary<string, object?>
             {
-                { "FileName",    Path.GetFileName(obj.Key) },
-                { "ContentType", obj.ContentType },
-                { "Url",         url },
-                { "BucketName",  BucketName },
-                { "Key",         obj.Key },
+                { "BucketName", BucketName },
+                { "Items",      items },
+                { "Index",      index },
             },
             new DialogOptions { Width = OxSizes.DialogLarge, CloseDialogOnOverlayClick = true, ShowClose = true });
     }

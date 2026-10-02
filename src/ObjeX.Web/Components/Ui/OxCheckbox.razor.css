@@ -39,3 +39,6 @@
 .ox-check input:disabled + .ox-check-box { background: var(--ox-surface-hover); }
 
 .ox-check:has(input:disabled) { cursor: default; color: var(--ox-text-muted); }
+
+/* A Shift-click selects a range; it must not also select the text between the two rows. */
+.ox-check { user-select: none; }
