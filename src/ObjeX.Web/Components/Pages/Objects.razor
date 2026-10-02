@@ -53,73 +53,80 @@
         </ChildContent>
     </OxPageHeader>
 
-    <RadzenDataGrid @ref="_grid" Data="@_rows" TItem="ListRow" AllowSorting="true" AllowAlternatingRows="false" RowRender="OnRowRender"
-                    EmptyText="@(_searchApplied ? "No matches." : "No objects yet. Drag files or folders here or click Upload.")">
-        <Columns>
-            <RadzenDataGridColumn TItem="ListRow" Width="@OxSizes.CheckColumn" Sortable="false" Resizable="false" CssClass="ox-col-check">
-                <HeaderTemplate>
-                    <OxCheckbox Label="Select all" Checked="@(_rows.Count > 0 && _selected.Count == _rows.Count)"
-                                CheckedChanged="@(v => { if (v) _rows.ForEach(r => _selected.Add(r)); else _selected.Clear(); })" />
-                </HeaderTemplate>
-                <Template Context="row">
-                    <OxCheckbox Label="@($"Select {row.Name}")" Checked="@_selected.Contains(row)" OnClick="@(e => OnCheckClick(row, e))" />
-                </Template>
-            </RadzenDataGridColumn>
-            <RadzenDataGridColumn TItem="ListRow" Title="Name" Property="Name">
-                <Template Context="row">
-                    @if (row.IsFolder)
-                    {
-                        <OxFileName Kind="OxFileKind.Folder" Href="@PrefixUrl(row.FolderPath!)">@row.Name</OxFileName>
-                    }
-                    else
-                    {
-                        <OxFileName Kind="@OxFileIcon.KindOf(row.Object!.ContentType)">@row.Name</OxFileName>
-                    }
-                </Template>
-            </RadzenDataGridColumn>
-            <RadzenDataGridColumn TItem="ListRow" Title="Type" Property="SortContentType" Width="@OxSizes.TypeColumn" CssClass="ox-col-muted">
-                <Template Context="row">@(row.IsFolder ? "—" : row.Object!.ContentType)</Template>
-            </RadzenDataGridColumn>
-            <RadzenDataGridColumn TItem="ListRow" Title="Size" Property="SortSize" Width="@OxSizes.SizeColumn" TextAlign="TextAlign.End">
-                <Template Context="row">@(row.IsFolder ? "—" : FileHelper.FormatBytes(row.Object!.Size))</Template>
-            </RadzenDataGridColumn>
-            <RadzenDataGridColumn TItem="ListRow" Title="Modified" Property="SortDate" Width="@OxSizes.DateColumn" CssClass="ox-col-muted">
-                <Template Context="row">@if (row.IsFolder) { @("—") } else { <OxTime Value="@row.Object!.UpdatedAt" /> }</Template>
-            </RadzenDataGridColumn>
-            <RadzenDataGridColumn TItem="ListRow" Title="" Width="@OxSizes.ActionsColumn" Sortable="false" Resizable="false" CssClass="ox-col-actions">
-                <Template Context="row">
-                    <OxRowActions>
+    @if (!_loaded)
+    {
+        <OxSkeleton Shape="OxSkeletonShape.Rows" Count="5" />
+    }
+    else
+    {
+        <RadzenDataGrid @ref="_grid" Data="@_rows" TItem="ListRow" AllowSorting="true" AllowAlternatingRows="false" RowRender="OnRowRender"
+                        EmptyText="@(_searchApplied ? "No matches." : "No objects yet. Drag files or folders here or click Upload.")">
+            <Columns>
+                <RadzenDataGridColumn TItem="ListRow" Width="@OxSizes.CheckColumn" Sortable="false" Resizable="false" CssClass="ox-col-check">
+                    <HeaderTemplate>
+                        <OxCheckbox Label="Select all" Checked="@(_rows.Count > 0 && _selected.Count == _rows.Count)"
+                                    CheckedChanged="@(v => { if (v) _rows.ForEach(r => _selected.Add(r)); else _selected.Clear(); })" />
+                    </HeaderTemplate>
+                    <Template Context="row">
+                        <OxCheckbox Label="@($"Select {row.Name}")" Checked="@_selected.Contains(row)" OnClick="@(e => OnCheckClick(row, e))" />
+                    </Template>
+                </RadzenDataGridColumn>
+                <RadzenDataGridColumn TItem="ListRow" Title="Name" Property="Name">
+                    <Template Context="row">
                         @if (row.IsFolder)
                         {
-                            <OxMenuButton Label="@($"More actions for {row.Name}")">
-                                <OxMenuItem Icon="download" Href="@FileHelper.FolderZipUrl(BucketName, row.FolderPath!)" Download="@($"{row.Name[..^1]}.zip")">Download ZIP</OxMenuItem>
-                                <OxMenuDivider />
-                                <OxMenuItem Icon="delete" Danger="true" OnClick="@(() => OnDeleteFolder(row.FolderPath!))">Delete</OxMenuItem>
-                            </OxMenuButton>
+                            <OxFileName Kind="OxFileKind.Folder" Href="@PrefixUrl(row.FolderPath!)">@row.Name</OxFileName>
                         }
                         else
                         {
-                            var obj = row.Object!;
-                            <OxIconButton Icon="download" Label="Download" Href="@FileHelper.ObjectUrl(BucketName, obj.Key, download: true)"
-                                          Download="@Path.GetFileName(obj.Key)" target="_blank" />
-                            <OxIconButton Icon="link" Label="Share link" OnClick="@(() => CopyPresignedLink(obj))" />
-                            <OxMenuButton Label="@($"More actions for {row.Name}")">
-                                @if (IsPreviewable(obj.ContentType))
-                                {
-                                    <OxMenuItem Icon="visibility" OnClick="@(() => PreviewObject(obj))">Preview</OxMenuItem>
-                                }
-                                <OxMenuItem Icon="info" OnClick="@(() => ShowMetadata(obj))">Metadata</OxMenuItem>
-                                <OxMenuItem Icon="content_copy" OnClick="@(() => CopyText(obj.Key, "Key copied"))">Copy key</OxMenuItem>
-                                <OxMenuItem Icon="content_copy" OnClick="@(() => CopyText($"s3://{BucketName}/{obj.Key}", "S3 URI copied"))">Copy S3 URI</OxMenuItem>
-                                <OxMenuDivider />
-                                <OxMenuItem Icon="delete" Danger="true" OnClick="@(() => OnDeleteObject(obj))">Delete</OxMenuItem>
-                            </OxMenuButton>
+                            <OxFileName Kind="@OxFileIcon.KindOf(row.Object!.ContentType)">@row.Name</OxFileName>
                         }
-                    </OxRowActions>
-                </Template>
-            </RadzenDataGridColumn>
-        </Columns>
-    </RadzenDataGrid>
+                    </Template>
+                </RadzenDataGridColumn>
+                <RadzenDataGridColumn TItem="ListRow" Title="Type" Property="SortContentType" Width="@OxSizes.TypeColumn" CssClass="ox-col-muted">
+                    <Template Context="row">@(row.IsFolder ? "—" : row.Object!.ContentType)</Template>
+                </RadzenDataGridColumn>
+                <RadzenDataGridColumn TItem="ListRow" Title="Size" Property="SortSize" Width="@OxSizes.SizeColumn" TextAlign="TextAlign.End">
+                    <Template Context="row">@(row.IsFolder ? "—" : FileHelper.FormatBytes(row.Object!.Size))</Template>
+                </RadzenDataGridColumn>
+                <RadzenDataGridColumn TItem="ListRow" Title="Modified" Property="SortDate" Width="@OxSizes.DateColumn" CssClass="ox-col-muted">
+                    <Template Context="row">@if (row.IsFolder) { @("—") } else { <OxTime Value="@row.Object!.UpdatedAt" /> }</Template>
+                </RadzenDataGridColumn>
+                <RadzenDataGridColumn TItem="ListRow" Title="" Width="@OxSizes.ActionsColumn" Sortable="false" Resizable="false" CssClass="ox-col-actions">
+                    <Template Context="row">
+                        <OxRowActions>
+                            @if (row.IsFolder)
+                            {
+                                <OxMenuButton Label="@($"More actions for {row.Name}")">
+                                    <OxMenuItem Icon="download" Href="@FileHelper.FolderZipUrl(BucketName, row.FolderPath!)" Download="@($"{row.Name[..^1]}.zip")">Download ZIP</OxMenuItem>
+                                    <OxMenuDivider />
+                                    <OxMenuItem Icon="delete" Danger="true" OnClick="@(() => OnDeleteFolder(row.FolderPath!))">Delete</OxMenuItem>
+                                </OxMenuButton>
+                            }
+                            else
+                            {
+                                var obj = row.Object!;
+                                <OxIconButton Icon="download" Label="Download" Href="@FileHelper.ObjectUrl(BucketName, obj.Key, download: true)"
+                                              Download="@Path.GetFileName(obj.Key)" target="_blank" />
+                                <OxIconButton Icon="link" Label="Share link" OnClick="@(() => CopyPresignedLink(obj))" />
+                                <OxMenuButton Label="@($"More actions for {row.Name}")">
+                                    @if (IsPreviewable(obj.ContentType))
+                                    {
+                                        <OxMenuItem Icon="visibility" OnClick="@(() => PreviewObject(obj))">Preview</OxMenuItem>
+                                    }
+                                    <OxMenuItem Icon="info" OnClick="@(() => ShowMetadata(obj))">Metadata</OxMenuItem>
+                                    <OxMenuItem Icon="content_copy" OnClick="@(() => CopyText(obj.Key, "Key copied"))">Copy key</OxMenuItem>
+                                    <OxMenuItem Icon="content_copy" OnClick="@(() => CopyText($"s3://{BucketName}/{obj.Key}", "S3 URI copied"))">Copy S3 URI</OxMenuItem>
+                                    <OxMenuDivider />
+                                    <OxMenuItem Icon="delete" Danger="true" OnClick="@(() => OnDeleteObject(obj))">Delete</OxMenuItem>
+                                </OxMenuButton>
+                            }
+                        </OxRowActions>
+                    </Template>
+                </RadzenDataGridColumn>
+            </Columns>
+        </RadzenDataGrid>
+    }
 
     @if (_uploads.Items.Count > 0)
     {
@@ -188,6 +195,7 @@
     DateTime _uploadsListedAt;
     bool _bucketExists = true;
     bool _bulkDeleting;
+    bool _loaded;
     bool _bulkDownloading;
     Bucket? _bucket;
     string? _loadedPrefix;
@@ -287,6 +295,7 @@
             await LoadObjects();
         else
             NotificationService.Notify(NotificationSeverity.Error, "Bucket not found", $"\"{BucketName}\" does not exist.");
+        _loaded = true;
     }
 
     async Task LoadObjects()

@@ -1,0 +1,28 @@
+.ox-skeleton {
+    display: block;
+    border-radius: var(--ox-radius-sm);
+    background: linear-gradient(90deg, var(--ox-surface-hover) 25%, var(--ox-surface-hover-strong) 50%, var(--ox-surface-hover) 75%);
+    background-size: 200% 100%;
+    animation: ox-skeleton-in .01s .15s both, ox-skeleton-shimmer 1.4s .15s ease-in-out infinite;
+}
+
+.ox-skeleton--line { width: 60%; height: var(--ox-fs-md); }
+.ox-skeleton--figure { width: var(--ox-size-field-sm); height: var(--ox-fs-2xl); }
+.ox-skeleton--chart { height: var(--ox-size-chart); border-radius: var(--ox-radius-md); }
+
+.ox-skeleton-rows { display: flex; flex-direction: column; gap: var(--ox-space-2); padding: var(--ox-space-4); }
+.ox-skeleton--row { height: calc(var(--ox-size-row) - var(--ox-space-2)); }
+
+@keyframes ox-skeleton-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes ox-skeleton-shimmer {
+    from { background-position: 100% 0; }
+    to { background-position: -100% 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .ox-skeleton { animation: ox-skeleton-in .01s .15s both; }
+}

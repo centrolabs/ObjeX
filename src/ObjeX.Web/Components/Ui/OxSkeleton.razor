@@ -1,0 +1,23 @@
+@if (Shape == OxSkeletonShape.Rows)
+{
+    <div class="ox-skeleton-rows" role="status" aria-label="Loading">
+        @for (var i = 0; i < Count; i++)
+        {
+            <span class="ox-skeleton ox-skeleton--row"></span>
+        }
+    </div>
+}
+else
+{
+    <span class="ox-skeleton ox-skeleton--@Shape.ToString().ToLowerInvariant()" aria-hidden="true"></span>
+}
+
+@code {
+    /// <summary>
+    /// A grey shape where content is still loading. It appears only after a short delay, so a page that loads quickly
+    /// never flashes it, and stands still under reduced motion.
+    /// </summary>
+    [Parameter] public OxSkeletonShape Shape { get; set; }
+    /// <summary>Number of lines for <see cref="OxSkeletonShape.Rows"/>.</summary>
+    [Parameter] public int Count { get; set; } = 4;
+}

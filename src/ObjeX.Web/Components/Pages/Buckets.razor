@@ -28,7 +28,11 @@
     <OxButton Variant="OxButtonVariant.Primary" Icon="add" OnClick="OnCreateBucket">New bucket</OxButton>
 </OxPageHeader>
 
-@if (_searchApplied)
+@if (!_loaded)
+{
+    <OxSkeleton Shape="OxSkeletonShape.Rows" Count="3" />
+}
+else if (_searchApplied)
 {
     <RadzenDataGrid Data="@_results" TItem="BlobObject" AllowSorting="true" AllowAlternatingRows="false" EmptyText="No matches.">
         <Columns>
@@ -115,6 +119,7 @@ else
     bool _searchApplied;
     bool _searchLimitHit;
     bool _refreshing;
+    bool _loaded;
     CancellationTokenSource _searchCts = new();
 
     const int SearchLimit = 500;
@@ -144,6 +149,7 @@ else
         _isAdmin = auth.User.IsInRole("Admin");
         _adminUsername = DefaultAdmin.Value.Username;
         await LoadBuckets();
+        _loaded = true;
     }
 
     async Task LoadBuckets()

@@ -17,6 +17,9 @@ public enum OxWidth { Auto, Xs, Sm, Md, Lg, Page, Fill }
 /// <summary>Side of the anchor a tooltip prefers; it flips when the viewport has no room there.</summary>
 public enum OxPlacement { Top, Bottom, Right, Left }
 
+/// <summary>What an <see cref="OxSkeleton"/> stands in for while a page loads.</summary>
+public enum OxSkeletonShape { Line, Figure, Chart, Rows }
+
 public enum OxPreviewKind { Image, Video, Audio, Pdf, Text }
 
 /// <summary>What a file row shows: decides the icon and, for folders, images and videos, its colour.</summary>

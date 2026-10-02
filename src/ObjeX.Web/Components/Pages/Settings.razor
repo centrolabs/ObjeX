@@ -113,7 +113,11 @@
             <OxText Variant="OxTextVariant.Small">Local endpoint. Clients on other machines need the public URL, set via S3:PublicUrl.</OxText>
         }
 
-        @if (_credentials.Count == 0)
+        @if (!_credentialsLoaded)
+        {
+            <OxSkeleton Shape="OxSkeletonShape.Rows" Count="2" />
+        }
+        else if (_credentials.Count == 0)
         {
             <OxEmptyState Icon="key" Title="No S3 credentials yet">Create one to access your buckets through the S3 API.</OxEmptyState>
         }
@@ -169,6 +173,7 @@
     string StartPage => _startPages.Any(p => p.Path == Preferences.StartPage) ? Preferences.StartPage! : StartPages.Default;
     string _userId = string.Empty;
     List<S3Credential> _credentials = [];
+    bool _credentialsLoaded;
     string Endpoint => S3.Value.PublicUrl.TrimEnd('/');
     bool IsDefaultEndpoint => Endpoint == new S3Options().PublicUrl.TrimEnd('/');
 
@@ -338,6 +343,7 @@
             .Where(c => c.UserId == _userId)
             .OrderByDescending(c => c.CreatedAt)
             .ToListAsync();
+        _credentialsLoaded = true;
     }
 
     async Task ShowConnect(S3Credential cred)
