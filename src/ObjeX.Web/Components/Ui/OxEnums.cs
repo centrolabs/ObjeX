@@ -22,6 +22,9 @@ public enum OxPreviewKind { Image, Video, Audio, Pdf, Text }
 /// <summary>What a file row shows: decides the icon and, for folders, images and videos, its colour.</summary>
 public enum OxFileKind { File, Folder, Bucket, Image, Video, Audio, Text, Pdf, Archive }
 
+/// <summary>What <see cref="OxCopyButton"/> puts on the clipboard, and what its label says for a moment afterwards.</summary>
+public record OxCopyContent(string Text, string? Copied = null);
+
 /// <summary>One entry of <see cref="OxBreadcrumbs"/>. The last entry is the current location and needs no link.</summary>
 public record OxCrumb(string Text, string? Href = null);
 

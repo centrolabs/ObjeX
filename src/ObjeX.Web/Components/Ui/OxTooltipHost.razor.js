@@ -1,7 +1,8 @@
 // One tooltip element for the page, fixed to the viewport, so no scrolling grid or card clips it.
 // Any element with data-ox-tooltip is an anchor; the text is read when it shows, so a re-render updates it.
-// data-ox-tooltip-placement picks the side, data-ox-tooltip-truncated shows it only when the text is cut off,
-// and an anchor whose CSS sets --ox-tooltip: off stays quiet (the expanded sidebar, where the label is visible).
+// data-ox-tooltip-placement picks the side, data-ox-tooltip-truncated shows it only when the text is cut off (with an
+// empty data-ox-tooltip it shows the element's own text), and an anchor whose CSS sets --ox-tooltip: off stays quiet
+// (the expanded sidebar, where the label is visible). A text that changes under the pointer shows at once.
 
 const openDelay = 450;
 const warmWindow = 400;
@@ -41,6 +42,16 @@ export function init(element) {
     document.addEventListener("keydown", e => { if (e.key === "Escape") hide(); }, true);
     window.addEventListener("scroll", () => hide(), { capture: true, passive: true });
     window.addEventListener("resize", () => hide());
+
+    // "Copied" replaces the label right after the click that hid the tooltip; it shows without waiting for a new hover.
+    new MutationObserver(records => {
+        for (const { target } of records) {
+            if (target !== anchor && !(target === clicked && target.matches(":hover"))) continue;
+            hide();
+            clicked = null;
+            show(target);
+        }
+    }).observe(document.body, { subtree: true, attributes: true, attributeFilter: ["data-ox-tooltip"] });
 }
 
 // The layout that owned the element is gone; the next layout brings its own.
@@ -62,11 +73,13 @@ function schedule(a) {
 }
 
 function show(a) {
-    const text = a.getAttribute("data-ox-tooltip");
-    if (!tip || !text || !a.isConnected) return;
+    if (!tip || !a.isConnected) return;
     if (getComputedStyle(a).getPropertyValue("--ox-tooltip").trim() === "off") return;
     const box = boxOf(a);
-    if (a.hasAttribute("data-ox-tooltip-truncated") && !isCut(box)) return;
+    const truncated = a.hasAttribute("data-ox-tooltip-truncated");
+    if (truncated && !isCut(box)) return;
+    const text = a.getAttribute("data-ox-tooltip") || (truncated ? box.textContent.trim() : "");
+    if (!text) return;
 
     anchor = a;
     tip.textContent = text;
@@ -74,9 +87,10 @@ function show(a) {
     place(box, a.getAttribute("data-ox-tooltip-placement") || "top");
     tip.classList.add("is-visible");
 
-    // An icon button already announces the same words through aria-label; describing it again would repeat them.
+    // An icon button announces the same words through aria-label, a cut-off name through its own text; describing
+    // it again would repeat them.
     const target = focusTarget(a, box);
-    if (target.getAttribute("aria-label") !== text) {
+    if (target.getAttribute("aria-label") !== text && target.textContent.trim() !== text) {
         target.setAttribute("aria-describedby", tip.id);
         anchor.oxDescribed = target;
     }

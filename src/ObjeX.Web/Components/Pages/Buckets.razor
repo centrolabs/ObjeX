@@ -248,8 +248,12 @@ else
 
     async Task OnDeleteBucket(Bucket bucket)
     {
-        if (!await ConfirmDialog.AskAsync(DialogService, "Delete bucket",
-                $"Delete \"{bucket.Name}\"? This will permanently remove all {bucket.ObjectCount} object(s) inside.", "Delete", danger: true)) return;
+        // An empty bucket loses nothing; for a full one the name has to be typed, so a slip of the mouse deletes no data.
+        var message = bucket.ObjectCount == 0
+            ? $"Delete the empty bucket \"{bucket.Name}\"?"
+            : $"Delete \"{bucket.Name}\" and its {bucket.ObjectCount:N0} object(s) ({FileHelper.FormatBytes(bucket.TotalSize)})? This cannot be undone.";
+        if (!await ConfirmDialog.AskAsync(DialogService, "Delete bucket", message, "Delete", danger: true,
+                requireText: bucket.ObjectCount == 0 ? null : bucket.Name)) return;
 
         try
         {

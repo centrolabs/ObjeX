@@ -1,9 +1,10 @@
 @* The wrapper has no box of its own (display: contents), so it never changes the layout of what it wraps. *@
-<span class="ox-tooltip-anchor" data-ox-tooltip="@Text" data-ox-tooltip-placement="@PlacementValue(Placement)"
+<span class="ox-tooltip-anchor" data-ox-tooltip="@(Text ?? string.Empty)" data-ox-tooltip-placement="@PlacementValue(Placement)"
       data-ox-tooltip-truncated="@WhenTruncated">@ChildContent</span>
 
 @code {
-    [Parameter, EditorRequired] public string? Text { get; set; }
+    /// <summary>Without a text, a <see cref="WhenTruncated"/> tooltip shows the content's own words.</summary>
+    [Parameter] public string? Text { get; set; }
     [Parameter] public OxPlacement Placement { get; set; }
     /// <summary>Shows only while the content is cut off with an ellipsis: the full text of a truncated cell.</summary>
     [Parameter] public bool WhenTruncated { get; set; }

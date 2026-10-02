@@ -125,13 +125,26 @@
                         <Template Context="cred"><OxTime Value="@cred.CreatedAt" /></Template>
                     </RadzenDataGridColumn>
                     <RadzenDataGridColumn TItem="S3Credential" Property="LastUsedAt" Title="Last used" Width="@OxSizes.DateColumn" CssClass="ox-col-muted">
-                        <Template Context="cred"><OxTime Value="@cred.LastUsedAt" Empty="Never" /></Template>
+                        <Template Context="cred">
+                            @if (CredentialUsage.Warning(cred.CreatedAt, cred.LastUsedAt, DateTime.UtcNow) is { } warning)
+                            {
+                                <OxTooltip Text="@(cred.LastUsedAt is { } used ? $"Last used {Tz.Format(used)}. Delete it if nobody needs it." : "Delete it if nobody needs it.")">
+                                    <OxBadge Tone="OxTone.Warning">@warning</OxBadge>
+                                </OxTooltip>
+                            }
+                            else
+                            {
+                                <OxTime Value="@cred.LastUsedAt" Empty="Never" />
+                            }
+                        </Template>
                     </RadzenDataGridColumn>
                     <RadzenDataGridColumn TItem="S3Credential" Title="" Width="@OxSizes.ActionsColumn" Sortable="false" CssClass="ox-col-actions">
                         <Template Context="cred">
                             <OxRowActions>
                                 <OxIconButton Icon="terminal" Label="Connect" OnClick="@(() => ShowConnect(cred))" />
                                 <OxMenuButton Label="@($"More actions for {cred.Name}")">
+                                    <OxMenuItem Icon="edit" OnClick="@(() => RenameCredential(cred))">Rename</OxMenuItem>
+                                    <OxMenuDivider />
                                     <OxMenuItem Icon="delete" Danger="true" OnClick="@(() => DeleteCredential(cred))">Delete</OxMenuItem>
                                 </OxMenuButton>
                             </OxRowActions>
@@ -355,6 +368,25 @@
                 { "Endpoint", Endpoint }
             },
             options: new DialogOptions { CloseDialogOnOverlayClick = false, ShowClose = false, Width = OxSizes.DialogWide });
+    }
+
+    async Task RenameCredential(S3Credential cred)
+    {
+        var result = await DialogService.OpenAsync<CreateS3CredentialDialog>("Rename credential",
+            new Dictionary<string, object?> { { "InitialName", cred.Name }, { "SubmitText", "Rename" } },
+            new DialogOptions { Width = OxSizes.DialogSmall, CloseDialogOnOverlayClick = true, ShowClose = true });
+
+        if (result is not CreateS3CredentialDialog.Result r || r.Name == cred.Name) return;
+
+        await using (var db = await DbFactory.CreateDbContextAsync())
+        {
+            await db.S3Credentials
+                .Where(c => c.Id == cred.Id && c.UserId == _userId)
+                .ExecuteUpdateAsync(s => s.SetProperty(c => c.Name, r.Name).SetProperty(c => c.UpdatedAt, DateTime.UtcNow));
+        }
+        await LoadCredentials();
+
+        NotificationService.Notify(NotificationSeverity.Success, "Renamed", $"\"{cred.Name}\" is now \"{r.Name}\".");
     }
 
     async Task DeleteCredential(S3Credential cred)
