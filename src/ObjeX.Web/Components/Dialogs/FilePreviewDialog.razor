@@ -1,39 +1,64 @@
 @using ObjeX.Core.Interfaces
 @using ObjeX.Core.Utilities
 
-<OxStack Gap="7">
-    @if (Kind is { } kind)
-    {
-        <OxPreview Kind="@kind" Url="@Url" ContentType="@ContentType" Alt="@FileName" Text="@_text" />
-    }
-    @if (_truncated)
-    {
-        <OxText Variant="OxTextVariant.Small">Preview truncated to the first 1 MiB.</OxText>
-    }
+@* The arrow keys page through the files the list shows; the dialog's own title cannot change, so the name is the heading here. *@
+<div class="ox-preview-dialog" tabindex="-1" @ref="_root" @onkeydown="OnKeyDown">
+    <OxStack Gap="7">
+        <OxStack Row="true" Justify="OxJustify.Between" Align="OxAlign.Center" Gap="6">
+            <OxTooltip WhenTruncated="true"><OxText Variant="OxTextVariant.Heading" Truncate="true">@FileName</OxText></OxTooltip>
+            @if (Items.Count > 1)
+            {
+                <OxStack Row="true" Align="OxAlign.Center" Gap="2">
+                    <OxText Variant="OxTextVariant.Small">@(_index + 1) of @Items.Count</OxText>
+                    <OxIconButton Icon="chevron_left" Label="Previous (←)" Disabled="@(_index == 0)" OnClick="@(() => Go(-1))" />
+                    <OxIconButton Icon="chevron_right" Label="Next (→)" Disabled="@(_index == Items.Count - 1)" OnClick="@(() => Go(1))" />
+                </OxStack>
+            }
+        </OxStack>
 
-    <OxStack Row="true" Justify="OxJustify.Between" Align="OxAlign.Center" Gap="6">
-        <OxText Variant="OxTextVariant.Small">@ContentType</OxText>
-        <OxStack Row="true" Gap="4">
-            <OxButton Icon="download" Href="@(Url + "?download=true")" Download="@FileName" target="_blank">Download</OxButton>
-            <OxButton Variant="OxButtonVariant.Primary" OnClick="@(() => DialogService.Close())">Close</OxButton>
+        @if (Kind is { } kind)
+        {
+            <OxPreview Kind="@kind" Url="@Url" ContentType="@ContentType" Alt="@FileName" Text="@_text" />
+        }
+        @if (_truncated)
+        {
+            <OxText Variant="OxTextVariant.Small">Preview truncated to the first 1 MiB.</OxText>
+        }
+
+        <OxStack Row="true" Justify="OxJustify.Between" Align="OxAlign.Center" Gap="6">
+            <OxText Variant="OxTextVariant.Small">@ContentType</OxText>
+            <OxStack Row="true" Gap="4">
+                <OxButton Icon="download" Href="@(Url + "?download=true")" Download="@FileName" target="_blank">Download</OxButton>
+                <OxButton Variant="OxButtonVariant.Primary" OnClick="@(() => DialogService.Close())">Close</OxButton>
+            </OxStack>
         </OxStack>
     </OxStack>
-</OxStack>
+</div>
 
 @code {
     const int MaxTextBytes = 1024 * 1024;
 
-    [Parameter] public string FileName { get; set; } = string.Empty;
-    [Parameter] public string ContentType { get; set; } = string.Empty;
-    [Parameter] public string Url { get; set; } = string.Empty;
+    /// <summary>One previewable file of the list.</summary>
+    public record Item(string Key, string ContentType);
+
     [Parameter] public string BucketName { get; set; } = string.Empty;
-    [Parameter] public string Key { get; set; } = string.Empty;
+    /// <summary>The previewable files in the order the list shows them.</summary>
+    [Parameter] public IReadOnlyList<Item> Items { get; set; } = [];
+    [Parameter] public int Index { get; set; }
 
     [Inject] DialogService DialogService { get; set; } = null!;
     [Inject] IObjectStorageService Storage { get; set; } = null!;
 
+    ElementReference _root;
+    int _index;
+    int _loading;
     string _text = string.Empty;
     bool _truncated;
+
+    Item Current => Items[_index];
+    string FileName => Path.GetFileName(Current.Key);
+    string ContentType => Current.ContentType;
+    string Url => FileHelper.ObjectUrl(BucketName, Current.Key);
 
     string MediaType => InlineMediaTypes.MediaType(ContentType);
     bool IsImage => MediaType.StartsWith("image/") && InlineMediaTypes.IsInlineSafe(MediaType);
@@ -52,23 +77,58 @@
 
     protected override async Task OnInitializedAsync()
     {
+        _index = Math.Clamp(Index, 0, Math.Max(0, Items.Count - 1));
+        await LoadTextAsync();
+    }
+
+    // Focus on the dialog, so the arrow keys work before anything inside it was clicked.
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender) await _root.FocusAsync();
+    }
+
+    Task OnKeyDown(KeyboardEventArgs e) => e.Key switch
+    {
+        "ArrowLeft" => Go(-1),
+        "ArrowRight" => Go(1),
+        _ => Task.CompletedTask
+    };
+
+    async Task Go(int step)
+    {
+        var next = _index + step;
+        if (next < 0 || next >= Items.Count) return;
+        _index = next;
+        await LoadTextAsync();
+    }
+
+    async Task LoadTextAsync()
+    {
+        var version = ++_loading;
+        (_text, _truncated) = (string.Empty, false);
         if (!IsText) return;
 
+        string text;
+        var truncated = false;
         try
         {
             // Read one byte past the cap so a file of exactly MaxTextBytes isn't reported as truncated.
-            await using var stream = await Storage.RetrieveAsync(BucketName, Key);
+            await using var stream = await Storage.RetrieveAsync(BucketName, Current.Key);
             var buffer = new byte[MaxTextBytes + 1];
             var read = await stream.ReadAtLeastAsync(buffer, buffer.Length, throwOnEndOfStream: false);
 
-            _truncated = read > MaxTextBytes;
-            _text = System.Text.Encoding.UTF8.GetString(buffer, 0, Math.Min(read, MaxTextBytes));
-            if (!_truncated && TextPreview.IsJson(ContentType))
-                _text = TextPreview.PrettyPrintJson(_text);
+            truncated = read > MaxTextBytes;
+            text = System.Text.Encoding.UTF8.GetString(buffer, 0, Math.Min(read, MaxTextBytes));
+            if (!truncated && TextPreview.IsJson(ContentType))
+                text = TextPreview.PrettyPrintJson(text);
         }
         catch
         {
-            _text = "Preview unavailable.";
+            text = "Preview unavailable.";
         }
+
+        // Paging fast can finish an older load last; only the file on screen may set the text.
+        if (version == _loading)
+            (_text, _truncated) = (text, truncated);
     }
 }

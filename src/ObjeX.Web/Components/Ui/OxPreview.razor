@@ -1,21 +1,23 @@
+@* @key gives every file a fresh element: a <video> keeps playing its old <source> when only the src changes.
+   The arrow keys seek in video and audio, so they stay there instead of reaching a dialog that pages with them. *@
 <div class="ox-preview">
     @switch (Kind)
     {
         case OxPreviewKind.Image:
-            <img src="@Url" alt="@Alt" />
+            <img @key="Url" src="@Url" alt="@Alt" />
             break;
         case OxPreviewKind.Video:
-            <video controls>
+            <video @key="Url" controls @onkeydown:stopPropagation="true">
                 <source src="@Url" type="@ContentType" />
             </video>
             break;
         case OxPreviewKind.Audio:
-            <audio controls>
+            <audio @key="Url" controls @onkeydown:stopPropagation="true">
                 <source src="@Url" type="@ContentType" />
             </audio>
             break;
         case OxPreviewKind.Pdf:
-            <iframe src="@(Url + "#pagemode=none&toolbar=0")" title="@Alt"></iframe>
+            <iframe @key="Url" src="@(Url + "#pagemode=none&toolbar=0")" title="@Alt"></iframe>
             break;
         case OxPreviewKind.Text:
             <pre>@Text</pre>

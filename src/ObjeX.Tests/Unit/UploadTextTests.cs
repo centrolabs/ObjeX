@@ -23,6 +23,17 @@ public class UploadTextTests
     }
 
     [Fact]
+    public void TabPrefix_CountsDoneOfWhatStillCounts_OnlyWhileRunning()
+    {
+        var queue = Queue(5);
+        queue.Apply([new(1, "done"), new(2, "done"), new(3, "cancelled")]);
+        Assert.Equal("↑ 2/4", UploadText.TabPrefix(queue));
+
+        queue.Apply([new(4, "done"), new(5, "failed")]);
+        Assert.Null(UploadText.TabPrefix(queue));
+    }
+
+    [Fact]
     public void Finished_WithoutErrors()
     {
         var queue = Queue(1);
