@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Options;
 using ObjeX.Api.Options;
 using ObjeX.Core.Models;
+using ObjeX.Web.Helpers;
 
 namespace ObjeX.Api.Endpoints;
 
@@ -70,9 +71,11 @@ public static class AccountEndpoints
                     if (user.MustChangePassword)
                         return Results.Redirect("/change-password");
 
-                    var safeUrl = !string.IsNullOrEmpty(returnUrl) && returnUrl.StartsWith('/') && !returnUrl.StartsWith("//") && !returnUrl.StartsWith("/\\")
-                        ? returnUrl : "/";
-                    return Results.Redirect(safeUrl);
+                    if (LocalTarget(returnUrl, ctx.Request) is { } target)
+                        return Results.Redirect(target);
+
+                    var roles = await signInManager.UserManager.GetRolesAsync(user);
+                    return Results.Redirect(StartPages.Resolve(ctx.Request.Cookies[StartPages.CookieName], roles.Contains));
                 }
             }
 
@@ -85,5 +88,23 @@ public static class AccountEndpoints
             await signInManager.SignOutAsync();
             return Results.Redirect("/login");
         });
+    }
+
+    /// <summary>
+    /// The page to return to after login, or null for none. RedirectToLogin sends the absolute URL of the page, so a URL on
+    /// this host becomes its path; any other host is ignored. The root and the not-found page, where an anonymous request
+    /// for an Admin page ends up, count as no particular page: the start page applies.
+    /// </summary>
+    public static string? LocalTarget(string? returnUrl, HttpRequest request)
+    {
+        if (string.IsNullOrEmpty(returnUrl)) return null;
+        if (Uri.TryCreate(returnUrl, UriKind.Absolute, out var absolute) && absolute.Scheme is "http" or "https")
+        {
+            if (!string.Equals(absolute.Authority, request.Host.Value, StringComparison.OrdinalIgnoreCase)) return null;
+            returnUrl = absolute.PathAndQuery;
+        }
+
+        var local = returnUrl.StartsWith('/') && !returnUrl.StartsWith("//") && !returnUrl.StartsWith("/\\");
+        return local && returnUrl.Split('?', '#')[0] is not ("/" or "/not-found") ? returnUrl : null;
     }
 }
