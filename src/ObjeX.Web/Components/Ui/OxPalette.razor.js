@@ -39,6 +39,12 @@ export function attach(input, owner) {
             owner.invokeMethodAsync("PickFromBrowser");
         }
     });
+    // Something in front of the page can take Escape before the page sees it (the app's browser pane, an extension such as
+    // Vimium) and only blur the field. A palette whose field loses the focus to anything outside it closes, like Spotlight.
+    input.addEventListener("blur", e => {
+        if (e.relatedTarget instanceof Node && input.closest(".ox-palette")?.contains(e.relatedTarget)) return;
+        owner.invokeMethodAsync("CloseFromBrowser");
+    });
     input.focus();
 }
 
