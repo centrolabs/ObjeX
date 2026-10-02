@@ -20,9 +20,12 @@ export function isMac() {
     return /mac|iphone|ipad/i.test(navigator.userAgentData?.platform ?? navigator.platform ?? "");
 }
 
+let returnTo = null;
+
 // The field is new each time the palette opens, so its listeners go with it. A click anywhere in the palette leaves the
 // focus in the field, so the keys keep working; the click itself still picks the result.
 export function attach(input, owner) {
+    returnTo = document.activeElement;
     input.closest(".ox-palette")?.addEventListener("mousedown", e => {
         if (e.target !== input) e.preventDefault();
     });
@@ -37,6 +40,12 @@ export function attach(input, owner) {
         }
     });
     input.focus();
+}
+
+// Closing hands the focus back to where it was, for example the row of the grid; after a pick that left the page it is gone.
+export function restore() {
+    if (returnTo?.isConnected) returnTo.focus();
+    returnTo = null;
 }
 
 export function reveal(list) {
