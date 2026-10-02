@@ -59,6 +59,11 @@ h1:focus { outline: none; }
 
 .rz-grid-table tbody tr.rz-data-row:hover > td { background: var(--ox-surface-hover); }
 
+/* A row the keyboard moved to (Objects): the hover look plus a ring inside the row. A click on a row shows neither. */
+.rz-grid-table tbody tr.rz-data-row:focus { outline: none; }
+.rz-grid-table tbody tr.rz-data-row:focus-visible { outline: var(--ox-ring) solid var(--ox-accent-text); outline-offset: calc(-1 * var(--ox-ring)); }
+.rz-grid-table tbody tr.rz-data-row:focus-visible > td { background: var(--ox-surface-hover); }
+
 .rz-data-grid .rz-grid-table tbody tr.ox-row-selected > td,
 .rz-data-grid .rz-grid-table tbody tr.ox-row-selected:hover > td { background: var(--ox-surface-selected); }
 
