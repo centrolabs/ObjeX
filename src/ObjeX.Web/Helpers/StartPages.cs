@@ -6,17 +6,18 @@ public static class StartPages
     public const string CookieName = "objex-start";
     public const string Default = "/";
 
-    /// <summary>Roles null means every role.</summary>
-    public record Page(string Path, string Label, string[]? Roles = null);
+    /// <summary>Roles null means every role. The icon is the one of the sidebar entry.</summary>
+    public record Page(string Path, string Label, string Icon, string[]? Roles = null);
 
+    /// <summary>The pages of the sidebar; the command palette lists them too.</summary>
     public static readonly IReadOnlyList<Page> All =
     [
-        new("/", "Dashboard"),
-        new("/buckets", "Buckets"),
-        new("/audit", "Audit Log", ["Admin"]),
-        new("/users", "Users", ["Admin", "Manager"]),
-        new("/jobs", "Jobs", ["Admin"]),
-        new("/settings", "Settings")
+        new("/", "Dashboard", "dashboard"),
+        new("/buckets", "Buckets", "inventory_2"),
+        new("/audit", "Audit Log", "history", ["Admin"]),
+        new("/users", "Users", "group", ["Admin", "Manager"]),
+        new("/jobs", "Jobs", "schedule", ["Admin"]),
+        new("/settings", "Settings", "settings")
     ];
 
     public static IReadOnlyList<Page> For(Func<string, bool> isInRole) =>

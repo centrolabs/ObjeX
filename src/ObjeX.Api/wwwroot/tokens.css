@@ -96,6 +96,9 @@
     --ox-size-search: 230px;
     --ox-size-menu: 200px;
     --ox-size-tooltip: 280px;
+    --ox-size-palette: 640px;
+    --ox-size-palette-list: 380px;
+    --ox-size-menu-max: 60vh;
     --ox-size-sidebar: 236px;
     --ox-size-sidebar-rail: 64px;
     --ox-size-chart: 220px;

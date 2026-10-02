@@ -1,0 +1,130 @@
+@implements IDisposable
+@using ObjeX.Core.Interfaces
+@inject CommandPaletteState State
+@inject UiPreferences Preferences
+@inject IMetadataService Metadata
+@inject NavigationManager Navigation
+@inject AuthenticationStateProvider AuthStateProvider
+
+<OxPalette Open="@_open" OpenChanged="SetOpenAsync" Query="@_query" QueryChanged="OnQueryAsync" Items="@_items" Busy="@_searching"
+           OnPick="PickAsync" OnPlatform="@(mac => State.SetPlatform(mac))"
+           Placeholder="Search pages, buckets, objects and actions" EmptyText="No matches" />
+
+@code {
+    /// <summary>What a result does: open a page, or run an action of the palette.</summary>
+    record Target(string? Href = null, Func<Task>? Run = null, bool ForceLoad = false);
+
+    const int ObjectLimit = 8;
+    const int SearchDebounceMs = 300;
+
+    bool _open;
+    string _query = string.Empty;
+    List<OxPaletteItem> _fixed = [];
+    List<OxPaletteItem> _objects = [];
+    List<OxPaletteItem> _items = [];
+    bool _searching;
+    string? _ownerFilter;
+    CancellationTokenSource _searchCts = new();
+
+    protected override void OnInitialized() => State.OpenRequested += OnOpenRequested;
+
+    void OnOpenRequested() => _ = InvokeAsync(() => SetOpenAsync(true));
+
+    async Task SetOpenAsync(bool open)
+    {
+        if (open == _open) return;
+        _open = open;
+        _query = string.Empty;
+        _objects = [];
+        _searching = false;
+        _searchCts.Cancel();
+        if (open)
+        {
+            // Read each time it opens: buckets come and go, and the theme and sidebar actions say what they will do.
+            await LoadFixedAsync();
+            Filter();
+        }
+        StateHasChanged();
+    }
+
+    async Task LoadFixedAsync()
+    {
+        var user = (await AuthStateProvider.GetAuthenticationStateAsync()).User;
+        var privileged = user.IsInRole("Admin") || user.IsInRole("Manager");
+        _ownerFilter = privileged ? null : user.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+
+        var buckets = await Metadata.ListBucketsAsync(_ownerFilter);
+        _fixed =
+        [
+            .. StartPages.For(user.IsInRole).Select(p => new OxPaletteItem("Pages", p.Label, p.Icon, Value: new Target(p.Path))),
+            .. buckets.OrderBy(b => b.Name, StringComparer.Ordinal).Select(b =>
+                new OxPaletteItem("Buckets", b.Name, "inventory_2", $"{b.ObjectCount:N0} objects · {FileHelper.FormatBytes(b.TotalSize)}",
+                    new Target($"/buckets/{Uri.EscapeDataString(b.Name)}"))),
+            new("Actions", "New bucket", "add", Value: new Target("/buckets?new=1")),
+            new("Actions", Preferences.IsDark ? "Light mode" : "Dark mode", Preferences.IsDark ? "light_mode" : "dark_mode",
+                Value: new Target(Run: () => Preferences.SetDarkAsync(!Preferences.IsDark))),
+            new("Actions", Preferences.SidebarCollapsed ? "Expand sidebar" : "Collapse sidebar", Preferences.SidebarCollapsed ? "left_panel_open" : "left_panel_close",
+                Value: new Target(Run: () => Preferences.SetSidebarCollapsedAsync(!Preferences.SidebarCollapsed))),
+            new("Actions", "Sign out", "logout", Value: new Target("/account/logout", ForceLoad: true))
+        ];
+    }
+
+    // Groups keep their order; inside a group the best match comes first (PaletteMatch). Objects come from the search.
+    void Filter()
+    {
+        _items =
+        [
+            .. _fixed
+                .Select((item, order) => (item, order, score: PaletteMatch.Score(item.Label, _query)))
+                .Where(x => x.score is not null)
+                .GroupBy(x => x.item.Group)
+                .SelectMany(g => g.OrderByDescending(x => x.score).ThenBy(x => x.order))
+                .Select(x => x.item),
+            .. _objects
+        ];
+    }
+
+    async Task OnQueryAsync(string query)
+    {
+        _query = query;
+        _objects = [];
+        Filter();
+
+        _searchCts.Cancel();
+        _searchCts = new CancellationTokenSource();
+        var ctk = _searchCts.Token;
+        if (query.Trim().Length < 2)
+        {
+            _searching = false;
+            return;
+        }
+
+        _searching = true;
+        try
+        {
+            await Task.Delay(SearchDebounceMs, ctk);
+            var hits = await Metadata.SearchAllObjectsAsync(_ownerFilter, query.Trim(), ObjectLimit, ctk);
+            _objects = hits.Select(o => new OxPaletteItem("Objects", o.Key, "description", o.BucketName,
+                new Target(FileHelper.FolderUrl(o.BucketName, o.Key)))).ToList();
+            _searching = false;
+            Filter();
+        }
+        catch (OperationCanceledException) { }
+    }
+
+    async Task PickAsync(OxPaletteItem item)
+    {
+        await SetOpenAsync(false);
+        if (item.Value is not Target target) return;
+        if (target.Run is not null)
+            await target.Run();
+        else if (target.Href is not null)
+            Navigation.NavigateTo(target.Href, forceLoad: target.ForceLoad);
+    }
+
+    public void Dispose()
+    {
+        State.OpenRequested -= OnOpenRequested;
+        _searchCts.Cancel();
+    }
+}

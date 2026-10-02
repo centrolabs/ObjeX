@@ -1,4 +1,10 @@
+@implements IDisposable
 @inject AuthenticationStateProvider AuthStateProvider
+@inject CommandPaletteState Palette
+
+<OxSideItem Label="Search" Hint="@Palette.Shortcut" RailTooltip="@($"Search ({Palette.Shortcut})")" OnClick="@Palette.Open">
+    <Leading><OxIcon Name="search" /></Leading>
+</OxSideItem>
 
 <OxNavItem Href="/" Icon="dashboard" Label="Dashboard" />
 <OxNavItem Href="/buckets" Icon="inventory_2" Label="Buckets" />
@@ -19,6 +25,13 @@
 @code {
     bool _isAdmin;
     bool _isManager;
+
+    // The shortcut is spelled for the platform once the browser has said which one it is.
+    protected override void OnInitialized() => Palette.Changed += OnPaletteChanged;
+
+    void OnPaletteChanged() => InvokeAsync(StateHasChanged);
+
+    public void Dispose() => Palette.Changed -= OnPaletteChanged;
 
     protected override async Task OnInitializedAsync()
     {

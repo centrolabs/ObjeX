@@ -1,3 +1,5 @@
+using Microsoft.AspNetCore.Components;
+
 namespace ObjeX.Web.Components.Ui;
 
 public enum OxButtonVariant { Default, Primary, Danger }
@@ -25,11 +27,14 @@ public enum OxPreviewKind { Image, Video, Audio, Pdf, Text }
 /// <summary>What a file row shows: decides the icon and, for folders, images and videos, its colour.</summary>
 public enum OxFileKind { File, Folder, Bucket, Image, Video, Audio, Text, Pdf, Archive }
 
+/// <summary>One result of <see cref="OxPalette"/>. Results arrive grouped; Value is whatever the caller needs to act on it.</summary>
+public record OxPaletteItem(string Group, string Label, string Icon, string? Hint = null, object? Value = null);
+
 /// <summary>What <see cref="OxCopyButton"/> puts on the clipboard, and what its label says for a moment afterwards.</summary>
 public record OxCopyContent(string Text, string? Copied = null);
 
 /// <summary>One entry of <see cref="OxBreadcrumbs"/>. The last entry is the current location and needs no link.</summary>
-public record OxCrumb(string Text, string? Href = null);
+public record OxCrumb(string Text, string? Href = null, RenderFragment? Menu = null);
 
 /// <summary>Durations a page waits on so motion in the Ui library can finish.</summary>
 public static class OxMotion

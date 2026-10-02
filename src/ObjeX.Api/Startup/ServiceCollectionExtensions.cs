@@ -140,6 +140,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<ThemeService>();
         services.AddScoped<BrowserTimeZone>();
         services.AddScoped<UiPreferences>();
+        services.AddScoped<CommandPaletteState>();
         services.AddCascadingAuthenticationState();
         services.AddResponseCompression(options => options.EnableForHttps = true);
 

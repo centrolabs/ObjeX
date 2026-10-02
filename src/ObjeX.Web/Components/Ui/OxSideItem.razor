@@ -5,6 +5,7 @@
     <a href="@Href" class="@Css" aria-current="@(Active ? "page" : null)" aria-label="@Label" data-ox-tooltip="@Tooltip" data-ox-tooltip-placement="right">
         <span class="ox-side-item-slot">@Leading</span>
         <span class="ox-side-item-label">@Label</span>
+        @if (Hint is not null) { <kbd class="ox-side-item-hint">@Hint</kbd> }
     </a>
 }
 else
@@ -12,6 +13,7 @@ else
     <button type="button" class="@Css" aria-label="@Label" data-ox-tooltip="@Tooltip" data-ox-tooltip-placement="right" @onclick="OnClick">
         <span class="ox-side-item-slot">@Leading</span>
         <span class="ox-side-item-label">@Label</span>
+        @if (Hint is not null) { <kbd class="ox-side-item-hint">@Hint</kbd> }
     </button>
 }
 
@@ -24,6 +26,8 @@ else
     /// <summary>The rail's tooltip, when it should say more than the label.</summary>
     [Parameter] public string? RailTooltip { get; set; }
     [Parameter] public bool Active { get; set; }
+    /// <summary>A keyboard shortcut at the right end, for example ⌘K; it fades with the label in the rail.</summary>
+    [Parameter] public string? Hint { get; set; }
 
     string Tooltip => RailTooltip ?? Label;
     string Css => Active ? "ox-side-item is-active" : "ox-side-item";

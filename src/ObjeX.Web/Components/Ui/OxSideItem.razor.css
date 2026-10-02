@@ -22,14 +22,25 @@
 
 .ox-side-item-slot { flex: none; display: grid; place-items: center; width: var(--ox-size-avatar); height: var(--ox-size-avatar); }
 
-.ox-side-item-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; transition: opacity .12s ease-out; }
+.ox-side-item-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; transition: opacity .12s ease-out; }
+
+.ox-side-item-hint {
+    flex: none;
+    padding: 0 var(--ox-space-2);
+    border: var(--ox-border) solid var(--ox-line-strong);
+    border-radius: var(--ox-radius-sm);
+    font-family: inherit;
+    font-size: var(--ox-fs-xs);
+    color: var(--ox-text-side-muted);
+    transition: opacity .12s ease-out;
+}
 
 /* The rail: the label fades, and the tooltip takes over its job. */
 @container ox-side (max-width: 120px) {
     .ox-side-item { --ox-tooltip: on; }
-    .ox-side-item-label { opacity: 0; }
+    .ox-side-item-label, .ox-side-item-hint { opacity: 0; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-    .ox-side-item-label { transition: none; }
+    .ox-side-item-label, .ox-side-item-hint { transition: none; }
 }

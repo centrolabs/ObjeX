@@ -7,6 +7,8 @@
     z-index: calc(var(--ox-z-popup) + 1);
     visibility: hidden;
     min-width: var(--ox-size-menu);
+    max-height: var(--ox-size-menu-max);
+    overflow-y: auto;
     padding: var(--ox-space-2);
     border: var(--ox-border) solid var(--ox-line-strong);
     border-radius: var(--ox-radius-md);
