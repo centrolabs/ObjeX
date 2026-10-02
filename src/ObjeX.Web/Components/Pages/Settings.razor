@@ -6,9 +6,9 @@
 @using ObjeX.Web.Components.Dialogs
 @using Microsoft.Extensions.Options
 @using ObjeX.Infrastructure.Options
-@inject ThemeService ThemeService
+@implements IDisposable
+@inject UiPreferences Preferences
 @inject IOptions<S3Options> S3
-@inject IJSRuntime JS
 @inject IDbContextFactory<ObjeXDbContext> DbFactory
 @inject DialogService DialogService
 @inject NotificationService NotificationService
@@ -19,11 +19,27 @@
 
 <OxPageHeader Title="Settings" />
 
-<OxBox Width="OxWidth.Page">
+<OxGrid>
     <OxCard Title="Appearance">
         <OxSettingRow Label="Dark mode">
-            <OxSwitch Label="Dark mode" Checked="@_isDark" CheckedChanged="OnThemeChanged" />
+            <OxSwitch Label="Dark mode" Checked="@Preferences.IsDark" CheckedChanged="@Preferences.SetDarkAsync" />
         </OxSettingRow>
+    </OxCard>
+
+    <OxCard Title="Preferences">
+        <OxSettingRow Label="24-hour clock" Hint="Off shows 5:30 PM instead of 17:30.">
+            <OxSwitch Label="24-hour clock" Checked="@(!Preferences.Hour12)" CheckedChanged="@(on => Preferences.SetHour12Async(!on))" />
+        </OxSettingRow>
+        <OxSettingRow Label="Relative times" Hint="12 min ago within a week; the exact time is the tooltip.">
+            <OxSwitch Label="Relative times" Checked="@Preferences.RelativeTimes" CheckedChanged="@Preferences.SetRelativeTimesAsync" />
+        </OxSettingRow>
+        <OxSettingRow Label="Start page" Hint="Where you land after signing in.">
+            <OxBox Width="OxWidth.Sm">
+                <RadzenDropDown TValue="string" Value="@StartPage" ValueChanged="@((string path) => Preferences.SetStartPageAsync(path))" Data="@_startPages"
+                                TextProperty="@nameof(StartPages.Page.Label)" ValueProperty="@nameof(StartPages.Page.Path)" aria-label="Start page" />
+            </OxBox>
+        </OxSettingRow>
+        <OxText Variant="OxTextVariant.Small">Saved in this browser.</OxText>
     </OxCard>
 
     @if (_isAdmin || _isManager)
@@ -64,7 +80,7 @@
             </OxStack>
         </OxCard>
     }
-</OxBox>
+</OxGrid>
 
 <OxCard Title="S3 credentials">
     <Actions>
@@ -106,10 +122,10 @@
                         <Template Context="cred"><OxText Variant="OxTextVariant.Mono">@cred.AccessKeyId</OxText></Template>
                     </RadzenDataGridColumn>
                     <RadzenDataGridColumn TItem="S3Credential" Property="CreatedAt" Title="Created" Width="@OxSizes.DateColumn" CssClass="ox-col-muted">
-                        <Template Context="cred">@Tz.Format(cred.CreatedAt)</Template>
+                        <Template Context="cred"><OxTime Value="@cred.CreatedAt" /></Template>
                     </RadzenDataGridColumn>
                     <RadzenDataGridColumn TItem="S3Credential" Property="LastUsedAt" Title="Last used" Width="@OxSizes.DateColumn" CssClass="ox-col-muted">
-                        <Template Context="cred">@(cred.LastUsedAt is { } used ? Tz.Format(used) : "Never")</Template>
+                        <Template Context="cred"><OxTime Value="@cred.LastUsedAt" Empty="Never" /></Template>
                     </RadzenDataGridColumn>
                     <RadzenDataGridColumn TItem="S3Credential" Title="" Width="@OxSizes.ActionsColumn" Sortable="false" CssClass="ox-col-actions">
                         <Template Context="cred">
@@ -128,9 +144,10 @@
 </OxCard>
 
 @code {
-    bool _isDark;
     bool _isAdmin;
     bool _isManager;
+    IReadOnlyList<StartPages.Page> _startPages = [];
+    string StartPage => _startPages.Any(p => p.Path == Preferences.StartPage) ? Preferences.StartPage! : StartPages.Default;
     string _userId = string.Empty;
     List<S3Credential> _credentials = [];
     string Endpoint => S3.Value.PublicUrl.TrimEnd('/');
@@ -172,6 +189,8 @@
         _userId = auth.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? string.Empty;
         _isAdmin = auth.User.IsInRole("Admin");
         _isManager = auth.User.IsInRole("Manager");
+        _startPages = StartPages.For(auth.User.IsInRole);
+        Preferences.Changed += OnPreferencesChanged;
         await LoadCredentials();
         if (_isAdmin || _isManager)
         {
@@ -288,13 +307,10 @@
         NotificationService.Notify(NotificationSeverity.Success, "Saved", "Storage quota updated.");
     }
 
-    protected override async Task OnAfterRenderAsync(bool firstRender)
-    {
-        if (!firstRender) return;
-        var cookie = await JS.InvokeAsync<string>("ObjeX.getCookie", ThemeMode.CookieName);
-        _isDark = ThemeMode.IsDark(cookie);
-        StateHasChanged();
-    }
+    // The sidebar changes the same preferences; the switches follow it.
+    void OnPreferencesChanged() => InvokeAsync(StateHasChanged);
+
+    public void Dispose() => Preferences.Changed -= OnPreferencesChanged;
 
     async Task LoadCredentials()
     {
@@ -355,14 +371,5 @@
         await LoadCredentials();
 
         NotificationService.Notify(NotificationSeverity.Success, "Deleted", $"Credential \"{cred.Name}\" deleted.");
-    }
-
-    async Task OnThemeChanged(bool value)
-    {
-        _isDark = value;
-        var theme = ThemeMode.CookieValue(value);
-        ThemeService.SetTheme(theme);
-        await JS.InvokeVoidAsync("ObjeX.setCookie", ThemeMode.CookieName, theme);
-        await JS.InvokeVoidAsync("ObjeX.setTheme", value);
     }
 }
