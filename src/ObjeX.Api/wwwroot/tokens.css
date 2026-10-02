@@ -95,10 +95,14 @@
     --ox-size-meter: 4px;
     --ox-size-search: 230px;
     --ox-size-menu: 200px;
+    --ox-size-tooltip: 280px;
     --ox-size-sidebar: 236px;
+    --ox-size-sidebar-rail: 64px;
     --ox-size-chart: 220px;
     --ox-size-form: 360px;
+    --ox-size-card-min: 420px;
     --ox-size-table-min: 860px;
+    --ox-size-table-min-wide: 980px;
     --ox-size-field-xs: 72px;
     --ox-size-field-sm: 110px;
     --ox-size-label: 120px;
@@ -116,6 +120,7 @@
     --ox-z-panel: 800;
     --ox-z-drawer: 900;
     --ox-z-popup: 1100;
+    --ox-z-tooltip: 1200;
 }
 
 /* ---- Layer 2: semantic roles ------------------------------------------------------------- */
@@ -157,6 +162,8 @@
     --ox-chart-7: var(--ox-viz-blue-light);
     --ox-chart-8: var(--ox-viz-red-light);
     --ox-chart-other: var(--ox-paper-400);
+    --ox-tooltip-surface: var(--ox-paper-800);
+    --ox-tooltip-text: var(--ox-paper-0);
     --ox-shadow-ctl: 0 1px 1.5px rgba(40, 36, 28, .08);
     --ox-shadow-pop: 0 10px 28px -8px rgba(40, 36, 28, .22), 0 1px 2px rgba(40, 36, 28, .08);
 }
@@ -199,6 +206,8 @@
     --ox-chart-7: var(--ox-viz-blue-dark);
     --ox-chart-8: var(--ox-viz-red-dark);
     --ox-chart-other: var(--ox-paper-350);
+    --ox-tooltip-surface: var(--ox-paper-700);
+    --ox-tooltip-text: var(--ox-paper-100);
     --ox-shadow-ctl: 0 1px 1.5px rgba(0, 0, 0, .4);
     --ox-shadow-pop: 0 12px 30px -8px rgba(0, 0, 0, .65), 0 1px 2px rgba(0, 0, 0, .4);
 }
@@ -386,8 +395,8 @@
     --rz-menu-item-border-radius: var(--ox-radius-sm);
     --rz-context-menu-box-shadow: var(--ox-shadow-pop);
 
-    --rz-tooltip-background-color: var(--ox-text);
-    --rz-tooltip-color: var(--ox-surface);
+    --rz-tooltip-background-color: var(--ox-tooltip-surface);
+    --rz-tooltip-color: var(--ox-tooltip-text);
     --rz-tooltip-font-size: var(--ox-fs-xs);
     --rz-tooltip-border-radius: var(--ox-radius-sm);
 

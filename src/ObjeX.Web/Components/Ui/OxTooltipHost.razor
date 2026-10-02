@@ -1,0 +1,32 @@
+@implements IAsyncDisposable
+@inject IJSRuntime JS
+
+<div class="ox-tooltip" id="ox-tooltip" role="tooltip" hidden @ref="_tip"></div>
+
+@code {
+    ElementReference _tip;
+    IJSObjectReference? _module;
+
+    // The script owns the element's text and position; a render would undo them.
+    protected override bool ShouldRender() => false;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+        _module = await JS.InvokeAsync<IJSObjectReference>("import", "./_content/ObjeX.Web/Components/Ui/OxTooltipHost.razor.js");
+        await _module.InvokeVoidAsync("init", _tip);
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        try
+        {
+            if (_module is not null)
+            {
+                await _module.InvokeVoidAsync("release", _tip);
+                await _module.DisposeAsync();
+            }
+        }
+        catch (JSDisconnectedException) { }
+    }
+}

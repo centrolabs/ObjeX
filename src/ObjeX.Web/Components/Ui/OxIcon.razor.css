@@ -25,6 +25,16 @@
 .ox-icon--accent { color: var(--ox-accent-text); }
 .ox-icon--warning { color: var(--ox-warning); }
 .ox-icon--danger { color: var(--ox-danger); }
+.ox-icon--spin { animation: ox-icon-spin .8s linear infinite; }
+
+@keyframes ox-icon-spin {
+    to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .ox-icon--spin { animation-duration: 2.4s; }
+}
+
 .ox-icon--folder { color: var(--ox-icon-folder); }
 .ox-icon--image { color: var(--ox-icon-image); }
 .ox-icon--video { color: var(--ox-icon-video); }

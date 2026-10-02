@@ -43,19 +43,19 @@
             <RadzenDataGridColumn TItem="RecurringJobStatus" Property="Cron" Title="Schedule">
                 <Template Context="job">
                     <OxStack Row="true" Gap="2" Align="OxAlign.Center">
-                        <OxText Truncate="true" title="@($"{job.Cron} ({job.TimeZone})")">@(CronText.Describe(job.Cron, job.NextRun, Tz, job.TimeZone) ?? $"{job.Cron} ({job.TimeZone})")</OxText>
+                        <OxTooltip Text="@($"{job.Cron} ({job.TimeZone})")"><OxText Truncate="true">@(CronText.Describe(job.Cron, job.NextRun, Tz, job.TimeZone) ?? $"{job.Cron} ({job.TimeZone})")</OxText></OxTooltip>
                         @if (job.Warning is { } warning)
                         {
-                            <span title="@warning" role="img" aria-label="@warning"><OxIcon Name="warning" Small="true" Tone="OxTone.Warning" /></span>
+                            <OxTooltip Text="@warning"><span role="img" aria-label="@warning" tabindex="0"><OxIcon Name="warning" Small="true" Tone="OxTone.Warning" /></span></OxTooltip>
                         }
                     </OxStack>
                 </Template>
             </RadzenDataGridColumn>
             <RadzenDataGridColumn TItem="RecurringJobStatus" Property="LastRun" Title="Last run" Width="@OxSizes.DateColumn" CssClass="ox-col-muted">
-                <Template Context="job">@Tz.Format(job.LastRun)</Template>
+                <Template Context="job"><OxTime Value="@job.LastRun" /></Template>
             </RadzenDataGridColumn>
             <RadzenDataGridColumn TItem="RecurringJobStatus" Property="NextRun" Title="Next run" Width="@OxSizes.DateColumn" CssClass="ox-col-muted">
-                <Template Context="job">@Tz.Format(job.NextRun)</Template>
+                <Template Context="job"><OxTime Value="@job.NextRun" /></Template>
             </RadzenDataGridColumn>
             <RadzenDataGridColumn TItem="RecurringJobStatus" Title="" Width="@OxSizes.ActionsColumn" CssClass="ox-col-actions">
                 <Template Context="job">
@@ -92,7 +92,7 @@
                     <Template Context="run"><OxBadge Tone="@ToneOf(run.State)">@LabelOf(run.State)</OxBadge></Template>
                 </RadzenDataGridColumn>
                 <RadzenDataGridColumn TItem="JobRun" Property="StartedAt" Title="Started" Width="@OxSizes.DateColumn" CssClass="ox-col-muted">
-                    <Template Context="run">@Tz.Format(run.StartedAt)</Template>
+                    <Template Context="run"><OxTime Value="@run.StartedAt" /></Template>
                 </RadzenDataGridColumn>
                 <RadzenDataGridColumn TItem="JobRun" Title="Duration" Width="@OxSizes.DateColumn" TextAlign="TextAlign.End" CssClass="ox-col-muted">
                     <Template Context="run">@(run.Duration is { } duration ? FormatDuration(duration) : "—")</Template>
@@ -100,7 +100,7 @@
                 <RadzenDataGridColumn TItem="JobRun" Title="Result" CssClass="ox-col-muted">
                     <Template Context="run">
                         @{ var (text, tone) = JobRunText.Summary(run); }
-                        <OxText Truncate="true" Tone="@tone" title="@text">@text</OxText>
+                        <OxTooltip Text="@text" WhenTruncated="true"><OxText Truncate="true" Tone="@tone">@text</OxText></OxTooltip>
                     </Template>
                 </RadzenDataGridColumn>
                 <RadzenDataGridColumn TItem="JobRun" Title="" Width="@OxSizes.ActionsColumn" CssClass="ox-col-actions">

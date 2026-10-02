@@ -1,10 +1,10 @@
 <label class="ox-search">
     <OxIcon Name="search" />
-    <input type="text" value="@Value" placeholder="@Placeholder" aria-label="@Placeholder" title="@Title" autocomplete="off"
+    <input type="text" value="@Value" placeholder="@Placeholder" aria-label="@Placeholder" data-ox-tooltip="@Tooltip" autocomplete="off"
            @oninput="@(e => ValueChanged.InvokeAsync(e.Value?.ToString() ?? string.Empty))" @onkeydown="OnKeyDown" />
     @if (!string.IsNullOrEmpty(Value))
     {
-        <button type="button" class="ox-search-clear" title="Clear search" aria-label="Clear search" @onclick="@(() => OnClear.InvokeAsync())">
+        <button type="button" class="ox-search-clear" aria-label="Clear search" data-ox-tooltip="Clear search" @onclick="@(() => OnClear.InvokeAsync())">
             <OxIcon Name="close" Small="true" />
         </button>
     }
@@ -17,7 +17,7 @@
     /// <summary>Fires on Escape and on the clear button.</summary>
     [Parameter] public EventCallback OnClear { get; set; }
     [Parameter] public string Placeholder { get; set; } = "Search";
-    [Parameter] public string? Title { get; set; }
+    [Parameter] public string? Tooltip { get; set; }
 
     Task OnKeyDown(KeyboardEventArgs e) => e.Key == "Escape" ? OnClear.InvokeAsync() : Task.CompletedTask;
 }

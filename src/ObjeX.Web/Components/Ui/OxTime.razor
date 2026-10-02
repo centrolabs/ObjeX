@@ -1,0 +1,83 @@
+@implements IDisposable
+@inject BrowserTimeZone Tz
+@inject UiPreferences Preferences
+
+@if (Value is { } value)
+{
+    <OxTooltip Text="@_tooltip"><time datetime="@Iso(value)">@_text</time></OxTooltip>
+}
+else
+{
+    @Empty
+}
+
+@code {
+    Timer? _timer;
+    string _text = string.Empty;
+    string? _tooltip;
+    bool _rendered;
+
+    /// <summary>
+    /// A UTC timestamp. With relative times on (the default) it reads "12 min ago" within a week and as the full
+    /// timestamp after that; the other form is the tooltip. With relative times off it is always the full timestamp.
+    /// </summary>
+    [Parameter, EditorRequired] public DateTime? Value { get; set; }
+    /// <summary>Shown when there is no timestamp, for example "Never".</summary>
+    [Parameter] public string Empty { get; set; } = "—";
+
+    static string Iso(DateTime utc) => DateTime.SpecifyKind(utc, DateTimeKind.Utc).ToString("yyyy-MM-ddTHH:mm:ssZ");
+
+    void Describe()
+    {
+        if (Value is not { } value) return;
+        var exact = Tz.Format(value);
+        var relative = RelativeTime.Format(value, DateTime.UtcNow);
+        (_text, _tooltip) = Preferences.RelativeTimes ? (relative ?? exact, relative is null ? null : exact) : (exact, relative);
+    }
+
+    protected override void OnInitialized() => Preferences.Changed += OnPreferencesChanged;
+
+    protected override void OnParametersSet()
+    {
+        Describe();
+        if (_rendered) Schedule();
+    }
+
+    // Prerendering has no circuit to update, so the clock starts with the interactive render.
+    protected override void OnAfterRender(bool firstRender)
+    {
+        if (!firstRender) return;
+        _rendered = true;
+        Schedule();
+    }
+
+    void Schedule()
+    {
+        _timer?.Dispose();
+        _timer = Value is { } value && RelativeTime.RefreshInterval(value, DateTime.UtcNow) is { } every
+            ? new Timer(_ => _ = InvokeAsync(Tick), null, every, every)
+            : null;
+    }
+
+    void Tick()
+    {
+        var (text, tooltip) = (_text, _tooltip);
+        Describe();
+        if (text == _text && tooltip == _tooltip) return;
+        StateHasChanged();
+        Schedule();
+    }
+
+    // The clock and the relative switch change the text of every timestamp on the page.
+    void OnPreferencesChanged() => _ = InvokeAsync(() =>
+    {
+        Describe();
+        StateHasChanged();
+    });
+
+    public void Dispose()
+    {
+        _timer?.Dispose();
+        Preferences.Changed -= OnPreferencesChanged;
+    }
+}

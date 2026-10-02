@@ -1,7 +1,7 @@
 <div class="ox-upload-row">
     <OxFileName Kind="@Kind">@Name</OxFileName>
     <span class="ox-upload-row-actions">@ChildContent</span>
-    <OxText Variant="OxTextVariant.Small" Tone="@Tone" Truncate="true" title="@Detail">@Detail</OxText>
+    <OxTooltip Text="@Detail" WhenTruncated="true"><OxText Variant="OxTextVariant.Small" Tone="@Tone" Truncate="true">@Detail</OxText></OxTooltip>
     @if (Progress is { } progress)
     {
         <OxMeter Value="@progress" Label="@($"{Name} progress")" />

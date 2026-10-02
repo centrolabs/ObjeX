@@ -33,6 +33,8 @@ h1:focus { outline: none; }
 .rz-data-grid-data { overflow-x: auto; }
 
 .rz-grid-table { min-width: var(--ox-size-table-min); font-variant-numeric: tabular-nums; }
+.ox-grid-wide .rz-grid-table { min-width: var(--ox-size-table-min-wide); }
+.ox-grid-clickable .rz-data-row { cursor: pointer; }
 
 .rz-grid-table thead th {
     height: var(--ox-size-row);
