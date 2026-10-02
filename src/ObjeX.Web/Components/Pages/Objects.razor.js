@@ -163,7 +163,9 @@ function pastedName(file) {
 
 // The grid by keyboard: ↑ ↓ move between rows, Enter opens the row, Space previews it, Delete or Backspace deletes the
 // selection or else the row. Rows carry their key in data-ox-row and can take the focus (tabindex -1). Keys typed into
-// a field, with a modifier, or while a dialog or a menu is open, stay with their owner.
+// a field, with a modifier, or while a dialog or a menu is open, stay with their owner. The listener runs in the capture
+// phase and stops the keys it handles: RadzenDataGrid has its own cell navigation, which would otherwise take the arrows
+// once the focus is inside the grid and move a cell highlight instead of the row.
 export function watchKeys(page) {
     const rows = () => [...document.querySelectorAll(".rz-data-row[data-ox-row]")];
 
@@ -179,6 +181,7 @@ export function watchKeys(page) {
             const list = rows();
             if (list.length === 0) return;
             e.preventDefault();
+            e.stopPropagation();
             const at = row ? list.indexOf(row) : -1;
             const next = at < 0 ? (e.key === "ArrowDown" ? 0 : list.length - 1)
                 : Math.min(list.length - 1, Math.max(0, at + (e.key === "ArrowDown" ? 1 : -1)));
@@ -186,16 +189,19 @@ export function watchKeys(page) {
             list[next].scrollIntoView({ block: "nearest" });
         } else if (e.key === "Enter" && onRow) {
             e.preventDefault();
+            e.stopPropagation();
             page.invokeMethodAsync("OpenRow", row.dataset.oxRow);
         } else if (e.key === " " && onRow) {
             e.preventDefault();
+            e.stopPropagation();
             page.invokeMethodAsync("PreviewRow", row.dataset.oxRow);
         } else if (e.key === "Delete" || e.key === "Backspace") {
             e.preventDefault();
+            e.stopPropagation();
             page.invokeMethodAsync("DeleteRows", row?.dataset.oxRow ?? null);
         }
     };
 
-    document.addEventListener("keydown", onKey);
-    return { stop: () => document.removeEventListener("keydown", onKey) };
+    document.addEventListener("keydown", onKey, true);
+    return { stop: () => document.removeEventListener("keydown", onKey, true) };
 }
