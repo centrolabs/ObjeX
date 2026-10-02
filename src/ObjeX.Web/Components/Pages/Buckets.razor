@@ -21,6 +21,12 @@
 <PageTitle>Buckets — ObjeX</PageTitle>
 
 <OxPageHeader Title="Buckets" Meta="@(_searchApplied ? HeaderCaption : null)">
+    @if (OwnerParam is not null && !_searchApplied)
+    {
+        <OxChip Active="true" OnClick="@(() => Navigation.NavigateTo("/buckets"))">
+            Owner: @OwnerParam <OxIcon Name="close" Small="true" />
+        </OxChip>
+    }
     @if (_buckets.Count > 0)
     {
         <OxSearch Value="@_searchTerm" ValueChanged="OnSearchInput" OnClear="ClearSearch" Placeholder="Search all buckets" Tooltip="* matches any text, ? one character" />
@@ -66,7 +72,8 @@ else if (_searchApplied)
 }
 else
 {
-    <RadzenDataGrid class="@OxSizes.WideGridClass" Data="@_buckets" TItem="Bucket" AllowSorting="true" AllowAlternatingRows="false" EmptyText="No buckets yet. Create one to store objects.">
+    <RadzenDataGrid class="@OxSizes.WideGridClass" Data="@ShownBuckets" TItem="Bucket" AllowSorting="true" AllowAlternatingRows="false"
+                    EmptyText="@(OwnerParam is null ? "No buckets yet. Create one to store objects." : $"{OwnerParam} owns no buckets.")">
         <Columns>
             <RadzenDataGridColumn TItem="Bucket" Property="Name" Title="Name">
                 <Template Context="bucket">
@@ -133,6 +140,11 @@ else
 
     /// <summary>?new=1, from the command palette's "New bucket": opens the dialog once. A string, so no value can fail to parse.</summary>
     [SupplyParameterFromQuery(Name = "new")] public string? NewParam { get; set; }
+
+    /// <summary>?owner=name, from the Users page: only that user's buckets.</summary>
+    [SupplyParameterFromQuery(Name = "owner")] public string? OwnerParam { get; set; }
+
+    IEnumerable<Bucket> ShownBuckets => OwnerParam is null ? _buckets : _buckets.Where(b => b.Owner?.UserName == OwnerParam);
 
     bool _openCreate;
 
