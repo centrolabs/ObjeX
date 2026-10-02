@@ -1,0 +1,30 @@
+@* One row of the sidebar: a fixed slot for the icon, then the label. The slot sits at the same x in the full sidebar and
+   in the rail, so collapsing only narrows the sidebar and fades the label; nothing moves. *@
+@if (Href is not null)
+{
+    <a href="@Href" class="@Css" aria-current="@(Active ? "page" : null)" aria-label="@Label" data-ox-tooltip="@Tooltip" data-ox-tooltip-placement="right">
+        <span class="ox-side-item-slot">@Leading</span>
+        <span class="ox-side-item-label">@Label</span>
+    </a>
+}
+else
+{
+    <button type="button" class="@Css" aria-label="@Label" data-ox-tooltip="@Tooltip" data-ox-tooltip-placement="right" @onclick="OnClick">
+        <span class="ox-side-item-slot">@Leading</span>
+        <span class="ox-side-item-label">@Label</span>
+    </button>
+}
+
+@code {
+    [Parameter] public string? Href { get; set; }
+    [Parameter] public EventCallback<MouseEventArgs> OnClick { get; set; }
+    /// <summary>The icon or avatar in the slot.</summary>
+    [Parameter] public RenderFragment? Leading { get; set; }
+    [Parameter, EditorRequired] public string Label { get; set; } = string.Empty;
+    /// <summary>The rail's tooltip, when it should say more than the label.</summary>
+    [Parameter] public string? RailTooltip { get; set; }
+    [Parameter] public bool Active { get; set; }
+
+    string Tooltip => RailTooltip ?? Label;
+    string Css => Active ? "ox-side-item is-active" : "ox-side-item";
+}

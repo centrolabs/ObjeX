@@ -1,32 +1,80 @@
-@implements IDisposable
+@implements IAsyncDisposable
 @inject NavigationManager Navigation
+@inject IJSRuntime JS
 
-<div class="ox-shell @(_drawerOpen ? "is-drawer-open" : null)">
+<div class="ox-shell @(_drawerOpen ? "is-drawer-open" : null) @(Collapsed ? "is-collapsed" : null)" style="@WidthStyle">
     <header class="ox-shell-bar">
         <OxIconButton Icon="menu" Label="Menu" OnClick="@(() => _drawerOpen = !_drawerOpen)" aria-expanded="@(_drawerOpen ? "true" : "false")" />
-        <a class="ox-shell-brand" href="/"><img src="favicon.svg" alt="" />@Brand</a>
+        <a class="ox-shell-brand" href="/"><img src="favicon.svg" alt="" /><span>@Brand</span></a>
     </header>
     <div class="ox-shell-scrim" @onclick="@(() => _drawerOpen = false)"></div>
-    <aside class="ox-shell-side">
-        <a class="ox-shell-brand" href="/"><img src="favicon.svg" alt="" />@Brand</a>
+    <aside class="ox-shell-side" @ref="_side">
+        <a class="ox-shell-brand" href="/" aria-label="@Brand"><img src="favicon.svg" alt="" /><span>@Brand</span></a>
         <nav class="ox-shell-nav" aria-label="Main">@Nav</nav>
         <div class="ox-shell-grow"></div>
         @SideFooter
     </aside>
+    @* Drag to resize, drag towards the rail to collapse, double-click for the default width; the round button toggles. *@
+    <div class="ox-shell-edge" @ref="_edge">
+        <div class="ox-shell-handle" role="separator" aria-orientation="vertical" aria-label="Resize sidebar"></div>
+        <button type="button" class="ox-shell-toggle" aria-label="@(Collapsed ? "Expand sidebar" : "Collapse sidebar")" aria-expanded="@(Collapsed ? "false" : "true")"
+                data-ox-tooltip="@(Collapsed ? "Expand sidebar" : "Collapse sidebar")" data-ox-tooltip-placement="right" @onclick="Toggle">
+            <OxIcon Name="@(Collapsed ? "chevron_right" : "chevron_left")" Small="true" />
+        </button>
+    </div>
     <main class="ox-shell-main">@ChildContent</main>
 </div>
 
 @code {
+    ElementReference _side;
+    ElementReference _edge;
+    IJSObjectReference? _module;
+    DotNetObjectReference<OxShell>? _self;
     bool _drawerOpen;
 
     [Parameter] public string Brand { get; set; } = "ObjeX";
+    /// <summary>From 900 px up the sidebar can shrink to a rail of icons; the drawer below 900 px always shows it in full.</summary>
+    [Parameter] public bool Collapsed { get; set; }
+    [Parameter] public EventCallback<bool> CollapsedChanged { get; set; }
+    /// <summary>The expanded width in pixels, between <see cref="MinWidth"/> and <see cref="MaxWidth"/>; null keeps --ox-size-sidebar.</summary>
+    [Parameter] public int? Width { get; set; }
+    [Parameter] public EventCallback<int?> WidthChanged { get; set; }
+    [Parameter] public int MinWidth { get; set; } = 200;
+    [Parameter] public int MaxWidth { get; set; } = 360;
     /// <summary><see cref="OxNavItem"/> entries.</summary>
     [Parameter] public RenderFragment? Nav { get; set; }
     /// <summary>Bottom of the sidebar: disk meter, user, version.</summary>
     [Parameter] public RenderFragment? SideFooter { get; set; }
     [Parameter] public RenderFragment? ChildContent { get; set; }
 
+    string? WidthStyle => Width is { } width ? $"--ox-side-width: {width}px" : null;
+
+    Task Toggle() => CollapsedChanged.InvokeAsync(!Collapsed);
+
+    /// <summary>The end of a drag: the rail, or the expanded width it was dropped at.</summary>
+    [JSInvokable]
+    public Task ResizedFromBrowser(bool collapsed, int width) => InvokeAsync(async () =>
+    {
+        if (!collapsed) await WidthChanged.InvokeAsync(width);
+        if (collapsed != Collapsed) await CollapsedChanged.InvokeAsync(collapsed);
+    });
+
+    [JSInvokable]
+    public Task ResetFromBrowser() => InvokeAsync(async () =>
+    {
+        await WidthChanged.InvokeAsync(null);
+        if (Collapsed) await CollapsedChanged.InvokeAsync(false);
+    });
+
     protected override void OnInitialized() => Navigation.LocationChanged += OnLocationChanged;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+        _module = await JS.InvokeAsync<IJSObjectReference>("import", "./_content/ObjeX.Web/Components/Ui/OxShell.razor.js");
+        _self = DotNetObjectReference.Create(this);
+        await _module.InvokeVoidAsync("init", _side, _edge, _self, MinWidth, MaxWidth);
+    }
 
     // Below 900 px the sidebar is a drawer; a navigation closes it.
     void OnLocationChanged(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e)
@@ -36,5 +84,18 @@
         InvokeAsync(StateHasChanged);
     }
 
-    public void Dispose() => Navigation.LocationChanged -= OnLocationChanged;
+    public async ValueTask DisposeAsync()
+    {
+        Navigation.LocationChanged -= OnLocationChanged;
+        try
+        {
+            if (_module is not null)
+            {
+                await _module.InvokeVoidAsync("stop", _edge);
+                await _module.DisposeAsync();
+            }
+        }
+        catch (JSDisconnectedException) { }
+        _self?.Dispose();
+    }
 }

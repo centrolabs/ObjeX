@@ -113,6 +113,7 @@
             <OxButton Icon="create_new_folder">New folder</OxButton>
             <OxButton Variant="OxButtonVariant.Primary" Icon="upload">Upload</OxButton>
             <OxButton Variant="OxButtonVariant.Danger" Icon="delete">Delete</OxButton>
+            <OxButton Icon="refresh" Busy="true">Busy</OxButton>
             <OxButton Disabled="true">Disabled</OxButton>
             <OxButton Variant="OxButtonVariant.Primary" Disabled="true">Disabled</OxButton>
             <OxButton Href="/styleguide" Icon="link">Link button</OxButton>
@@ -131,6 +132,23 @@
             </OxMenuButton>
             <OxLink Href="/styleguide">Link</OxLink>
             <OxSpinner />
+            <OxIconButton Icon="refresh" Label="Busy" Busy="true" />
+        </OxStack>
+
+        <OxText Variant="OxTextVariant.Label">Tooltips</OxText>
+        <OxStack Row="true" Wrap="true" Gap="6" Align="OxAlign.Center">
+            <OxIconButton Icon="vertical_align_top" Label="Top, from the label" />
+            <OxIconButton Icon="vertical_align_bottom" Label="Bottom" TooltipPlacement="OxPlacement.Bottom" />
+            <OxIconButton Icon="east" Label="Right" TooltipPlacement="OxPlacement.Right" />
+            <OxButton Icon="info" Tooltip="A button with a tooltip">Button</OxButton>
+            <OxTooltip Text="Any content: wrap it">
+                <OxBadge>Wrapped badge</OxBadge>
+            </OxTooltip>
+            <OxBox Width="OxWidth.Sm">
+                <OxTooltip Text="photos/2024/summer/very-long-file-name.jpg" WhenTruncated="true">
+                    <OxText Truncate="true">photos/2024/summer/very-long-file-name.jpg</OxText>
+                </OxTooltip>
+            </OxBox>
         </OxStack>
 
         <OxText Variant="OxTextVariant.Label">Inputs</OxText>
@@ -194,8 +212,8 @@
 
         <OxText Variant="OxTextVariant.Label">Navigation and sidebar</OxText>
         <OxStack Gap="1">
-            <OxNavItem Href="/styleguide" Icon="inventory_2">Active entry</OxNavItem>
-            <OxNavItem Href="/buckets" Icon="dashboard">Other entry</OxNavItem>
+            <OxNavItem Href="/styleguide" Icon="inventory_2" Label="Active entry" />
+            <OxNavItem Href="/buckets" Icon="dashboard" Label="Other entry" />
         </OxStack>
         <OxSideInfo>
             <ChildContent><b>104.9 GB</b> free of 460.4 GB</ChildContent>

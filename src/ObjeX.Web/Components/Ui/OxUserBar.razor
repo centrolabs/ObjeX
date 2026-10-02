@@ -1,9 +1,11 @@
 <div class="ox-user">
-    <a class="ox-user-link" href="@ProfileHref" title="Profile">
-        <OxAvatar Name="@Name" />
-        <span>@Name</span>
-    </a>
-    <OxIconButton Icon="logout" Label="Sign out" OnClick="@(() => OnSignOut.InvokeAsync())" />
+    <OxSideItem Href="@ProfileHref" Label="@Name" RailTooltip="@($"{Name} · Profile")">
+        <Leading><OxAvatar Name="@Name" /></Leading>
+    </OxSideItem>
+    @ChildContent
+    <OxSideItem Label="Sign out" OnClick="@(() => OnSignOut.InvokeAsync())">
+        <Leading><OxIcon Name="logout" /></Leading>
+    </OxSideItem>
 </div>
 @if (Version is not null)
 {
@@ -14,5 +16,7 @@
     [Parameter, EditorRequired] public string Name { get; set; } = string.Empty;
     [Parameter] public string ProfileHref { get; set; } = "/profile";
     [Parameter] public string? Version { get; set; }
+    /// <summary><see cref="OxSideItem"/> rows between the profile and Sign out, for example the theme switch.</summary>
+    [Parameter] public RenderFragment? ChildContent { get; set; }
     [Parameter] public EventCallback OnSignOut { get; set; }
 }

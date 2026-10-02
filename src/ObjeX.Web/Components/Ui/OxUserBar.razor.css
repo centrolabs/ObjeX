@@ -1,20 +1,19 @@
-.ox-user { display: flex; align-items: center; gap: var(--ox-space-2); }
+.ox-user { display: flex; flex-direction: column; gap: var(--ox-space-1); }
 
-.ox-user-link {
-    flex: 1;
-    display: flex;
-    align-items: center;
-    gap: var(--ox-space-4);
-    min-width: 0;
-    height: var(--ox-size-ctl);
+/* The version keeps its line in the rail, so nothing above it moves. */
+.ox-user-version {
     padding: 0 var(--ox-space-4);
-    border-radius: var(--ox-radius-md);
-    color: var(--ox-text);
-    text-decoration: none;
+    overflow: hidden;
+    white-space: nowrap;
+    font-size: var(--ox-fs-xs);
+    color: var(--ox-text-side-muted);
+    transition: opacity .12s ease-out;
 }
 
-.ox-user-link span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ox-user-link:hover { background: var(--ox-surface-nav-hover); }
-.ox-user-link:focus-visible { outline: var(--ox-ring) solid var(--ox-accent-text); outline-offset: calc(-1 * var(--ox-ring)); }
+@container ox-side (max-width: 120px) {
+    .ox-user-version { opacity: 0; }
+}
 
-.ox-user-version { padding: 0 var(--ox-space-4); font-size: var(--ox-fs-xs); color: var(--ox-text-side-muted); }
+@media (prefers-reduced-motion: reduce) {
+    .ox-user-version { transition: none; }
+}

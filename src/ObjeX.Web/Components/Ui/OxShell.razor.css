@@ -1,17 +1,22 @@
 .ox-shell { display: flex; min-height: 100vh; background: var(--ox-surface); color: var(--ox-text); }
 
+/* The sidebar is a size container: its entries switch to their rail form by its width alone, so a drag previews the
+   rail live and the drawer, always full width, never shows it. Paddings stay the same in both forms; only the width
+   changes, and the labels clip and fade. */
 .ox-shell-side {
+    container: ox-side / inline-size;
     position: sticky;
     top: 0;
     flex: none;
     display: flex;
     flex-direction: column;
     gap: var(--ox-space-7);
-    width: var(--ox-size-sidebar);
+    width: var(--ox-side-width, var(--ox-size-sidebar));
     height: 100vh;
     padding: var(--ox-space-6);
     border-right: var(--ox-border) solid var(--ox-line-side);
     background: var(--ox-surface-side);
+    overflow-x: hidden;
     overflow-y: auto;
 }
 
@@ -28,10 +33,74 @@
 }
 
 .ox-shell-brand:focus-visible { outline: var(--ox-ring) solid var(--ox-accent-text); }
-.ox-shell-brand img { width: var(--ox-size-avatar); height: var(--ox-size-avatar); border-radius: var(--ox-radius-sm); }
+.ox-shell-brand img { flex: none; width: var(--ox-size-avatar); height: var(--ox-size-avatar); border-radius: var(--ox-radius-sm); }
+.ox-shell-brand span { overflow: hidden; white-space: nowrap; transition: opacity .12s ease-out; }
+
+@container ox-side (max-width: 120px) {
+    .ox-shell-brand span { opacity: 0; }
+}
 
 .ox-shell-nav { display: flex; flex-direction: column; gap: var(--ox-space-1); }
 .ox-shell-grow { flex: 1; }
+
+/* A line with no width between sidebar and page; its handle and button reach over both sides. */
+.ox-shell-edge { position: sticky; top: 0; z-index: 2; flex: none; width: 0; height: 100vh; }
+
+.ox-shell-handle {
+    position: absolute;
+    inset: 0 auto 0 calc(-1 * var(--ox-space-2));
+    width: var(--ox-space-4);
+    cursor: col-resize;
+    touch-action: none;
+    user-select: none;
+}
+
+.ox-shell-handle::after {
+    content: "";
+    position: absolute;
+    inset: 0 auto 0 calc(var(--ox-space-2) - var(--ox-border));
+    width: var(--ox-ring);
+    background: var(--ox-accent);
+    opacity: 0;
+    transition: opacity .12s ease-out;
+}
+
+.ox-shell-handle:hover::after { opacity: 1; transition-delay: .15s; }
+.ox-shell-edge[data-dragging] .ox-shell-handle::after { opacity: 1; transition-delay: 0s; }
+
+/* Centred on the line, level with the logo. Always there, faint at rest: hovering the sidebar brings it up at once,
+   leaving lets it fade back after a pause, so it does not flicker while the pointer passes. */
+.ox-shell-toggle {
+    position: absolute;
+    top: calc(var(--ox-space-6) + var(--ox-space-2));
+    left: calc(var(--ox-size-avatar) / -2);
+    display: grid;
+    place-items: center;
+    width: var(--ox-size-avatar);
+    height: var(--ox-size-avatar);
+    padding: 0;
+    border: var(--ox-border) solid var(--ox-line-strong);
+    border-radius: var(--ox-radius-full);
+    background: var(--ox-surface-raised);
+    color: var(--ox-text-muted);
+    box-shadow: var(--ox-shadow-ctl);
+    cursor: pointer;
+    opacity: .35;
+    transition: opacity .4s ease-out 1.2s;
+}
+
+.ox-shell-toggle:hover { background: var(--ox-surface-hover-strong); color: var(--ox-text); }
+.ox-shell-toggle:focus-visible { outline: var(--ox-ring) solid var(--ox-accent-text); outline-offset: var(--ox-border); }
+
+.ox-shell-toggle:focus-visible,
+.ox-shell-side:hover + .ox-shell-edge .ox-shell-toggle,
+.ox-shell-edge:hover .ox-shell-toggle,
+.ox-shell-edge[data-dragging] .ox-shell-toggle { opacity: 1; transition: opacity .12s ease-out; }
+
+/* Without hover the button could never appear. */
+@media (hover: none) {
+    .ox-shell-toggle { opacity: 1; }
+}
 
 .ox-shell-main {
     flex: 1;
@@ -43,6 +112,11 @@
 }
 
 .ox-shell-bar, .ox-shell-scrim { display: none; }
+
+@media (min-width: 900px) {
+    .ox-shell-side { transition: width .2s cubic-bezier(.2, 0, 0, 1); }
+    .ox-shell.is-collapsed .ox-shell-side { width: var(--ox-size-sidebar-rail); }
+}
 
 @media (max-width: 899px) {
     .ox-shell { flex-direction: column; }
@@ -64,6 +138,7 @@
         position: fixed;
         inset: 0 auto 0 0;
         z-index: var(--ox-z-drawer);
+        width: var(--ox-size-sidebar);
         transform: translateX(-100%);
         visibility: hidden;
         transition: transform .16s ease-out, visibility .16s;
@@ -80,9 +155,11 @@
         background: var(--ox-overlay);
     }
 
+    .ox-shell-edge { display: none; }
+
     .ox-shell-main { padding: var(--ox-space-7) var(--ox-space-7); }
 }
 
 @media (prefers-reduced-motion: reduce) {
-    .ox-shell-side { transition: none; }
+    .ox-shell-side, .ox-shell-brand span, .ox-shell-toggle, .ox-shell-handle::after { transition: none; }
 }

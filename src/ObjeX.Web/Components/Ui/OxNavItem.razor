@@ -1,15 +1,15 @@
 @implements IDisposable
 @inject NavigationManager Navigation
 
-<a href="@Href" class="ox-nav-item @(IsActive ? "is-active" : null)" aria-current="@(IsActive ? "page" : null)">
-    <OxIcon Name="@Icon" />
-    <span>@ChildContent</span>
-</a>
+<OxSideItem Href="@Href" Label="@Label" Active="@IsActive">
+    <Leading><OxIcon Name="@Icon" /></Leading>
+</OxSideItem>
 
 @code {
     [Parameter, EditorRequired] public string Href { get; set; } = "/";
     [Parameter, EditorRequired] public string Icon { get; set; } = string.Empty;
-    [Parameter] public RenderFragment? ChildContent { get; set; }
+    /// <summary>The visible text; in the collapsed sidebar the tooltip and the accessible name.</summary>
+    [Parameter, EditorRequired] public string Label { get; set; } = string.Empty;
 
     bool IsActive
     {
