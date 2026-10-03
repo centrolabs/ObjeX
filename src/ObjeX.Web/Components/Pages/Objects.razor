@@ -197,6 +197,7 @@
     bool _bulkDeleting;
     bool _loaded;
     string? _loadedBucket;
+    int _loadVersion;
     List<string> _otherBuckets = [];
     bool _bulkDownloading;
     Bucket? _bucket;
@@ -299,38 +300,71 @@
     }
 
     // The page component stays when the breadcrumb's switcher opens another bucket; everything of the old one goes.
+    // Until the new bucket is checked the page has none, so a folder change in between loads nothing.
     async Task OpenBucketAsync()
     {
+        var version = ++_loadVersion;
         _loadedBucket = BucketName;
         _loaded = false;
         _selected.Clear();
         _selectionAnchor = null;
         _searchCts.Cancel();
         (_searchTerm, _searchApplied, _searchLimitHit) = (string.Empty, false, false);
-        _rows = [];
+        (_bucket, _bucketExists, _rows, _objects, _folders) = (null, false, [], [], []);
         _currentPrefix = PrefixParam ?? string.Empty;
         _loadedPrefix = null;
+        await ForgetUploadsAsync();
 
-        _bucket = await MetadataService.GetBucketAsync(BucketName, _isPrivileged ? null : _currentUserId);
-        _bucketExists = _bucket is not null;
-        _otherBuckets = (await MetadataService.ListBucketsAsync(_isPrivileged ? null : _currentUserId))
-            .Select(b => b.Name).Where(n => n != BucketName).Order(StringComparer.Ordinal).ToList();
+        var bucket = await MetadataService.GetBucketAsync(BucketName, _isPrivileged ? null : _currentUserId);
+        var others = await MetadataService.ListBucketsAsync(_isPrivileged ? null : _currentUserId);
+        if (version != _loadVersion) return;
+
+        _bucket = bucket;
+        _bucketExists = bucket is not null;
+        _otherBuckets = others.Select(b => b.Name).Where(n => n != BucketName).Order(StringComparer.Ordinal).ToList();
         if (_bucketExists)
             await LoadObjects();
         else
             NotificationService.Notify(NotificationSeverity.Error, "Bucket not found", $"\"{BucketName}\" does not exist.");
         _loaded = true;
+
+        // A folder chosen while the bucket loaded was skipped above; it is the one to show.
+        if (_bucketExists && (PrefixParam ?? string.Empty) != _currentPrefix)
+        {
+            _currentPrefix = PrefixParam ?? string.Empty;
+            await LoadObjects();
+        }
+    }
+
+    // The upload panel belongs to the bucket its keys were made for; a Retry must not send them into another one.
+    async Task ForgetUploadsAsync()
+    {
+        var ids = _uploads.Clear();
+        if (_uploader is not null && ids.Count > 0)
+            await _uploader.InvokeVoidAsync("forget", ids);
     }
 
     async Task LoadObjects()
     {
+        var version = ++_loadVersion;
         _loadedPrefix = _currentPrefix;
-        // Bucket stats change with every upload and delete, so refresh them together with the listing.
-        _bucket = await MetadataService.GetBucketAsync(BucketName, _isPrivileged ? null : _currentUserId);
+        // Every listing asks again whether this user may see the bucket, with the stats that change on every write:
+        // BucketName can change while an older load still runs, and only the owner check keeps another user's keys out.
+        var bucket = await MetadataService.GetBucketAsync(BucketName, _isPrivileged ? null : _currentUserId);
+        if (version != _loadVersion) return;
+        _bucket = bucket;
+        if (bucket is null)
+        {
+            (_bucketExists, _rows, _objects, _folders) = (false, [], [], []);
+            _selected.Clear();
+            return;
+        }
+
         var result = await MetadataService.ListObjectsAsync(
             BucketName,
             prefix: string.IsNullOrEmpty(_currentPrefix) ? null : _currentPrefix,
             delimiter: "/");
+        if (version != _loadVersion) return;
         _objects = result.Objects.ToList();
         _folders = result.CommonPrefixes.ToList();
 
@@ -358,6 +392,7 @@
 
     async Task RunSearch(CancellationToken ctk)
     {
+        if (_bucket is null) return;
         // One row over the limit tells the caption whether the result set was cut off.
         var hits = await MetadataService.SearchObjectsAsync(BucketName, _currentPrefix, _searchTerm, SearchLimit + 1, ctk);
         _searchLimitHit = hits.Count > SearchLimit;
@@ -467,7 +502,8 @@
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (!firstRender || !_bucketExists || Antiforgery.GetAntiforgeryToken()?.Value is not { } token) return;
+        // Also on a missing bucket: the switcher can open an existing one later, and this component stays.
+        if (!firstRender || Antiforgery.GetAntiforgeryToken()?.Value is not { } token) return;
         _self = DotNetObjectReference.Create(this);
         _uploadModule = await JS.InvokeAsync<IJSObjectReference>("import", "./_content/ObjeX.Web/Components/Pages/Objects.razor.js");
         _uploader = await _uploadModule.InvokeAsync<IJSObjectReference>("createUploader", _self, AntiforgeryOptions.Value.HeaderName, token);
@@ -493,6 +529,7 @@
     [JSInvokable]
     public async Task OnFilesAdded(int drop, UploadFile[] files)
     {
+        if (!_bucketExists) return;
         var toSend = _uploads.Add(drop, _currentPrefix, files);
         StateHasChanged();
         await StartUploadsAsync(toSend);
