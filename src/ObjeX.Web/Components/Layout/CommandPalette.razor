@@ -51,7 +51,8 @@
     {
         var user = (await AuthStateProvider.GetAuthenticationStateAsync()).User;
         var privileged = user.IsInRole("Admin") || user.IsInRole("Manager");
-        _ownerFilter = privileged ? null : user.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        // Null means every bucket, so a missing id must narrow to nothing rather than widen to all.
+        _ownerFilter = privileged ? null : user.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? string.Empty;
 
         var buckets = await Metadata.ListBucketsAsync(_ownerFilter);
         _fixed =
@@ -104,6 +105,8 @@
         {
             await Task.Delay(SearchDebounceMs, ctk);
             var hits = await Metadata.SearchAllObjectsAsync(_ownerFilter, query.Trim(), ObjectLimit, ctk);
+            // A newer keystroke owns the results and the spinner now.
+            if (ctk.IsCancellationRequested) return;
             _objects = hits.Select(o => new OxPaletteItem("Objects", o.Key, "description", o.BucketName,
                 new Target(FileHelper.FolderUrl(o.BucketName, o.Key)))).ToList();
             _searching = false;

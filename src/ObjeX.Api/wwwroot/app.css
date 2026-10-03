@@ -34,7 +34,10 @@ h1:focus { outline: none; }
 
 .rz-grid-table { min-width: var(--ox-size-table-min); font-variant-numeric: tabular-nums; }
 .ox-grid-wide .rz-grid-table { min-width: var(--ox-size-table-min-wide); }
-.ox-grid-clickable .rz-data-row { cursor: pointer; }
+/* A clickable grid opens a row through the link of its name, stretched over the row: one navigation, and Cmd-click or a
+   middle click open a tab as on any link. The row is the containing block, so the cells' overflow does not clip it. */
+.ox-grid-clickable .rz-data-row { position: relative; cursor: pointer; }
+.ox-grid-clickable .rz-data-row .ox-file-name a::after { content: ""; position: absolute; inset: 0; }
 
 .rz-grid-table thead th {
     height: var(--ox-size-row);

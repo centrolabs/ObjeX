@@ -24,14 +24,9 @@ public static class RelativeTime
         return ahead ? $"in {amount}" : $"{amount} ago";
     }
 
-    /// <summary>How often to read the text again: twice a minute within the hour, every 10 minutes within the week, never after.</summary>
-    public static TimeSpan? RefreshInterval(DateTime utc, DateTime nowUtc)
-    {
-        var span = (nowUtc - DateTime.SpecifyKind(utc, DateTimeKind.Utc)).Duration();
-        return span < TimeSpan.FromHours(1) ? TimeSpan.FromSeconds(30)
-            : span < Limit ? TimeSpan.FromMinutes(10)
-            : null;
-    }
+    /// <summary>Whether the text can still change: within a week of now, ahead or behind. After that it is a fixed timestamp.</summary>
+    public static bool Changes(DateTime utc, DateTime nowUtc) =>
+        (nowUtc - DateTime.SpecifyKind(utc, DateTimeKind.Utc)).Duration() < Limit;
 
     static string Plural(int count, string unit) => count == 1 ? $"1 {unit}" : $"{count} {unit}s";
 }

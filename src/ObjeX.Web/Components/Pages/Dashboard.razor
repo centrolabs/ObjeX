@@ -139,8 +139,7 @@ else
 else if (_buckets.Count > 0)
 {
     <OxCard Title="Buckets" Flush="true">
-        <RadzenDataGrid class="@($"{OxSizes.WideGridClass} {OxSizes.ClickableGridClass}")" Data="@_buckets" TItem="Bucket" AllowSorting="true" AllowAlternatingRows="false"
-                        RowClick="@OpenBucket">
+        <RadzenDataGrid class="@($"{OxSizes.WideGridClass} {OxSizes.ClickableGridClass}")" Data="@_buckets" TItem="Bucket" AllowSorting="true" AllowAlternatingRows="false">
             <Columns>
                 <RadzenDataGridColumn TItem="Bucket" Property="Name" Title="Name">
                     <Template Context="b"><OxFileName Kind="OxFileKind.Bucket" Href="@($"/buckets/{b.Name}")">@b.Name</OxFileName></Template>
@@ -346,13 +345,6 @@ else
     {
         if (args.Data is Bucket bucket)
             Navigation.NavigateTo($"/buckets/{Uri.EscapeDataString(bucket.Name)}");
-    }
-
-    // A modified click on the name link opens a new tab; the page itself stays where it is.
-    void OpenBucket(DataGridRowMouseEventArgs<Bucket> args)
-    {
-        if (args.Data is null || args.CtrlKey || args.MetaKey || args.ShiftKey) return;
-        Navigation.NavigateTo($"/buckets/{Uri.EscapeDataString(args.Data.Name)}");
     }
 
     static string MimeToExtension(string contentType) => contentType switch

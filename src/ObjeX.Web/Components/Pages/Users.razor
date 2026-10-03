@@ -205,7 +205,8 @@ else
             .Select(g => new { OwnerId = g.Key, Total = g.Sum(b => b.TotalSize), Count = g.Count() })
             .ToDictionaryAsync(x => x.OwnerId);
 
-        // Activity is the later of the last S3 request and the last audited change; both columns are indexed per user.
+        // Activity is the later of the last S3 request and the last audited change. The audit part groups the whole log by
+        // user; a very large log would want an index on (user_id, timestamp).
         var lastS3 = await db.S3Credentials
             .Where(c => c.LastUsedAt != null)
             .GroupBy(c => c.UserId)

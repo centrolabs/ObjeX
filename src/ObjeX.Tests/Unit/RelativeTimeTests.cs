@@ -40,10 +40,10 @@ public class RelativeTimeTests
         Assert.Equal("2 hours ago", RelativeTime.Format(DateTime.SpecifyKind(Now.AddHours(-2), DateTimeKind.Unspecified), Now));
 
     [Fact]
-    public void RefreshInterval_FollowsTheUnitThatCanChange()
+    public void Changes_OnlyWithinAWeek()
     {
-        Assert.Equal(TimeSpan.FromSeconds(30), RelativeTime.RefreshInterval(Now.AddMinutes(-5), Now));
-        Assert.Equal(TimeSpan.FromMinutes(10), RelativeTime.RefreshInterval(Now.AddHours(-5), Now));
-        Assert.Null(RelativeTime.RefreshInterval(Now.AddDays(-8), Now));
+        Assert.True(RelativeTime.Changes(Now.AddMinutes(-5), Now));
+        Assert.True(RelativeTime.Changes(Now.AddDays(3), Now));
+        Assert.False(RelativeTime.Changes(Now.AddDays(-8), Now));
     }
 }
