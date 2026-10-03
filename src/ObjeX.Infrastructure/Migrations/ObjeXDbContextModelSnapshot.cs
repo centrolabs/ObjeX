@@ -222,8 +222,8 @@ namespace ObjeX.Infrastructure.Migrations
                     b.HasIndex("Timestamp")
                         .HasDatabaseName("ix_audit_entries_timestamp");
 
-                    b.HasIndex("UserId")
-                        .HasDatabaseName("ix_audit_entries_user_id");
+                    b.HasIndex("UserId", "Timestamp")
+                        .HasDatabaseName("ix_audit_entries_user_id_timestamp");
 
                     b.ToTable("audit_entries", (string)null);
                 });

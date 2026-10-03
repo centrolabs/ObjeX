@@ -1,6 +1,7 @@
 @implements IDisposable
 @inject BrowserTimeZone Tz
 @inject UiPreferences Preferences
+@inject UiClock Clock
 
 @if (Value is { } value)
 {
@@ -12,10 +13,11 @@ else
 }
 
 @code {
-    Timer? _timer;
     string _text = string.Empty;
     string? _tooltip;
     bool _rendered;
+    bool _ticking;
+    bool _disposed;
 
     /// <summary>
     /// A UTC timestamp. With relative times on (the default) it reads "12 min ago" within a week and as the full
@@ -40,44 +42,50 @@ else
     protected override void OnParametersSet()
     {
         Describe();
-        if (_rendered) Schedule();
+        if (_rendered) Follow();
     }
 
-    // Prerendering has no circuit to update, so the clock starts with the interactive render.
+    // Prerendering has no circuit to update, so the clock is followed from the interactive render on.
     protected override void OnAfterRender(bool firstRender)
     {
         if (!firstRender) return;
         _rendered = true;
-        Schedule();
+        Follow();
     }
 
-    void Schedule()
+    // Only a text that can still change listens to the circuit's clock.
+    void Follow()
     {
-        _timer?.Dispose();
-        _timer = Value is { } value && RelativeTime.RefreshInterval(value, DateTime.UtcNow) is { } every
-            ? new Timer(_ => _ = InvokeAsync(Tick), null, every, every)
-            : null;
+        var needed = !_disposed && Value is { } value && RelativeTime.Changes(value, DateTime.UtcNow);
+        if (needed == _ticking) return;
+        _ticking = needed;
+        if (needed) Clock.Tick += OnTick;
+        else Clock.Tick -= OnTick;
     }
 
-    void Tick()
+    // A tick queued just before Dispose still arrives; _disposed turns it away.
+    void OnTick() => _ = InvokeAsync(() =>
     {
+        if (_disposed) return;
         var (text, tooltip) = (_text, _tooltip);
         Describe();
-        if (text == _text && tooltip == _tooltip) return;
-        StateHasChanged();
-        Schedule();
-    }
+        if (text != _text || tooltip != _tooltip) StateHasChanged();
+        Follow();
+    });
 
     // The clock and the relative switch change the text of every timestamp on the page.
     void OnPreferencesChanged() => _ = InvokeAsync(() =>
     {
+        if (_disposed) return;
         Describe();
         StateHasChanged();
     });
 
     public void Dispose()
     {
-        _timer?.Dispose();
+        _disposed = true;
         Preferences.Changed -= OnPreferencesChanged;
+        if (_ticking) Clock.Tick -= OnTick;
+        _ticking = false;
     }
 }

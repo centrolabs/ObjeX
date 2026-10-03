@@ -205,16 +205,16 @@ else
             .Select(g => new { OwnerId = g.Key, Total = g.Sum(b => b.TotalSize), Count = g.Count() })
             .ToDictionaryAsync(x => x.OwnerId);
 
-        // Activity is the later of the last S3 request and the last audited change; both columns are indexed per user.
+        // Activity is the later of the last S3 request and the last audited change. The audit part asks per user for the
+        // latest timestamp, which the index on (user_id, timestamp) answers with one seek each instead of reading the log.
         var lastS3 = await db.S3Credentials
             .Where(c => c.LastUsedAt != null)
             .GroupBy(c => c.UserId)
             .Select(g => new { UserId = g.Key, Last = g.Max(c => c.LastUsedAt) })
             .ToDictionaryAsync(x => x.UserId, x => x.Last);
-        var lastChange = await db.AuditEntries
-            .GroupBy(a => a.UserId)
-            .Select(g => new { UserId = g.Key, Last = g.Max(a => a.Timestamp) })
-            .ToDictionaryAsync(x => x.UserId, x => x.Last);
+        var lastChange = await db.Users
+            .Select(u => new { u.Id, Last = db.AuditEntries.Where(a => a.UserId == u.Id).Max(a => (DateTime?)a.Timestamp) })
+            .ToDictionaryAsync(x => x.Id, x => x.Last);
 
         // Batch-load all user-role mappings in a single query to avoid N+1
         var userRoles = await db.UserRoles
@@ -233,7 +233,7 @@ else
             var isPrivileged = role is "Admin" or "Manager";
             var quota = u.StorageQuotaBytes ?? (isPrivileged ? null : settings?.DefaultStorageQuotaBytes);
             DateTime? s3 = lastS3.GetValueOrDefault(u.Id);
-            DateTime? change = lastChange.TryGetValue(u.Id, out var c) ? c : null;
+            DateTime? change = lastChange.GetValueOrDefault(u.Id);
             var lastActivity = s3 is null ? change : change is null ? s3 : s3 > change ? s3 : change;
             rows.Add(new UserRow(u.Id, u.UserName ?? string.Empty, u.Email ?? string.Empty, role, u.IsDeactivated,
                 u.LockoutEnd > now, u.CreatedAt, owned?.Total ?? 0, quota, owned?.Count ?? 0, lastActivity));

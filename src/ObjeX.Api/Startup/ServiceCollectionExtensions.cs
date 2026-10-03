@@ -141,6 +141,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<BrowserTimeZone>();
         services.AddScoped<UiPreferences>();
         services.AddScoped<CommandPaletteState>();
+        services.AddScoped<UiClock>();
         services.AddCascadingAuthenticationState();
         services.AddResponseCompression(options => options.EnableForHttps = true);
 

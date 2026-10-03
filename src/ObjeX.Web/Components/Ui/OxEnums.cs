@@ -70,7 +70,7 @@ public static class OxSizes
     public const string SelectedRowClass = "rz-data-row ox-row-selected";
     /// <summary>Grid class for rows whose cells stack two lines: the row grows instead of squeezing them.</summary>
     public const string RoomyGridClass = "ox-grid-roomy";
-    /// <summary>Grid class for rows that open something on click: the pointer shows it.</summary>
+    /// <summary>Grid class for rows that open their name link (OxFileName with Href) on a click anywhere in the row.</summary>
     public const string ClickableGridClass = "ox-grid-clickable";
     /// <summary>Grid class for many fixed columns: a narrow screen scrolls sooner, so the name column keeps room.</summary>
     public const string WideGridClass = "ox-grid-wide";

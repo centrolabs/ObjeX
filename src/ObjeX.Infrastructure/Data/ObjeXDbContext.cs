@@ -87,7 +87,8 @@ public class ObjeXDbContext(DbContextOptions<ObjeXDbContext> options) : Identity
         {
             entity.HasKey(e => e.Id);
             entity.HasIndex(e => e.Timestamp);
-            entity.HasIndex(e => e.UserId);
+            // The last entry per user (Users page, "Last activity") reads one index range; the leading column also serves user lookups.
+            entity.HasIndex(e => new { e.UserId, e.Timestamp });
             entity.HasIndex(e => e.Action);
             entity.HasIndex(e => e.BucketName);
         });

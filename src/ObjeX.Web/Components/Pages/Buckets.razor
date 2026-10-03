@@ -159,7 +159,9 @@ else
         if (!_openCreate) return;
         _openCreate = false;
         await OnCreateBucket();
-        Navigation.NavigateTo("/buckets", replace: true);
+        // Back also closes the dialog; then the address is another page's and stays as it is.
+        if (Navigation.ToBaseRelativePath(Navigation.Uri).StartsWith("buckets?") && Navigation.Uri.Contains("new="))
+            Navigation.NavigateTo("/buckets", replace: true);
     }
 
     protected override async Task OnInitializedAsync()
@@ -273,8 +275,10 @@ else
         }
     }
 
-    async Task OnDeleteBucket(Bucket bucket)
+    async Task OnDeleteBucket(Bucket listed)
     {
+        // The count decides whether the name must be typed, so it is read now: S3 may have filled the bucket since the list loaded.
+        var bucket = await MetadataService.GetBucketAsync(listed.Name, _isPrivileged ? null : _currentUserId) ?? listed;
         // An empty bucket loses nothing; for a full one the name has to be typed, so a slip of the mouse deletes no data.
         var message = bucket.ObjectCount == 0
             ? $"Delete the empty bucket \"{bucket.Name}\"?"
