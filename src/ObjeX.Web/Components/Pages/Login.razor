@@ -60,7 +60,7 @@
 
         var authState = await AuthStateProvider.GetAuthenticationStateAsync();
         if (authState.User.Identity?.IsAuthenticated == true)
-            Navigation.NavigateTo(ReturnUrl ?? "/", forceLoad: true);
+            Navigation.NavigateTo(LoginTarget.Local(ReturnUrl, new Uri(Navigation.BaseUri).Authority) ?? "/", forceLoad: true);
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
