@@ -1,5 +1,6 @@
 @page "/settings"
 @using Microsoft.EntityFrameworkCore
+@using ObjeX.Core.Interfaces
 @using ObjeX.Core.Models
 @using ObjeX.Core.Utilities
 @using ObjeX.Infrastructure.Data
@@ -14,6 +15,8 @@
 @inject NotificationService NotificationService
 @inject AuthenticationStateProvider AuthStateProvider
 @inject BrowserTimeZone Tz
+@inject ISearchIndex SearchIndex
+@inject ILogger<Settings> Logger
 
 <PageTitle>Settings — ObjeX</PageTitle>
 
@@ -84,6 +87,19 @@
             <OxStack Row="true" Justify="OxJustify.End">
                 <OxButton Variant="OxButtonVariant.Primary" OnClick="SaveQuotaSettings">Save</OxButton>
             </OxStack>
+        </OxCard>
+    }
+
+    @if (_isAdmin && _searchIndex is { } searchIndex)
+    {
+        <OxCard Title="Search index">
+            <OxSettingRow Label="Trigram index" Hint="@SearchIndexText.Describe(searchIndex)">
+                <OxBadge Tone="@SearchIndexText.ToneOf(searchIndex.State)">@SearchIndexText.LabelOf(searchIndex.State)</OxBadge>
+            </OxSettingRow>
+            @if (searchIndex.State != SearchIndexState.NotUsed)
+            {
+                <OxText Variant="OxTextVariant.Small">@SearchIndexText.HowToChange</OxText>
+            }
         </OxCard>
     }
 </OxGrid>
@@ -169,6 +185,7 @@
 @code {
     bool _isAdmin;
     bool _isManager;
+    SearchIndexStatus? _searchIndex;
     IReadOnlyList<StartPages.Page> _startPages = [];
     string StartPage => _startPages.Any(p => p.Path == Preferences.StartPage) ? Preferences.StartPage! : StartPages.Default;
     string _userId = string.Empty;
@@ -220,6 +237,21 @@
         {
             await LoadPresignSettings();
             await LoadQuotaSettings();
+        }
+        if (_isAdmin)
+            await LoadSearchIndexStatus();
+    }
+
+    // Only information: a failed read hides the card instead of the whole page.
+    async Task LoadSearchIndexStatus()
+    {
+        try
+        {
+            _searchIndex = await SearchIndex.GetStatusAsync();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Reading the search index status failed");
         }
     }
 
