@@ -22,6 +22,10 @@ internal static class SearchPattern
     /// </summary>
     public static IReadOnlyList<string> FromTermInBothForms(string term) => [.. BothForms(term).Select(FromTerm).Distinct()];
 
+    /// <summary>Patterns for keys in which the term starts the key or a segment after a <c>/</c>. They rank, they do not filter; a wildcard term gets none.</summary>
+    public static IReadOnlyList<string> SegmentStarts(string term) =>
+        HasWildcard(term) ? [] : [.. BothForms(term).Distinct().SelectMany(form => new[] { $"{Escape(form)}%", $"%/{Escape(form)}%" })];
+
     private static bool HasWildcard(string term) => term.Contains('*') || term.Contains('?');
 
     private static string Escape(string term) => term.Replace("\\", "\\\\").Replace("%", "\\%").Replace("_", "\\_");

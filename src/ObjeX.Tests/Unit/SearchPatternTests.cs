@@ -55,4 +55,19 @@ public class SearchPatternTests
     {
         Assert.Equal(["%report%"], SearchPattern.FromTermInBothForms("report"));
     }
+
+    [Fact]
+    public void SegmentStarts_CoverTheKeyStartAndEverySegmentInBothForms()
+    {
+        Assert.Equal(["inv%", "%/inv%"], SearchPattern.SegmentStarts("inv"));
+        Assert.Equal([@"a\_b%", @"%/a\_b%"], SearchPattern.SegmentStarts("a_b"));
+        Assert.Equal(["caf\u00e9%", "%/caf\u00e9%", "cafe\u0301%", "%/cafe\u0301%"], SearchPattern.SegmentStarts("caf\u00e9"));
+    }
+
+    [Fact]
+    public void SegmentStarts_NoneForAWildcardTerm()
+    {
+        Assert.Empty(SearchPattern.SegmentStarts("*.pdf"));
+        Assert.Empty(SearchPattern.SegmentStarts("img_????"));
+    }
 }

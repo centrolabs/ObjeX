@@ -104,7 +104,7 @@
         try
         {
             await Task.Delay(SearchDebounceMs, ctk);
-            var hits = await Metadata.SearchAllObjectsAsync(_ownerFilter, query.Trim(), ObjectLimit, ctk);
+            var hits = await Metadata.SearchAllObjectsAsync(_ownerFilter, query.Trim(), ObjectLimit, bestFirst: true, ctk);
             // A newer keystroke owns the results and the spinner now.
             if (ctk.IsCancellationRequested) return;
             _objects = hits.Select(o => new OxPaletteItem("Objects", o.Key, "description", o.BucketName,

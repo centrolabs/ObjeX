@@ -174,6 +174,40 @@ public class ObjectSearchTests(ObjeXFactory factory) : IClassFixture<ObjeXFactor
         Assert.Equal([("aa-ledger", "z-ledger.txt"), ("zz-ledger", "a-ledger.txt")], await SearchAllAsync(null, "ledger"));
     }
 
+    private async Task<IReadOnlyList<string>> BestFirstAsync(string term)
+    {
+        using var scope = factory.CreateScope();
+        var hits = await scope.ServiceProvider.GetRequiredService<IMetadataService>()
+            .SearchAllObjectsAsync(null, term, 100, bestFirst: true);
+        return hits.Select(o => o.Key).ToList();
+    }
+
+    [Fact]
+    public async Task BestFirst_RanksASegmentStartFirstThenShorterKeysThenByteOrder()
+    {
+        await SeedAsync("rank-quokka", "x/my-quokka.txt", "quokka-notes/a.txt", "2024/quokka.txt", "c/quokka.txt", "b/quokka.txt");
+
+        Assert.Equal(["b/quokka.txt", "c/quokka.txt", "2024/quokka.txt", "quokka-notes/a.txt", "x/my-quokka.txt"], await BestFirstAsync("Quokka"));
+    }
+
+    [Fact]
+    public async Task BestFirst_RanksAWildcardTermByLengthOnly()
+    {
+        await SeedAsync("rank-wildcard", "x/my-wombat.txt", "wombat-notes/a.txt", "2024/wombat.txt", "b/wombat.txt");
+
+        Assert.Equal(["b/wombat.txt", "2024/wombat.txt", "x/my-wombat.txt"], await BestFirstAsync("*wombat.txt"));
+    }
+
+    [Fact]
+    public async Task BestFirst_RanksASegmentStartInEitherUnicodeForm()
+    {
+        const string decomposedStart = "cafe\u0301-numbat/menu.txt";
+        const string composedInside = "x-caf\u00e9-numbat.txt";
+        await SeedAsync("rank-unicode", decomposedStart, composedInside);
+
+        Assert.Equal([decomposedStart, composedInside], await BestFirstAsync("caf\u00e9-numbat"));
+    }
+
     [Fact]
     public async Task SearchAll_UsesTheSameTermSemanticsAndSkipsPlaceholders()
     {

@@ -218,7 +218,7 @@ public class EfCoreMetadataService(IDbContextFactory<ObjeXDbContext> contexts) :
         return await OrderByKey(ctx, query).Take(limit).ToListAsync(ctk);
     }
 
-    public async Task<IReadOnlyList<BlobObject>> SearchAllObjectsAsync(string? ownerFilter, string term, int limit, CancellationToken ctk = default)
+    public async Task<IReadOnlyList<BlobObject>> SearchAllObjectsAsync(string? ownerFilter, string term, int limit, bool bestFirst = false, CancellationToken ctk = default)
     {
         await using var ctx = await contexts.CreateDbContextAsync(ctk);
         if (string.IsNullOrWhiteSpace(term)) return [];
@@ -230,7 +230,8 @@ public class EfCoreMetadataService(IDbContextFactory<ObjeXDbContext> contexts) :
         if (ownerFilter is not null)
             query = query.Where(o => o.Bucket!.OwnerId == ownerFilter);
 
-        return await OrderByBucketThenKey(ctx, query).Take(limit).ToListAsync(ctk);
+        var ordered = bestFirst ? OrderByBestMatch(ctx, query, term) : OrderByBucketThenKey(ctx, query);
+        return await ordered.Take(limit).ToListAsync(ctk);
     }
 
     // First in the WHERE clause: it rejects most keys, so the other tests run on few.
@@ -258,6 +259,25 @@ public class EfCoreMetadataService(IDbContextFactory<ObjeXDbContext> contexts) :
         IsPostgreSql(ctx)
             ? query.OrderBy(o => EF.Functions.Collate(o.BucketName, "C")).ThenBy(o => EF.Functions.Collate(o.Key, "C"))
             : query.OrderBy(o => o.BucketName).ThenBy(o => o.Key);
+
+    private static IOrderedQueryable<BlobObject> ThenByBucketThenKey(ObjeXDbContext ctx, IOrderedQueryable<BlobObject> query) =>
+        IsPostgreSql(ctx)
+            ? query.ThenBy(o => EF.Functions.Collate(o.BucketName, "C")).ThenBy(o => EF.Functions.Collate(o.Key, "C"))
+            : query.ThenBy(o => o.BucketName).ThenBy(o => o.Key);
+
+    // "b/invoice.pdf" before "invoices/2024/a.pdf" before "x/my-invoice.pdf": a term that starts the key or a segment
+    // ranks first, then the shorter key. Ranking needs every match, so the scan no longer stops at the limit.
+    private static IOrderedQueryable<BlobObject> OrderByBestMatch(ObjeXDbContext ctx, IQueryable<BlobObject> query, string term)
+    {
+        var starts = SearchPattern.SegmentStarts(term.ToLowerInvariant());
+        var ranked = starts.Count == 0
+            ? query.OrderBy(o => o.Key.Length)
+            : query.OrderBy(StartsFirst(KeyLikeAny(ctx, starts))).ThenBy(o => o.Key.Length);
+        return ThenByBucketThenKey(ctx, ranked);
+    }
+
+    private static Expression<Func<BlobObject, int>> StartsFirst(Expression<Func<BlobObject, bool>> match) =>
+        Expression.Lambda<Func<BlobObject, int>>(Expression.Condition(match.Body, Expression.Constant(0), Expression.Constant(1)), match.Parameters);
 
     private static bool IsPostgreSql(ObjeXDbContext ctx) => ctx.Database.ProviderName == "Npgsql.EntityFrameworkCore.PostgreSQL";
 
