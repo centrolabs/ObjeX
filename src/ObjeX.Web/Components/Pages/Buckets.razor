@@ -213,7 +213,7 @@ else
     async Task RunSearch(CancellationToken ctk)
     {
         // One row over the limit tells the caption whether the result set was cut off.
-        var hits = await MetadataService.SearchAllObjectsAsync(_isPrivileged ? null : _currentUserId, _searchTerm, SearchLimit + 1, ctk);
+        var hits = await MetadataService.SearchAllObjectsAsync(_isPrivileged ? null : _currentUserId, _searchTerm, SearchLimit + 1, ctk: ctk);
         _searchLimitHit = hits.Count > SearchLimit;
         _results = hits.Take(SearchLimit).ToList();
         _searchApplied = true;
