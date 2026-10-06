@@ -107,7 +107,8 @@
             var hits = await Metadata.SearchAllObjectsAsync(_ownerFilter, query.Trim(), ObjectLimit, bestFirst: true, ctk);
             // A newer keystroke owns the results and the spinner now.
             if (ctk.IsCancellationRequested) return;
-            _objects = hits.Select(o => new OxPaletteItem("Objects", o.Key, "description", o.BucketName,
+            // The name leads, because a long key would cut it off; the hint says where the file lives.
+            _objects = hits.Select(o => new OxPaletteItem("Objects", FileHelper.Name(o.Key), "description", FileHelper.Location(o.BucketName, o.Key),
                 new Target(FileHelper.FolderUrl(o.BucketName, o.Key)))).ToList();
             _searching = false;
             Filter();

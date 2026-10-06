@@ -25,6 +25,16 @@ public class FileHelperTests
     public void UploadUrl_EncodesEachSegmentAndKeepsSlashes(string key, string expected)
         => Assert.Equal(expected, FileHelper.UploadUrl("b", key));
 
+    [Theory]
+    [InlineData("photos/2024/trip.jpg", "trip.jpg", "b/photos/2024")]
+    [InlineData("trip.jpg", "trip.jpg", "b")]
+    [InlineData("a//trip.jpg", "trip.jpg", "b/a/")]
+    public void NameAndLocation_SplitAtTheLastSlash(string key, string name, string location)
+    {
+        Assert.Equal(name, FileHelper.Name(key));
+        Assert.Equal(location, FileHelper.Location("b", key));
+    }
+
     [Fact]
     public void FolderZipUrl_EncodesPrefix()
         => Assert.Equal("/api/objects/b/download?prefix=q%26a%2F", FileHelper.FolderZipUrl("b", "q&a/"));
