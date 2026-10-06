@@ -29,7 +29,7 @@
     }
     @if (_buckets.Count > 0)
     {
-        <OxSearch Value="@_searchTerm" ValueChanged="OnSearchInput" OnClear="ClearSearch" Placeholder="Search all buckets" Tooltip="* matches any text, ? one character" />
+        <OxSearch Value="@_searchTerm" ValueChanged="OnSearchInput" OnClear="ClearSearch" Placeholder="Search all buckets" Tooltip="Every word must match. * matches any text, ? one character" />
     }
     <OxIconButton Icon="refresh" Label="Refresh" OnClick="Refresh" Busy="@_refreshing" />
     <OxButton Variant="OxButtonVariant.Primary" Icon="add" OnClick="OnCreateBucket">New bucket</OxButton>

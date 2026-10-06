@@ -35,7 +35,7 @@
             @* During a selection the search stays only while it filters, so its clear button stays reachable without crowding the line. *@
             @if (_bucketExists && _bucket is { ObjectCount: > 0 } && (_selected.Count == 0 || _searchTerm.Length > 0))
             {
-                <OxSearch Value="@_searchTerm" ValueChanged="OnSearchInput" OnClear="ClearSearch" Tooltip="* matches any text, ? one character" />
+                <OxSearch Value="@_searchTerm" ValueChanged="OnSearchInput" OnClear="ClearSearch" Tooltip="Every word must match. * matches any text, ? one character" />
             }
             @* A selection swaps the create actions for the selection actions on the same line, so the table never moves. *@
             @if (_selected.Count > 0)

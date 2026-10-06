@@ -107,6 +107,23 @@ public class ObjectSearchTests(ObjeXFactory factory) : IClassFixture<ObjeXFactor
     }
 
     [Fact]
+    public async Task Words_MustAllMatchInAnyOrder()
+    {
+        await SeedAsync("search-words", "scans/2024/invoice-march.pdf", "march/notes.txt", "invoice.pdf");
+
+        Assert.Equal(["scans/2024/invoice-march.pdf"], await SearchAsync("search-words", null, "march invoice"));
+        Assert.Equal(["scans/2024/invoice-march.pdf"], await SearchAsync("search-words", null, "  2024   INVOICE "));
+    }
+
+    [Fact]
+    public async Task Words_KeepTheirOwnWildcards()
+    {
+        await SeedAsync("search-word-wildcards", "scans/invoice.pdf", "scans/invoice.pdfx", "notes/invoice.pdf");
+
+        Assert.Equal(["scans/invoice.pdf"], await SearchAsync("search-word-wildcards", null, "*.pdf scans"));
+    }
+
+    [Fact]
     public async Task PlaceholderObjectsAreExcluded()
     {
         await SeedAsync("search-placeholder", "docs/", "docs/manual.pdf");
@@ -188,6 +205,14 @@ public class ObjectSearchTests(ObjeXFactory factory) : IClassFixture<ObjeXFactor
         await SeedAsync("rank-quokka", "x/my-quokka.txt", "quokka-notes/a.txt", "2024/quokka.txt", "c/quokka.txt", "b/quokka.txt");
 
         Assert.Equal(["b/quokka.txt", "c/quokka.txt", "2024/quokka.txt", "quokka-notes/a.txt", "x/my-quokka.txt"], await BestFirstAsync("Quokka"));
+    }
+
+    [Fact]
+    public async Task BestFirst_RanksAKeyWhereAnyWordStartsASegment()
+    {
+        await SeedAsync("rank-words", "x/old-dingo-report.pdf", "reports/2024/q1/old-dingo.pdf");
+
+        Assert.Equal(["reports/2024/q1/old-dingo.pdf", "x/old-dingo-report.pdf"], await BestFirstAsync("dingo report"));
     }
 
     [Fact]

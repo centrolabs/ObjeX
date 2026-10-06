@@ -297,7 +297,7 @@ public interface IMetadataService
     // Keys in UTF-8 byte order: ORDER BY key, COLLATE "C" on PostgreSQL (decided by Database.ProviderName), also for the key > startAfter seek.
     // Reads 1000 rows per query; after a common prefix it jumps past all its keys (prefix with the last char + 1), so a folder of any size costs one row.
     // startAfter is exclusive and skips a common prefix at or before it; maxKeys counts objects plus prefixes, null = everything (UI, ZIP)
-    // Search term: NFC and NFD spellings match alike (keys stay byte for byte); * = any run of characters, ? = exactly one; %, _ and \ stay literal. No wildcard = matches anywhere; with a wildcard = anchored at the end (*.pdf excludes a.pdfx). Translation in Infrastructure/Metadata/SearchPattern.cs
+    // Search term: split into words at whitespace, a key must contain every word in any order. Per word: NFC and NFD spellings match alike (keys stay byte for byte); * = any run of characters, ? = exactly one; %, _ and \ stay literal. No wildcard = matches anywhere; with a wildcard = anchored at the end (*.pdf excludes a.pdfx). Translation in Infrastructure/Metadata/SearchPattern.cs
     Task<IReadOnlyList<BlobObject>> SearchObjectsAsync(string bucketName, string? prefix, string term, int limit, CancellationToken ctk = default);
     // keys under prefix, case-insensitive, placeholders excluded, byte order, at most limit
     // Match: key LIKE on SQLite (its LIKE ignores ASCII case, its lower() folds nothing more), lower(key) LIKE on PostgreSQL; one LIKE when NFC and NFD agree.
@@ -306,8 +306,8 @@ public interface IMetadataService
     // primary key leaves blob_objects with a rowid that VACUUM renumbers and an EF table rebuild would drop the sync triggers.
     Task<IReadOnlyList<BlobObject>> SearchAllObjectsAsync(string? ownerFilter, string term, int limit, bool bestFirst = false, CancellationToken ctk = default);
     // same term semantics across every bucket owned by ownerFilter (null = all); ordered by bucket then key, provider-aware collation.
-    // bestFirst (command palette): a term that starts the key or a segment after "/" first (SearchPattern.SegmentStarts, both forms), then shorter keys,
-    // then bucket and key; a wildcard term ranks by length only. Ranking reads every match, so the query no longer stops at the limit.
+    // bestFirst (command palette): keys in which any word starts the key or a segment after "/" first (SearchPattern.SegmentStarts, both forms), then shorter
+    // keys, then bucket and key; wildcard words add no rank. Ranking reads every match, so the query no longer stops at the limit.
     Task<IEnumerable<BlobObject>> ListAllObjectsAsync(CancellationToken ctk = default); // all objects across all buckets — NOT filtered, used by Hangfire cleanup
     Task DeleteObjectAsync(string bucketName, string key, string? auditUserId = null, CancellationToken ctk = default);
     Task<int> DeleteObjectsAsync(string bucketName, IEnumerable<string> keys, string? auditUserId = null, CancellationToken ctk = default);

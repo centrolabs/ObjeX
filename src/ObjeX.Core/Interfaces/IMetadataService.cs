@@ -23,9 +23,9 @@ public interface IMetadataService
     Task<ListObjectsResult> ListObjectsAsync(string bucketName, string? prefix = null, string? delimiter = null,
         string? startAfter = null, int? maxKeys = null, CancellationToken ctk = default);
     /// <summary>
-    /// Keys under <paramref name="prefix"/> matching <paramref name="term"/> case-insensitively; placeholders excluded.
-    /// <c>*</c> matches any run of characters, <c>?</c> exactly one, <c>%</c>, <c>_</c> and <c>\</c> are literal.
-    /// A term without a wildcard matches anywhere, a term with one is anchored at the end.
+    /// Keys under <paramref name="prefix"/> that contain every word of <paramref name="term"/>, in any order and ignoring case; placeholders excluded.
+    /// In a word, <c>*</c> matches any run of characters, <c>?</c> exactly one, <c>%</c>, <c>_</c> and <c>\</c> are literal.
+    /// A word without a wildcard matches anywhere, a word with one is anchored at the end.
     /// </summary>
     Task<IReadOnlyList<BlobObject>> SearchObjectsAsync(string bucketName, string? prefix, string term, int limit, CancellationToken ctk = default);
     /// <summary>

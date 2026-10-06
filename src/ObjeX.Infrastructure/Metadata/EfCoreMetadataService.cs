@@ -234,9 +234,11 @@ public class EfCoreMetadataService(IDbContextFactory<ObjeXDbContext> contexts) :
         return await ordered.Take(limit).ToListAsync(ctk);
     }
 
-    // First in the WHERE clause: it rejects most keys, so the other tests run on few.
+    // Every word must match. First in the WHERE clause: it rejects most keys, so the other tests run on few.
     private static Expression<Func<BlobObject, bool>> KeyMatches(ObjeXDbContext ctx, string term) =>
-        KeyLikeAny(ctx, SearchPattern.FromTermInBothForms(term.ToLowerInvariant()));
+        SearchPattern.Words(term.ToLowerInvariant())
+            .Select(word => KeyLikeAny(ctx, SearchPattern.FromWordInBothForms(word)))
+            .Aggregate((a, b) => Join(a, b, Expression.AndAlso));
 
     // PostgreSQL's LIKE is case-sensitive, so the key is lower-cased there, matching the trigram index on lower(key).
     // SQLite's LIKE already ignores ASCII case and its lower() folds nothing else, so there lower() would only cost time.
@@ -245,8 +247,11 @@ public class EfCoreMetadataService(IDbContextFactory<ObjeXDbContext> contexts) :
             .Select(pattern => IsPostgreSql(ctx)
                 ? (Expression<Func<BlobObject, bool>>)(o => EF.Functions.Like(o.Key.ToLower(), pattern, "\\"))
                 : o => EF.Functions.Like(o.Key, pattern, "\\"))
-            .Aggregate((a, b) => Expression.Lambda<Func<BlobObject, bool>>(
-                Expression.OrElse(a.Body, ReplacingExpressionVisitor.Replace(b.Parameters[0], a.Parameters[0], b.Body)), a.Parameters));
+            .Aggregate((a, b) => Join(a, b, Expression.OrElse));
+
+    private static Expression<Func<BlobObject, bool>> Join(
+        Expression<Func<BlobObject, bool>> a, Expression<Func<BlobObject, bool>> b, Func<Expression, Expression, BinaryExpression> join) =>
+        Expression.Lambda<Func<BlobObject, bool>>(join(a.Body, ReplacingExpressionVisitor.Replace(b.Parameters[0], a.Parameters[0], b.Body)), a.Parameters);
 
     // S3 orders keys by UTF-8 bytes; SQLite's default BINARY collation already does that,
     // PostgreSQL needs COLLATE "C" because a locale collation sorts "a" before "B".
@@ -265,7 +270,7 @@ public class EfCoreMetadataService(IDbContextFactory<ObjeXDbContext> contexts) :
             ? query.ThenBy(o => EF.Functions.Collate(o.BucketName, "C")).ThenBy(o => EF.Functions.Collate(o.Key, "C"))
             : query.ThenBy(o => o.BucketName).ThenBy(o => o.Key);
 
-    // "b/invoice.pdf" before "invoices/2024/a.pdf" before "x/my-invoice.pdf": a term that starts the key or a segment
+    // "b/invoice.pdf" before "invoices/2024/a.pdf" before "x/my-invoice.pdf": a word that starts the key or a segment
     // ranks first, then the shorter key. Ranking needs every match, so the scan no longer stops at the limit.
     private static IOrderedQueryable<BlobObject> OrderByBestMatch(ObjeXDbContext ctx, IQueryable<BlobObject> query, string term)
     {
