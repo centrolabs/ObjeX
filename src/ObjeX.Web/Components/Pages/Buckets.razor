@@ -144,13 +144,36 @@ else
     /// <summary>?owner=name, from the Users page: only that user's buckets.</summary>
     [SupplyParameterFromQuery(Name = "owner")] public string? OwnerParam { get; set; }
 
+    /// <summary>?q=term, from the command palette's "Show all results": shows that search. Gone once the box changes, so a reload never brings back an older term.</summary>
+    [SupplyParameterFromQuery(Name = "q")] public string? QueryParam { get; set; }
+
     IEnumerable<Bucket> ShownBuckets => OwnerParam is null ? _buckets : _buckets.Where(b => b.Owner?.UserName == OwnerParam);
 
     bool _openCreate;
+    string? _appliedQuery;
 
-    protected override void OnParametersSet()
+    protected override async Task OnParametersSetAsync()
     {
         if (NewParam is not null) _openCreate = true;
+
+        // Only a new ?q starts a search. The page removing it changes nothing, so a keystroke made meanwhile is never overwritten.
+        if (QueryParam == _appliedQuery) return;
+        _appliedQuery = QueryParam;
+        if (string.IsNullOrWhiteSpace(QueryParam) || _buckets.Count == 0) return;
+
+        _searchTerm = QueryParam;
+        ShowBucketGrid();
+        try
+        {
+            await RunSearch(_searchCts.Token);
+        }
+        catch (OperationCanceledException) { }
+    }
+
+    void DropQueryParam()
+    {
+        if (QueryParam is not null)
+            Navigation.NavigateTo(Navigation.GetUriWithQueryParameter("q", (string?)null), replace: true);
     }
 
     // Radzen closes dialogs on every navigation, so the address loses the parameter only once the dialog is done.
@@ -222,6 +245,7 @@ else
     async Task OnSearchInput(string value)
     {
         _searchTerm = value;
+        DropQueryParam();
         // Blazor serialises handlers on its dispatcher, so replacing the source cannot race with the awaiting keystroke.
         _searchCts.Cancel();
         _searchCts = new CancellationTokenSource();
@@ -245,6 +269,7 @@ else
     void ClearSearch()
     {
         _searchTerm = string.Empty;
+        DropQueryParam();
         ShowBucketGrid();
     }
 
