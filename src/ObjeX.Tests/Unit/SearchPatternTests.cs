@@ -5,55 +5,55 @@ namespace ObjeX.Tests.Unit;
 public class SearchPatternTests
 {
     [Fact]
-    public void TermWithoutWildcard_MatchesAnywhere()
+    public void WordWithoutWildcard_MatchesAnywhere()
     {
-        Assert.Equal("%report%", SearchPattern.FromTerm("report"));
+        Assert.Equal("%report%", SearchPattern.FromWord("report"));
     }
 
     [Fact]
-    public void LikeWildcardsInTheTermAreEscaped()
+    public void LikeWildcardsInTheWordAreEscaped()
     {
-        Assert.Equal(@"%100\%%", SearchPattern.FromTerm("100%"));
-        Assert.Equal(@"%a\_b%", SearchPattern.FromTerm("a_b"));
-        Assert.Equal(@"%back\\s%", SearchPattern.FromTerm(@"back\s"));
+        Assert.Equal(@"%100\%%", SearchPattern.FromWord("100%"));
+        Assert.Equal(@"%a\_b%", SearchPattern.FromWord("a_b"));
+        Assert.Equal(@"%back\\s%", SearchPattern.FromWord(@"back\s"));
     }
 
     [Fact]
     public void Star_BecomesPercentAndAnchorsAtTheEnd()
     {
-        Assert.Equal("%%.pdf", SearchPattern.FromTerm("*.pdf"));
-        Assert.Equal("%report%", SearchPattern.FromTerm("report*"));
+        Assert.Equal("%%.pdf", SearchPattern.FromWord("*.pdf"));
+        Assert.Equal("%report%", SearchPattern.FromWord("report*"));
     }
 
     [Fact]
     public void QuestionMark_BecomesUnderscore()
     {
-        Assert.Equal(@"%img\_____.jpg", SearchPattern.FromTerm("img_????.jpg"));
+        Assert.Equal(@"%img\_____.jpg", SearchPattern.FromWord("img_????.jpg"));
     }
 
     [Fact]
     public void WildcardAndLiteralPercentCombine()
     {
-        Assert.Equal(@"%100\%%.txt", SearchPattern.FromTerm("100%*.txt"));
+        Assert.Equal(@"%100\%%.txt", SearchPattern.FromWord("100%*.txt"));
     }
 
     [Fact]
-    public void EmptyTerm_MatchesEverything()
+    public void EmptyWord_MatchesEverything()
     {
-        Assert.Equal("%%", SearchPattern.FromTerm(""));
+        Assert.Equal("%%", SearchPattern.FromWord(""));
     }
 
     [Fact]
-    public void BothForms_AreTheSameWhateverFormTheTermArrivesIn()
+    public void BothForms_AreTheSameWhateverFormTheWordArrivesIn()
     {
-        Assert.Equal(["%caf\u00e9%", "%cafe\u0301%"], SearchPattern.FromTermInBothForms("caf\u00e9"));
-        Assert.Equal(["%caf\u00e9%", "%cafe\u0301%"], SearchPattern.FromTermInBothForms("cafe\u0301"));
+        Assert.Equal(["%caf\u00e9%", "%cafe\u0301%"], SearchPattern.FromWordInBothForms("caf\u00e9"));
+        Assert.Equal(["%caf\u00e9%", "%cafe\u0301%"], SearchPattern.FromWordInBothForms("cafe\u0301"));
     }
 
     [Fact]
     public void BothForms_GiveOnePatternWhenTheyAgree()
     {
-        Assert.Equal(["%report%"], SearchPattern.FromTermInBothForms("report"));
+        Assert.Equal(["%report%"], SearchPattern.FromWordInBothForms("report"));
     }
 
     [Fact]
@@ -65,9 +65,18 @@ public class SearchPatternTests
     }
 
     [Fact]
-    public void SegmentStarts_NoneForAWildcardTerm()
+    public void SegmentStarts_CoverEveryWordButNoWildcardWord()
     {
+        Assert.Equal(["inv%", "%/inv%", "mar%", "%/mar%"], SearchPattern.SegmentStarts("inv mar"));
+        Assert.Equal(["inv%", "%/inv%"], SearchPattern.SegmentStarts("*.pdf inv img_????"));
         Assert.Empty(SearchPattern.SegmentStarts("*.pdf"));
-        Assert.Empty(SearchPattern.SegmentStarts("img_????"));
+    }
+
+    [Fact]
+    public void Words_SplitAtAnyWhitespaceAndDropRepeats()
+    {
+        Assert.Equal(["invoice", "march"], SearchPattern.Words("  invoice \t march\u00a0invoice "));
+        Assert.Equal(["a_b"], SearchPattern.Words("a_b"));
+        Assert.Empty(SearchPattern.Words("   "));
     }
 }
