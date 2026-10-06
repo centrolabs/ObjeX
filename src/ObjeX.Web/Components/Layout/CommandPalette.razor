@@ -104,12 +104,16 @@
         try
         {
             await Task.Delay(SearchDebounceMs, ctk);
-            var hits = await Metadata.SearchAllObjectsAsync(_ownerFilter, query.Trim(), ObjectLimit, bestFirst: true, ctk);
+            // One hit over the limit says whether "Show all results" has more to show.
+            var term = query.Trim();
+            var hits = await Metadata.SearchAllObjectsAsync(_ownerFilter, term, ObjectLimit + 1, bestFirst: true, ctk);
             // A newer keystroke owns the results and the spinner now.
             if (ctk.IsCancellationRequested) return;
             // The name leads, because a long key would cut it off; the hint says where the file lives.
-            _objects = hits.Select(o => new OxPaletteItem("Objects", FileHelper.Name(o.Key), "description", FileHelper.Location(o.BucketName, o.Key),
+            _objects = hits.Take(ObjectLimit).Select(o => new OxPaletteItem("Objects", FileHelper.Name(o.Key), "description", FileHelper.Location(o.BucketName, o.Key),
                 new Target(FileHelper.FolderUrl(o.BucketName, o.Key)))).ToList();
+            if (hits.Count > ObjectLimit)
+                _objects.Add(new OxPaletteItem("Objects", "Show all results", "manage_search", Value: new Target($"/buckets?q={Uri.EscapeDataString(term)}")));
             _searching = false;
             Filter();
         }
