@@ -728,8 +728,8 @@
       },
       "Radzen.Blazor": {
         "type": "Transitive",
-        "resolved": "11.5.1",
-        "contentHash": "1grwHjm04KGvp9bwE+0ZPa/cCGepxi058eGza+NRMZxuTJeEc+PuQge7gvxxzjWk/VtkxrUxuaYVF8igEpHMSQ==",
+        "resolved": "12.0.5",
+        "contentHash": "DVLwsZYRsWXd2iM+NoPvLu4xFX24xxNJmIknfjjlcGY8m9irod6PbOXj+6xUJpPAIau3z2ByGEkRKky2xmp6jA==",
         "dependencies": {
           "Microsoft.AspNetCore.Components": "10.0.12",
           "Microsoft.AspNetCore.Components.Web": "10.0.12"
@@ -968,7 +968,7 @@
         "dependencies": {
           "ObjeX.Core": "[0.0.0, )",
           "ObjeX.Infrastructure": "[0.0.0, )",
-          "Radzen.Blazor": "[11.5.1, )"
+          "Radzen.Blazor": "[12.0.5, )"
         }
       }
     }
