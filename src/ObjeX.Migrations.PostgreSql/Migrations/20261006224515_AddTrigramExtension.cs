@@ -5,10 +5,10 @@
 namespace ObjeX.Migrations.PostgreSql.Migrations
 {
     /// <inheritdoc />
-    public partial class AddObjectKeyTrigramIndex : Migration
+    public partial class AddTrigramExtension : Migration
     {
-        // Lets the object search use an index for LIKE '%term%' on lower(key). Best effort: a role that may not create the
-        // extension still starts, and search falls back to a scan.
+        // pg_trgm for the object search index, which SearchIndexBuilder builds after start: on millions of keys the build
+        // outlasts a migration's command timeout. Best effort: a role that may not create extensions still starts.
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
@@ -16,9 +16,8 @@ namespace ObjeX.Migrations.PostgreSql.Migrations
                 DO $$
                 BEGIN
                     CREATE EXTENSION IF NOT EXISTS pg_trgm;
-                    CREATE INDEX IF NOT EXISTS ix_blob_objects_key_trgm ON blob_objects USING gin (lower(key) gin_trgm_ops);
                 EXCEPTION WHEN OTHERS THEN
-                    RAISE WARNING 'Object search runs without the trigram index: %', SQLERRM;
+                    RAISE WARNING 'Object search runs without its trigram index: %', SQLERRM;
                 END $$;
                 """);
         }

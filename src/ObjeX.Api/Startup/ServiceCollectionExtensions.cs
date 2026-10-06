@@ -58,6 +58,12 @@ public static class ServiceCollectionExtensions
             .SetApplicationName("ObjeX")
             .PersistKeysToDbContext<ObjeXDbContext>();
 
+        if (database.IsPostgreSql)
+        {
+            services.AddSingleton<SearchIndexBuilder>();
+            services.AddHostedService(sp => sp.GetRequiredService<SearchIndexBuilder>());
+        }
+
         return services;
     }
 

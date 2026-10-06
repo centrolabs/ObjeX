@@ -218,9 +218,10 @@ public class ObjectSearchTests(ObjeXFactory factory) : IClassFixture<ObjeXFactor
     [Fact]
     public async Task BestFirst_RanksAWildcardTermByLengthOnly()
     {
-        await SeedAsync("rank-wildcard", "x/my-wombat.txt", "wombat-notes/a.txt", "2024/wombat.txt", "b/wombat.txt");
+        // A segment rank would put 2024/wombat.txt before the shorter my-wombat.txt.
+        await SeedAsync("rank-wildcard", "my-wombat.txt", "wombat-notes/a.txt", "2024/wombat.txt", "b/wombat.txt");
 
-        Assert.Equal(["b/wombat.txt", "2024/wombat.txt", "x/my-wombat.txt"], await BestFirstAsync("*wombat.txt"));
+        Assert.Equal(["b/wombat.txt", "my-wombat.txt", "2024/wombat.txt"], await BestFirstAsync("*wombat.txt"));
     }
 
     [Fact]
@@ -234,18 +235,19 @@ public class ObjectSearchTests(ObjeXFactory factory) : IClassFixture<ObjeXFactor
     }
 
     [Fact]
-    public async Task PostgreSql_IndexesTheLowerCasedKeyWithTrigrams()
+    public async Task BestFirst_KeepsTheOwnerFilter()
     {
+        var ownerId = await CreateUserAsync("quoll-owner");
+        var otherId = await CreateUserAsync("quoll-other");
+        // The other user's key would rank first: the term starts it.
+        await SeedAsync("quoll-mine", ownerId, ["x/my-quoll.txt"]);
+        await SeedAsync("quoll-theirs", otherId, ["quoll.txt"]);
+
         using var scope = factory.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<ObjeXDbContext>();
-        // SQLite scans; the index exists only on PostgreSQL.
-        if (db.Database.ProviderName != "Npgsql.EntityFrameworkCore.PostgreSQL") return;
+        var hits = await scope.ServiceProvider.GetRequiredService<IMetadataService>()
+            .SearchAllObjectsAsync(ownerId, "quoll", 100, bestFirst: true);
 
-        var definition = await db.Database
-            .SqlQueryRaw<string>("SELECT indexdef AS \"Value\" FROM pg_indexes WHERE indexname = 'ix_blob_objects_key_trgm'")
-            .SingleAsync();
-
-        Assert.Contains("USING gin (lower(key) gin_trgm_ops)", definition);
+        Assert.Equal(["x/my-quoll.txt"], hits.Select(o => o.Key));
     }
 
     [Fact]
