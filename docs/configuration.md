@@ -46,14 +46,15 @@ The background jobs are set on the **Jobs** page (Admin): enabled or disabled, d
 
 ## PostgreSQL search index
 
-On PostgreSQL, object search uses a trigram index on the object keys. The migration creates the `pg_trgm` extension and the index. The database role needs the right to create extensions; from PostgreSQL 13 on, the database owner has it. Without it, ObjeX starts, search scans the table, and the log names the two statements to run as an administrator:
+On PostgreSQL, object search uses a trigram index on the object keys. A migration installs the `pg_trgm` extension. ObjeX builds the index in the background after each start when it is missing; requests are served meanwhile. On millions of objects the build takes a minute or more.
+
+Installing the extension needs the right to create extensions; from PostgreSQL 13 on, the database owner has it. Without it, ObjeX starts, search scans the table, and the log asks for this statement:
 
 ```sql
 CREATE EXTENSION IF NOT EXISTS pg_trgm;
-CREATE INDEX IF NOT EXISTS ix_blob_objects_key_trgm ON blob_objects USING gin (lower(key) gin_trgm_ops);
 ```
 
-The index takes about 100 MB per million objects. SQLite needs no index.
+Run it as a database administrator. ObjeX builds the index on its next start. The index takes about 40 to 200 MB per million objects, depending on key length. SQLite needs no index.
 
 ## Reverse proxy
 
