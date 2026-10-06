@@ -42,17 +42,18 @@ RUN apt-get update && apt-get install -y --no-install-recommends curl \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
+# Named volumes take the owner of /data from the image. A bind mount needs chown 1654:1654 on the host.
 RUN mkdir -p /data/db /data/blobs && chown -R app:app /data
-COPY --from=build --chown=app:app /app/publish .
-
-# Entrypoint: fix bind mount ownership, then drop to non-root
-RUN printf '#!/bin/sh\nif [ "$(id -u)" = "0" ]; then\n  chown -R app:app /data 2>/dev/null || true\n  exec setpriv --reuid=app --regid=app --init-groups dotnet ObjeX.Api.dll "$@"\nelse\n  exec dotnet ObjeX.Api.dll "$@"\nfi\n' > /entrypoint.sh && chmod 755 /entrypoint.sh
+COPY --from=build /app/publish .
+USER $APP_UID
 
 # The aspnet base image sets ASPNETCORE_HTTP_PORTS=8080. Ports come from Server:UiPort/Server:S3Port
 # (Kestrel listeners in code); clearing this avoids an "Overriding address(es)" warning on every start.
 ENV ASPNETCORE_HTTP_PORTS=
 ENV ConnectionStrings__DefaultConnection="Data Source=/data/db/objex.db"
 ENV Storage__BasePath="/data/blobs"
+# Logs go to stdout only; docker logs and kubectl logs collect them.
+ENV Log__FilePath=
 VOLUME ["/data"]
 EXPOSE 9001
 EXPOSE 9000
@@ -60,4 +61,4 @@ EXPOSE 9000
 HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
     CMD curl -f http://localhost:9001/health || exit 1
 
-ENTRYPOINT ["/entrypoint.sh"]
+ENTRYPOINT ["dotnet", "ObjeX.Api.dll"]

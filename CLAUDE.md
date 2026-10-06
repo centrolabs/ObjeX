@@ -14,7 +14,7 @@ src/
 │   ├── Middleware/      # SigV4AuthMiddleware, SecurityHeadersMiddleware
 │   ├── Auth/            # HangfireAuthorizationFilter
 │   ├── Jobs/            # JobDefinitions (the recurring jobs: id, name, default cron, setting), HangfireJobMonitor (IJobMonitor: recurring jobs, recent runs, run details, run now, retry, delete, results in words), HangfireJobScheduler (IJobScheduler: save, reset, apply), JobCron (Cronos check)
-│   ├── Options/         # ServerOptions (ports), ReverseProxyOptions, AuthOptions (lockout, RememberMeDays), DatabaseOptions, StorageOptions (blob root, upload cap, min free disk), SeedOptions
+│   ├── Options/         # ServerOptions (ports), ReverseProxyOptions, AuthOptions (lockout, RememberMeDays), DatabaseOptions, LogOptions (log file), StorageOptions (blob root, upload cap, min free disk), SeedOptions
 │   ├── Startup/         # ServiceCollectionExtensions (AddObjeX* per concern), DatabaseInitializer (migrate, pragmas, legacy blob paths, roles, admin, seeding), BackgroundJobs (Hangfire wiring, recurring schedule, stale-job prune)
 │   ├── Components/      # App.razor (host document), _Imports.razor
 │   ├── wwwroot/         # tokens.css (design tokens, the only file with colour values), app.css (fonts, document base, Radzen grid/dialog/notification styles), favicons, fonts/, site.webmanifest
@@ -156,6 +156,7 @@ No named policies are defined. S3 endpoints use `.RequireAuthorization()` on the
 - Password requirements relaxed for MVP (min 4 chars, no complexity rules)
 - Account lockout: `Auth:Lockout:MaxFailedAttempts` (default 5) failed logins lock the account for `Auth:Lockout:DurationMinutes` (default 5). Per account, failures only, enforced by Identity via `lockoutOnFailure: true` in `AccountEndpoints`. No IP-based rate limiting by design — CGNAT and shared proxies put many users behind one IP. A locked account shows as `Locked` on the Users page; **Unlock** is the first entry of the row's menu (Admin and Manager, any row including the admin's own) that clears `LockoutEnd` and resets the failed-attempt count. `Auth:RememberMeDays` (default 30) is the cookie lifetime for logins that tick "Stay signed in".
 - Email flows are no-ops — no `IEmailSender` registered, no email verification
+- Data protection keys (login cookie, antiforgery) live in the `data_protection_keys` table: `PersistKeysToDbContext<ObjeXDbContext>` with application name `ObjeX` in `AddObjeXDatabase`. The container has no user profile, so the default store would keep them in memory and every restart would sign everyone out. Stored without an XML encryptor, the same trust boundary as `SecretAccessKey`; the `No XML encryptor configured` warning on key creation is expected
 
 **Default admin** (created by `DatabaseInitializer` when no user with the configured `DefaultAdmin:Username` exists; an existing user is never modified):
 ```
@@ -400,7 +401,7 @@ Empty or unset values are no-ops. Invalid bucket names are logged and skipped. S
 
 - **Database**: `data/db/objex.db` (set in `ConnectionStrings:DefaultConnection`; hardcoded default when absent from config)
 - **Blob storage**: `data/blobs` (set in `Storage:BasePath`; hardcoded default when absent from config)
-- **Logs**: `data/logs/objex-.log` (Serilog file sink in `appsettings.json`)
+- **Logs**: stdout always; `data/logs/objex-.log` from `Log:FilePath` (file sink added in `Program.cs`, because configuration cannot remove a `Serilog:WriteTo` entry). The image sets it empty: the container logs to stdout only
 
 Relative paths resolve against the **content root** via `ResolvePath()` in `Program.cs` — the project directory under `dotnet run` (so `src/ObjeX.Api/data/`), `/app` in the container. Never against the process working directory: that used to leave a second `data/` behind whenever the app was started from a different shell location. `launchSettings.json` must not set `workingDirectory` (`dotnet run` ignores it anyway). Deployed instances should still configure absolute paths.
 

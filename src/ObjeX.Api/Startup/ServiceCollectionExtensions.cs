@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using ObjeX.Api.Options;
@@ -50,6 +51,12 @@ public static class ServiceCollectionExtensions
                 options.EnableDetailedErrors();
             }
         });
+
+        // Login cookies and antiforgery tokens stay valid across restarts and image upgrades. The default store is
+        // the user profile, which the container does not have. The fixed name keeps the keys valid when the content root moves.
+        services.AddDataProtection()
+            .SetApplicationName("ObjeX")
+            .PersistKeysToDbContext<ObjeXDbContext>();
 
         return services;
     }

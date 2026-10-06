@@ -16,15 +16,13 @@ spec:
     spec:
       serviceAccountName: {{ include "objex.serviceAccountName" . }}
       securityContext:
-        runAsNonRoot: true
-        readOnlyRootFilesystem: false
-        allowPrivilegeEscalation: false
-        capabilities:
-          drop: [ALL]
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
       containers:
         - name: objex
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
           ports:
             - name: ui
               containerPort: 9001
@@ -56,6 +54,8 @@ spec:
           volumeMounts:
             - name: data
               mountPath: /data
+            - name: tmp
+              mountPath: /tmp
           livenessProbe:
             httpGet:
               path: /health
@@ -73,6 +73,8 @@ spec:
             {{- toYaml . | nindent 12 }}
           {{- end }}
       volumes:
+        - name: tmp
+          emptyDir: {}
         - name: data
           {{- if .Values.persistence.enabled }}
           persistentVolumeClaim:
