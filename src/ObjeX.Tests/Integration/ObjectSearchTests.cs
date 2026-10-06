@@ -209,6 +209,21 @@ public class ObjectSearchTests(ObjeXFactory factory) : IClassFixture<ObjeXFactor
     }
 
     [Fact]
+    public async Task PostgreSql_IndexesTheLowerCasedKeyWithTrigrams()
+    {
+        using var scope = factory.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ObjeXDbContext>();
+        // SQLite scans; the index exists only on PostgreSQL.
+        if (db.Database.ProviderName != "Npgsql.EntityFrameworkCore.PostgreSQL") return;
+
+        var definition = await db.Database
+            .SqlQueryRaw<string>("SELECT indexdef AS \"Value\" FROM pg_indexes WHERE indexname = 'ix_blob_objects_key_trgm'")
+            .SingleAsync();
+
+        Assert.Contains("USING gin (lower(key) gin_trgm_ops)", definition);
+    }
+
+    [Fact]
     public async Task SearchAll_UsesTheSameTermSemanticsAndSkipsPlaceholders()
     {
         await SeedAsync("all-semantics", "docs/", "docs/manual-x.pdf", "manual-x.pdfx");
