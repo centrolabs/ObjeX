@@ -44,6 +44,17 @@ The background jobs are set on the **Jobs** page (Admin): enabled or disabled, d
 }
 ```
 
+## PostgreSQL search index
+
+On PostgreSQL, object search uses a trigram index on the object keys. The migration creates the `pg_trgm` extension and the index. The database role needs the right to create extensions; from PostgreSQL 13 on, the database owner has it. Without it, ObjeX starts, search scans the table, and the log names the two statements to run as an administrator:
+
+```sql
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
+CREATE INDEX IF NOT EXISTS ix_blob_objects_key_trgm ON blob_objects USING gin (lower(key) gin_trgm_ops);
+```
+
+The index takes about 100 MB per million objects. SQLite needs no index.
+
 ## Reverse proxy
 
 ObjeX picks the API by the port a request arrives on, never by the `Host` header. Any hostname and any public port work in front of it. The proxy must:
