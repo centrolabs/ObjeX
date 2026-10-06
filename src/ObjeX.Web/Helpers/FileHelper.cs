@@ -33,6 +33,16 @@ public static class FileHelper
         return $"{url}?prefix={string.Join("/", folder.Split('/').Select(Uri.EscapeDataString))}";
     }
 
+    /// <summary>The last segment of a key, the name the file shows under.</summary>
+    public static string Name(string key) => key[(key.LastIndexOf('/') + 1)..];
+
+    /// <summary>Where a key lives: its bucket, then the folders above it.</summary>
+    public static string Location(string bucket, string key)
+    {
+        var cut = key.LastIndexOf('/');
+        return cut < 0 ? bucket : $"{bucket}/{key[..cut]}";
+    }
+
     public static string FolderZipUrl(string bucket, string prefix) =>
         $"/api/objects/{Uri.EscapeDataString(bucket)}/download?prefix={Uri.EscapeDataString(prefix)}";
 }
