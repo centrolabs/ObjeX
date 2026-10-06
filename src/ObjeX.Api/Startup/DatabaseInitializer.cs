@@ -57,6 +57,13 @@ public static class DatabaseInitializer
             db.Database.ExecuteSqlRaw("PRAGMA busy_timeout=5000;");
         }
 
+        // The migration creates it only for a role that may create pg_trgm; without it object search scans the table.
+        if (database.IsPostgreSql && !await HasSearchIndexAsync(db))
+        {
+            logger.LogWarning("Object search runs without its trigram index. As a role that may create extensions, run: " +
+                "CREATE EXTENSION IF NOT EXISTS pg_trgm; CREATE INDEX IF NOT EXISTS ix_blob_objects_key_trgm ON blob_objects USING gin (lower(key) gin_trgm_ops);");
+        }
+
         await services.GetRequiredService<LegacyKeyPathMigration>().RunAsync();
         await EnsureRolesAsync(services);
         var admin = await EnsureDefaultAdminAsync(services, defaultAdmin, logger);
@@ -68,6 +75,11 @@ public static class DatabaseInitializer
             ObjeXMetrics.SyncBuckets(buckets.Select(b => (b.Name, b.TotalSize, (long)b.ObjectCount)));
         }
     }
+
+    private static async Task<bool> HasSearchIndexAsync(ObjeXDbContext db) =>
+        await db.Database
+            .SqlQueryRaw<int>("SELECT count(*)::int AS \"Value\" FROM pg_indexes WHERE indexname = 'ix_blob_objects_key_trgm'")
+            .SingleAsync() > 0;
 
     private static async Task EnsureRolesAsync(IServiceProvider services)
     {
