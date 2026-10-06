@@ -15,7 +15,7 @@ src/
 │   ├── Auth/            # HangfireAuthorizationFilter
 │   ├── Jobs/            # JobDefinitions (the recurring jobs: id, name, default cron, setting), HangfireJobMonitor (IJobMonitor: recurring jobs, recent runs, run details, run now, retry, delete, results in words), HangfireJobScheduler (IJobScheduler: save, reset, apply), JobCron (Cronos check)
 │   ├── Options/         # ServerOptions (ports), ReverseProxyOptions, AuthOptions (lockout, RememberMeDays), DatabaseOptions, LogOptions (log file), SearchOptions (PostgreSQL search index on or off), StorageOptions (blob root, upload cap, min free disk), SeedOptions
-│   ├── Startup/         # ServiceCollectionExtensions (AddObjeX* per concern), DatabaseInitializer (migrate, pragmas, legacy blob paths, roles, admin, seeding), BackgroundJobs (Hangfire wiring, recurring schedule, stale-job prune), SearchIndexBuilder (PostgreSQL search index after start, its state as ISearchIndex), NoSearchIndex (SQLite)
+│   ├── Startup/         # ServiceCollectionExtensions (AddObjeX* per concern), DatabaseInitializer (migrate, pragmas, roles, admin, seeding), BackgroundJobs (Hangfire wiring, recurring schedule, stale-job prune), SearchIndexBuilder (PostgreSQL search index after start, its state as ISearchIndex), NoSearchIndex (SQLite)
 │   ├── Components/      # App.razor (host document), _Imports.razor
 │   ├── wwwroot/         # tokens.css (design tokens, the only file with colour values), app.css (fonts, document base, Radzen grid/dialog/notification styles), favicons, fonts/, site.webmanifest
 │   ├── S3/              # S3Pipeline (the S3 port's request pipeline), SigV4Parser, SigV4Signer, S3Xml, S3Errors, S3Subresources (501 for unsupported ?acl, ?tagging, …), ObjectHeaders (stored x-amz-meta-* and system headers), Preconditions (conditional writes), ContinuationToken, CopySourceRange, LimitedStream (UploadPartCopy), S3RequestBody, AwsChunkedStream, ObjectDeletion, StorageQuota, ContentMd5
@@ -33,7 +33,7 @@ src/
 │   ├── Metadata/        # EfCoreMetadataService (SQLite and PostgreSQL alike)
 │   ├── Migrations/      # EF Core migrations
 │   ├── Options/         # S3Options (PublicUrl), DefaultAdminOptions — here, not in Api, because Web needs them and cannot reference Api
-│   └── Storage/         # FileSystemStorageService, StorageSpaceService (free disk of the blob volume), LegacyKeyPathMigration (moves pre-1.2.5 alias blobs to their raw-key path at startup)
+│   └── Storage/         # FileSystemStorageService, StorageSpaceService (free disk of the blob volume)
 ├── ObjeX.Migrations.PostgreSql/  # PostgreSQL-specific EF Core migrations
 ├── ObjeX.Tests/         # xUnit — unit (Core validators, hashing) + integration (WebApplicationFactory, real SQLite, or PostgreSQL with OBJEX_TEST_POSTGRES)
 │   ├── Unit/            # BucketNameValidator, ObjectKeyValidator, HashingStream, Sha256HashService, StorageSpaceStatus, ETags, CustomMetadata, InlineMediaTypes, S3ClientSnippets, TextPreview, BrowserTimeZone, CronText, CronPreset, JobCron, AppVersion, SearchPattern, UploadQueue, UploadText, UiRules (design rules, reads the UI sources as text), ThemeMode, RelativeTime, LoginTarget (return URL and start page), CredentialUsage, RangeSelection, UiPreferences (classes on `<html>`, cookie filter), PaletteMatch, SearchIndexText

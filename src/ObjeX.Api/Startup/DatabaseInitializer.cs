@@ -7,14 +7,13 @@ using ObjeX.Core.Models;
 using ObjeX.Core.Validation;
 using ObjeX.Infrastructure.Data;
 using ObjeX.Infrastructure.Options;
-using ObjeX.Infrastructure.Storage;
 
 namespace ObjeX.Api.Startup;
 
 /// <summary>
 /// Everything that has to be true about the database before the first request: schema, SQLite
-/// pragmas, legacy blob paths, roles, the default admin, seeded buckets and credentials. Runs once,
-/// before the pipeline is built. Every step is idempotent.
+/// pragmas, roles, the default admin, seeded buckets and credentials. Runs once, before the
+/// pipeline is built. Every step is idempotent.
 /// </summary>
 public static class DatabaseInitializer
 {
@@ -57,7 +56,6 @@ public static class DatabaseInitializer
             db.Database.ExecuteSqlRaw("PRAGMA busy_timeout=5000;");
         }
 
-        await services.GetRequiredService<LegacyKeyPathMigration>().RunAsync();
         await EnsureRolesAsync(services);
         var admin = await EnsureDefaultAdminAsync(services, defaultAdmin, logger);
         await SeedAsync(services, db, seed, admin, logger);
