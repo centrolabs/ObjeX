@@ -78,6 +78,8 @@ ObjeX picks the API by the port a request arrives on, never by the `Host` header
 
 As environment variables: `ReverseProxy__Enabled=true`, `ReverseProxy__KnownNetworks__0=172.16.0.0/12`. Loopback is always trusted once enabled.
 
+3. Accept large request bodies on both ports. S3 uploads go to the S3 port, browser uploads send each file in one `PUT` to the UI port. nginx refuses bodies over 1 MB by default; raise `client_max_body_size`.
+
 Expose only the S3 port publicly. Set `S3:PublicUrl` to that public address, so server-side SDK calls and browser presigned URLs use the same host.
 
 ## Seeding
