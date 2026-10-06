@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.DataProtection.EntityFrameworkCore;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 
@@ -5,7 +6,7 @@ using ObjeX.Core.Models;
 
 namespace ObjeX.Infrastructure.Data;
 
-public class ObjeXDbContext(DbContextOptions<ObjeXDbContext> options) : IdentityDbContext<User>(options)
+public class ObjeXDbContext(DbContextOptions<ObjeXDbContext> options) : IdentityDbContext<User>(options), IDataProtectionKeyContext
 {
     public DbSet<Bucket> Buckets { get; set; } = null!;
     public DbSet<BlobObject> BlobObjects { get; set; } = null!;
@@ -15,6 +16,7 @@ public class ObjeXDbContext(DbContextOptions<ObjeXDbContext> options) : Identity
     public DbSet<SystemSettings> SystemSettings { get; set; } = null!;
     public DbSet<AuditEntry> AuditEntries { get; set; } = null!;
     public DbSet<JobSchedule> JobSchedules { get; set; } = null!;
+    public DbSet<DataProtectionKey> DataProtectionKeys { get; set; } = null!;
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
