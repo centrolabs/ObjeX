@@ -1,4 +1,7 @@
+using System.Linq.Expressions;
+
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Query;
 using Microsoft.EntityFrameworkCore.Storage;
 
 using ObjeX.Core.Interfaces;
@@ -205,14 +208,12 @@ public class EfCoreMetadataService(IDbContextFactory<ObjeXDbContext> contexts) :
         await using var ctx = await contexts.CreateDbContextAsync(ctk);
         if (string.IsNullOrWhiteSpace(term)) return [];
 
-        var (composed, decomposed) = SearchPattern.FromTermInBothForms(term.ToLowerInvariant());
         var query = ctx.BlobObjects.AsNoTracking()
-            .Where(o => o.BucketName == bucketName && !o.Key.EndsWith("/"));
+            .Where(o => o.BucketName == bucketName)
+            .Where(KeyMatches(ctx, term))
+            .Where(o => !o.Key.EndsWith("/"));
         if (!string.IsNullOrEmpty(prefix))
             query = query.Where(o => o.Key.StartsWith(prefix));
-
-        // Both sides lower-cased, because PostgreSQL's LIKE is case-sensitive and SQLite's is ASCII-only.
-        query = query.Where(o => EF.Functions.Like(o.Key.ToLower(), composed, "\\") || EF.Functions.Like(o.Key.ToLower(), decomposed, "\\"));
 
         return await OrderByKey(ctx, query).Take(limit).ToListAsync(ctk);
     }
@@ -222,16 +223,29 @@ public class EfCoreMetadataService(IDbContextFactory<ObjeXDbContext> contexts) :
         await using var ctx = await contexts.CreateDbContextAsync(ctk);
         if (string.IsNullOrWhiteSpace(term)) return [];
 
-        var (composed, decomposed) = SearchPattern.FromTermInBothForms(term.ToLowerInvariant());
-        var query = ctx.BlobObjects.AsNoTracking().Where(o => !o.Key.EndsWith("/"));
+        var query = ctx.BlobObjects.AsNoTracking()
+            .Where(KeyMatches(ctx, term))
+            .Where(o => !o.Key.EndsWith("/"));
         // The navigation joins Bucket, which is where ownership lives.
         if (ownerFilter is not null)
             query = query.Where(o => o.Bucket!.OwnerId == ownerFilter);
 
-        query = query.Where(o => EF.Functions.Like(o.Key.ToLower(), composed, "\\") || EF.Functions.Like(o.Key.ToLower(), decomposed, "\\"));
-
         return await OrderByBucketThenKey(ctx, query).Take(limit).ToListAsync(ctk);
     }
+
+    // First in the WHERE clause: it rejects most keys, so the other tests run on few.
+    private static Expression<Func<BlobObject, bool>> KeyMatches(ObjeXDbContext ctx, string term) =>
+        KeyLikeAny(ctx, SearchPattern.FromTermInBothForms(term.ToLowerInvariant()));
+
+    // PostgreSQL's LIKE is case-sensitive, so the key is lower-cased there, matching the trigram index on lower(key).
+    // SQLite's LIKE already ignores ASCII case and its lower() folds nothing else, so there lower() would only cost time.
+    private static Expression<Func<BlobObject, bool>> KeyLikeAny(ObjeXDbContext ctx, IEnumerable<string> patterns) =>
+        patterns
+            .Select(pattern => IsPostgreSql(ctx)
+                ? (Expression<Func<BlobObject, bool>>)(o => EF.Functions.Like(o.Key.ToLower(), pattern, "\\"))
+                : o => EF.Functions.Like(o.Key, pattern, "\\"))
+            .Aggregate((a, b) => Expression.Lambda<Func<BlobObject, bool>>(
+                Expression.OrElse(a.Body, ReplacingExpressionVisitor.Replace(b.Parameters[0], a.Parameters[0], b.Body)), a.Parameters));
 
     // S3 orders keys by UTF-8 bytes; SQLite's default BINARY collation already does that,
     // PostgreSQL needs COLLATE "C" because a locale collation sorts "a" before "B".

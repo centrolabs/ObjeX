@@ -46,8 +46,13 @@ public class SearchPatternTests
     [Fact]
     public void BothForms_AreTheSameWhateverFormTheTermArrivesIn()
     {
-        Assert.Equal(("%caf\u00e9%", "%cafe\u0301%"), SearchPattern.FromTermInBothForms("caf\u00e9"));
-        Assert.Equal(("%caf\u00e9%", "%cafe\u0301%"), SearchPattern.FromTermInBothForms("cafe\u0301"));
-        Assert.Equal(("%report%", "%report%"), SearchPattern.FromTermInBothForms("report"));
+        Assert.Equal(["%caf\u00e9%", "%cafe\u0301%"], SearchPattern.FromTermInBothForms("caf\u00e9"));
+        Assert.Equal(["%caf\u00e9%", "%cafe\u0301%"], SearchPattern.FromTermInBothForms("cafe\u0301"));
+    }
+
+    [Fact]
+    public void BothForms_GiveOnePatternWhenTheyAgree()
+    {
+        Assert.Equal(["%report%"], SearchPattern.FromTermInBothForms("report"));
     }
 }
