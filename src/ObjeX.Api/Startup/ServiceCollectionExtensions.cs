@@ -25,6 +25,7 @@ public static class ServiceCollectionExtensions
         services.Configure<StorageOptions>(configuration.GetSection(StorageOptions.SectionName));
         services.Configure<S3Options>(configuration.GetSection(S3Options.SectionName));
         services.Configure<DefaultAdminOptions>(configuration.GetSection(DefaultAdminOptions.SectionName));
+        services.Configure<SearchOptions>(configuration.GetSection(SearchOptions.SectionName));
 
         return services;
     }
@@ -61,7 +62,12 @@ public static class ServiceCollectionExtensions
         if (database.IsPostgreSql)
         {
             services.AddSingleton<SearchIndexBuilder>();
+            services.AddSingleton<ISearchIndex>(sp => sp.GetRequiredService<SearchIndexBuilder>());
             services.AddHostedService(sp => sp.GetRequiredService<SearchIndexBuilder>());
+        }
+        else
+        {
+            services.AddSingleton<ISearchIndex, NoSearchIndex>();
         }
 
         return services;

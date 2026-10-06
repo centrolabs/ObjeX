@@ -14,14 +14,14 @@ src/
 │   ├── Middleware/      # SigV4AuthMiddleware, SecurityHeadersMiddleware
 │   ├── Auth/            # HangfireAuthorizationFilter
 │   ├── Jobs/            # JobDefinitions (the recurring jobs: id, name, default cron, setting), HangfireJobMonitor (IJobMonitor: recurring jobs, recent runs, run details, run now, retry, delete, results in words), HangfireJobScheduler (IJobScheduler: save, reset, apply), JobCron (Cronos check)
-│   ├── Options/         # ServerOptions (ports), ReverseProxyOptions, AuthOptions (lockout, RememberMeDays), DatabaseOptions, LogOptions (log file), StorageOptions (blob root, upload cap, min free disk), SeedOptions
-│   ├── Startup/         # ServiceCollectionExtensions (AddObjeX* per concern), DatabaseInitializer (migrate, pragmas, legacy blob paths, roles, admin, seeding), BackgroundJobs (Hangfire wiring, recurring schedule, stale-job prune), SearchIndexBuilder (PostgreSQL search index after start)
+│   ├── Options/         # ServerOptions (ports), ReverseProxyOptions, AuthOptions (lockout, RememberMeDays), DatabaseOptions, LogOptions (log file), SearchOptions (PostgreSQL search index on or off), StorageOptions (blob root, upload cap, min free disk), SeedOptions
+│   ├── Startup/         # ServiceCollectionExtensions (AddObjeX* per concern), DatabaseInitializer (migrate, pragmas, legacy blob paths, roles, admin, seeding), BackgroundJobs (Hangfire wiring, recurring schedule, stale-job prune), SearchIndexBuilder (PostgreSQL search index after start, its state as ISearchIndex), NoSearchIndex (SQLite)
 │   ├── Components/      # App.razor (host document), _Imports.razor
 │   ├── wwwroot/         # tokens.css (design tokens, the only file with colour values), app.css (fonts, document base, Radzen grid/dialog/notification styles), favicons, fonts/, site.webmanifest
 │   ├── S3/              # S3Pipeline (the S3 port's request pipeline), SigV4Parser, SigV4Signer, S3Xml, S3Errors, S3Subresources (501 for unsupported ?acl, ?tagging, …), ObjectHeaders (stored x-amz-meta-* and system headers), Preconditions (conditional writes), ContinuationToken, CopySourceRange, LimitedStream (UploadPartCopy), S3RequestBody, AwsChunkedStream, ObjectDeletion, StorageQuota, ContentMd5
 │   └── Metrics/         # ObjeXMetrics, BucketMetricsSyncJob
 ├── ObjeX.Core/          # Domain — zero framework dependencies
-│   ├── Interfaces/      # IMetadataService, IObjectStorageService, IStorageQuotaService, IStorageSpaceService, IKeyGate, IJobMonitor, IJobScheduler, IHashService, IHasTimestamps
+│   ├── Interfaces/      # IMetadataService, IObjectStorageService, IStorageQuotaService, IStorageSpaceService, IKeyGate, IJobMonitor, IJobScheduler, ISearchIndex, IHashService, IHasTimestamps
 │   ├── Models/          # Bucket, BlobObject, S3Credential, User, AuditEntry, ListObjectsResult, MultipartUpload, MultipartUploadPart, SystemSettings, JobSchedule
 │   ├── Utilities/       # HashingStream (MD5 passthrough for ETag computation during upload), PresignedUrlGenerator, S3Conventions (region, addressing style), InlineMediaTypes (download/preview allowlist), ETags (multipart ETag detection)
 │   └── Validation/      # BucketNameValidator (GetValidationError)
@@ -36,10 +36,10 @@ src/
 │   └── Storage/         # FileSystemStorageService, StorageSpaceService (free disk of the blob volume), LegacyKeyPathMigration (moves pre-1.2.5 alias blobs to their raw-key path at startup)
 ├── ObjeX.Migrations.PostgreSql/  # PostgreSQL-specific EF Core migrations
 ├── ObjeX.Tests/         # xUnit — unit (Core validators, hashing) + integration (WebApplicationFactory, real SQLite, or PostgreSQL with OBJEX_TEST_POSTGRES)
-│   ├── Unit/            # BucketNameValidator, ObjectKeyValidator, HashingStream, Sha256HashService, StorageSpaceStatus, ETags, CustomMetadata, InlineMediaTypes, S3ClientSnippets, TextPreview, BrowserTimeZone, CronText, CronPreset, JobCron, AppVersion, SearchPattern, UploadQueue, UploadText, UiRules (design rules, reads the UI sources as text), ThemeMode, RelativeTime, LoginTarget (return URL and start page), CredentialUsage, RangeSelection, UiPreferences (classes on `<html>`, cookie filter), PaletteMatch
+│   ├── Unit/            # BucketNameValidator, ObjectKeyValidator, HashingStream, Sha256HashService, StorageSpaceStatus, ETags, CustomMetadata, InlineMediaTypes, S3ClientSnippets, TextPreview, BrowserTimeZone, CronText, CronPreset, JobCron, AppVersion, SearchPattern, UploadQueue, UploadText, UiRules (design rules, reads the UI sources as text), ThemeMode, RelativeTime, LoginTarget (return URL and start page), CredentialUsage, RangeSelection, UiPreferences (classes on `<html>`, cookie filter), PaletteMatch, SearchIndexText
 │   └── Integration/     # S3 API round-trips, S3 conformance and pagination, auth, multipart, quotas, storage space, resilience, cookie auth, browser upload (UiSession: login cookie plus antiforgery token), health, styleguide, background jobs and the Hangfire dashboard
 └── ObjeX.Web/           # Razor class library: components, pages, dialogs, layout — no host, no wwwroot
-    ├── Helpers/         # FileHelper, AppVersion, S3ClientSnippets, TextPreview, CustomMetadata, CronText (cron in words), CronPreset (daily and weekly presets ↔ cron), JobRunText, UploadQueue (browser uploads: keys, state, totals), UploadText (the upload panel in words), RelativeTime ("12 min ago", null from a week on), StartPages (start pages by role, checked by the login endpoint), CredentialUsage ("Never used" a week after creation, "Unused 90+ days"), RangeSelection (Shift-click ranges in the order on screen), PaletteMatch (command palette ranking), LoginTarget (the page a login returns to)
+    ├── Helpers/         # FileHelper, AppVersion, S3ClientSnippets, TextPreview, CustomMetadata, CronText (cron in words), CronPreset (daily and weekly presets ↔ cron), JobRunText, SearchIndexText (the search index card in words), UploadQueue (browser uploads: keys, state, totals), UploadText (the upload panel in words), RelativeTime ("12 min ago", null from a week on), StartPages (start pages by role, checked by the login endpoint), CredentialUsage ("Never used" a week after creation, "Unused 90+ days"), RangeSelection (Shift-click ranges in the order on screen), PaletteMatch (command palette ranking), LoginTarget (the page a login returns to)
     ├── Services/        # ThemeMode (objex-theme cookie → Radzen theme and token mode class), BrowserTimeZone (the circuit's browser zone, set by Routes from the objex-tz cookie), UiPreferences (theme, sidebar collapse and width, compact rows, system font, 12-hour clock, relative times, start page: one cookie each, loaded by Routes, Changed event; `HtmlClass` for `<html>`), CommandPaletteState (opens the palette from the sidebar, spells ⌘K or Ctrl K), UiClock (one 30 s timer per circuit for text that ages)
     └── Components/      # Routes, RedirectToLogin, S3ConnectSnippets
         ├── Pages/       # Dashboard, Buckets, Objects, Settings, Login, NotFound, Users, ChangePassword, AuditLog, Jobs, Error, Profile, Styleguide (Development only)
@@ -150,7 +150,7 @@ No named policies are defined. S3 endpoints use `.RequireAuthorization()` on the
 - `ObjeXDbContext` extends `IdentityDbContext<User>`
 - Roles: `Admin`, `Manager`, `User` — all three seeded on every startup (idempotent). See role table below.
 - Role hierarchy: Admin (1, permanent singleton) → Manager (0–N, promoted by Admin) → User (default)
-  - **Admin**: full access, user management, role promotion, Settings incl. presigned URLs + storage quotas, Jobs page and Hangfire dashboard, all buckets, unlimited storage by default
+  - **Admin**: full access, user management, role promotion, Settings incl. presigned URLs + storage quotas + search index status (read only), Jobs page and Hangfire dashboard, all buckets, unlimited storage by default
   - **Manager**: Users page, Settings incl. presigned URLs + storage quotas, all buckets — cannot promote/demote roles, no Jobs page, unlimited storage by default
   - **User**: S3 credentials, dark mode, own buckets only, subject to global storage quota (configurable in Settings)
 - Password requirements relaxed for MVP (min 4 chars, no complexity rules)
@@ -303,7 +303,8 @@ public interface IMetadataService
     // Match: key LIKE on SQLite (its LIKE ignores ASCII case, its lower() folds nothing more), lower(key) LIKE on PostgreSQL; one LIKE when NFC and NFD agree.
     // PostgreSQL has a GIN trigram index on lower(key): migration AddTrigramExtension installs pg_trgm (best effort), Startup/SearchIndexBuilder builds the index
     // after start, CONCURRENTLY and without a command timeout (millions of keys outlast a migration's 30 s and the health probe), rebuilds one an interrupted
-    // build left invalid, and logs a warning when pg_trgm is missing. SQLite scans, about 90 ms per million keys; no FTS5, because the TEXT
+    // build left invalid, and logs a warning when pg_trgm is missing. Search:TrigramIndex (SearchOptions, default true) false drops it at start instead.
+    // ISearchIndex (Core) reports the state for a read-only card in Settings (Admin): the builder on PostgreSQL, NoSearchIndex on SQLite. SQLite scans, about 100 ms per million keys; no FTS5, because the TEXT
     // primary key leaves blob_objects with a rowid that VACUUM renumbers and an EF table rebuild would drop the sync triggers.
     Task<IReadOnlyList<BlobObject>> SearchAllObjectsAsync(string? ownerFilter, string term, int limit, bool bestFirst = false, CancellationToken ctk = default);
     // same term semantics across every bucket owned by ownerFilter (null = all); ordered by bucket then key, provider-aware collation.

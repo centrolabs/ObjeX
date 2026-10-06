@@ -12,6 +12,7 @@ ObjeX runs without configuration. Set values in `appsettings.json` or as environ
 | `Database:Provider` | `sqlite` | `sqlite` or `postgresql` |
 | `ConnectionStrings:DefaultConnection` | `Data Source=./data/db/objex.db` | `Data Source=/data/db/objex.db` in the container |
 | `Database:AutoMigrate` | `true` | Run schema migrations on startup |
+| `Search:TrigramIndex` | `true` | PostgreSQL only: search index on object keys. See [PostgreSQL search index](#postgresql-search-index) |
 | `Storage:BasePath` | `./data/blobs` | `/data/blobs` in the container |
 | `Storage:MaxUploadBytes` | unlimited | Cap per upload |
 | `Storage:MinimumFreeDiskBytes` | `524288000` (500 MB) | Uploads get `507` below this free space |
@@ -55,6 +56,8 @@ CREATE EXTENSION IF NOT EXISTS pg_trgm;
 ```
 
 Run it as a database administrator. ObjeX builds the index on its next start. The index takes about 40 to 200 MB per million objects, depending on key length. SQLite needs no index.
+
+To run without the index, set `Search:TrigramIndex` to `false` (environment variable `Search__TrigramIndex=false`) and restart. ObjeX drops the index at start and frees its space. Search finds the same objects, only slower: about 160 ms per million objects instead of a few milliseconds. Set it back to `true` and restart to build the index again. Settings → Search index shows the current state to the Admin.
 
 ## Reverse proxy
 

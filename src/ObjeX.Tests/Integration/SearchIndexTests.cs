@@ -1,6 +1,10 @@
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging.Abstractions;
+using ObjeX.Api.Options;
 using ObjeX.Api.Startup;
+using ObjeX.Core.Interfaces;
 using ObjeX.Infrastructure.Data;
 
 namespace ObjeX.Tests.Integration;
@@ -39,6 +43,61 @@ public class SearchIndexTests(ObjeXFactory factory) : IClassFixture<ObjeXFactory
         await scope.ServiceProvider.GetRequiredService<ObjeXDbContext>().Database.ExecuteSqlRawAsync(sql);
     }
 
+    private async Task<SearchIndexState> StateAsync(ISearchIndex index) => (await index.GetStatusAsync()).State;
+
+    [Fact]
+    public async Task Sqlite_ReportsThatItUsesNoIndex()
+    {
+        if (factory.Services.GetService<SearchIndexBuilder>() is not null) return;
+
+        Assert.Equal(SearchIndexState.NotUsed, await StateAsync(factory.Services.GetRequiredService<ISearchIndex>()));
+    }
+
+    [Fact]
+    public async Task PostgreSql_ReportsAReadyIndexWithItsSize()
+    {
+        if (await BuiltAsync() is null) return;
+
+        var status = await factory.Services.GetRequiredService<ISearchIndex>().GetStatusAsync();
+
+        Assert.Equal(SearchIndexState.Ready, status.State);
+        Assert.True(status.SizeBytes > 0);
+    }
+
+    [Fact]
+    public async Task PostgreSql_SwitchedOffDropsTheIndexAndSaysSo()
+    {
+        if (await BuiltAsync() is not { } builder) return;
+        var off = new SearchIndexBuilder(
+            factory.Services.GetRequiredService<IDbContextFactory<ObjeXDbContext>>(),
+            Microsoft.Extensions.Options.Options.Create(new SearchOptions { TrigramIndex = false }),
+            NullLogger<SearchIndexBuilder>.Instance);
+
+        var before = await off.GetStatusAsync();
+        Assert.Equal(SearchIndexState.Dropping, before.State);
+        Assert.True(before.SizeBytes > 0);
+
+        await off.EnsureAsync();
+        await off.EnsureAsync();
+
+        Assert.Null(await IndexStateAsync());
+        Assert.Equal(SearchIndexState.Off, await StateAsync(off));
+        Assert.Equal(SearchIndexState.Missing, await StateAsync(builder));
+
+        await builder.EnsureAsync();
+        Assert.Contains(Definition, await IndexStateAsync());
+    }
+
+    [Fact]
+    public async Task PostgreSql_ReadsTheSwitchFromConfiguration()
+    {
+        if (factory.Services.GetService<SearchIndexBuilder>() is null) return;
+        using var off = factory.WithWebHostBuilder(b => b.UseSetting("Search:TrigramIndex", "false"));
+
+        Assert.Contains(await StateAsync(off.Services.GetRequiredService<ISearchIndex>()), new[] { SearchIndexState.Off, SearchIndexState.Dropping });
+        Assert.Equal(SearchIndexState.Ready, await StateAsync((await BuiltAsync())!));
+    }
+
     [Fact]
     public async Task PostgreSql_BuildsTheIndexWhenTheHostStarts()
     {
@@ -57,6 +116,7 @@ public class SearchIndexTests(ObjeXFactory factory) : IClassFixture<ObjeXFactory
         if (await BuiltAsync() is not { } builder) return;
         await ExecuteAsync("UPDATE pg_index SET indisvalid = false WHERE indexrelid = 'ix_blob_objects_key_trgm'::regclass");
         Assert.Equal("invalid", await IndexStateAsync());
+        Assert.Equal(SearchIndexState.Missing, await StateAsync(builder));
 
         await builder.EnsureAsync();
 
@@ -71,6 +131,7 @@ public class SearchIndexTests(ObjeXFactory factory) : IClassFixture<ObjeXFactory
 
         await builder.EnsureAsync();
         Assert.Null(await IndexStateAsync());
+        Assert.Equal(SearchIndexState.ExtensionMissing, await StateAsync(builder));
 
         await ExecuteAsync("CREATE EXTENSION pg_trgm");
         await builder.EnsureAsync();
