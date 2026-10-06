@@ -7,7 +7,7 @@ node_prometheus(("Prometheus"))
 
 subgraph group_host["ObjeX.Api host"]
   node_program["Program.cs<br/>Kestrel :9001 UI · :9000 S3<br/>composes AddObjeX* services"]
-  node_initializer["DatabaseInitializer<br/>migrate · PRAGMAs · legacy blob paths<br/>roles · default admin · seed"]
+  node_initializer["DatabaseInitializer<br/>migrate · PRAGMAs<br/>roles · default admin · seed"]
   node_shared["Shared middleware<br/>forwarded headers · request log<br/>security headers · port split"]
 end
 
