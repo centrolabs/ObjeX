@@ -15,7 +15,7 @@
     record Target(string? Href = null, Func<Task>? Run = null, bool ForceLoad = false);
 
     const int ObjectLimit = 8;
-    const int SearchDebounceMs = 300;
+    const int SearchDebounceMs = 150;
 
     bool _open;
     string _query = string.Empty;
