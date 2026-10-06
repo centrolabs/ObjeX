@@ -15,6 +15,7 @@ ObjeX runs without configuration. Set values in `appsettings.json` or as environ
 | `Storage:BasePath` | `./data/blobs` | `/data/blobs` in the container |
 | `Storage:MaxUploadBytes` | unlimited | Cap per upload |
 | `Storage:MinimumFreeDiskBytes` | `524288000` (500 MB) | Uploads get `507` below this free space |
+| `Log:FilePath` | `./data/logs/objex-.log` | Daily log file, empty in the container |
 | `Auth:Lockout:MaxFailedAttempts` | `5` | Failed logins before the account locks |
 | `Auth:Lockout:DurationMinutes` | `5` | Lock duration |
 | `Auth:RememberMeDays` | `30` | Cookie lifetime when "Stay signed in" is ticked |
@@ -27,7 +28,7 @@ ObjeX runs without configuration. Set values in `appsettings.json` or as environ
 
 Relative paths resolve against the content root: `src/ObjeX.Api/` under `dotnet run`, `/app` in the container.
 
-Log files go to `./data/logs/objex-YYYYMMDD.log`: daily, 30 days retention, compact JSON.
+Logs always go to stdout. Outside the container they also go to `./data/logs/objex-YYYYMMDD.log`: daily, 30 days retention, compact JSON. The container writes no log file; read its logs with `docker logs` or `kubectl logs`. An empty `Log:FilePath` turns the file off.
 
 Presigned URL expiry (default 1 hour, max 7 days) and storage quotas are set in the web UI under **Settings**, not in configuration.
 
@@ -94,3 +95,13 @@ The default admin cannot be deleted or demoted. Admin and Manager can unlock loc
 ```
 
 The file name is the SHA-256 of `{bucket}/{key}`; `L1` and `L2` are its first and second pair of hex characters. The key itself lives in the database only.
+
+## Container user
+
+The image runs as the user `app`, UID and GID 1654, never as root. A named volume takes its owner from the image. A bind mount needs that owner on the host first:
+
+```bash
+sudo chown -R 1654:1654 /srv/objex
+```
+
+Without it, ObjeX stops at startup with `Access to the path '/data/…' is denied`. The Helm chart sets `runAsUser`, `fsGroup` and a read-only root filesystem through `podSecurityContext` and `securityContext` in its values.

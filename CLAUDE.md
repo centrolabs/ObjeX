@@ -14,7 +14,7 @@ src/
 │   ├── Middleware/      # SigV4AuthMiddleware, SecurityHeadersMiddleware
 │   ├── Auth/            # HangfireAuthorizationFilter
 │   ├── Jobs/            # JobDefinitions (the recurring jobs: id, name, default cron, setting), HangfireJobMonitor (IJobMonitor: recurring jobs, recent runs, run details, run now, retry, delete, results in words), HangfireJobScheduler (IJobScheduler: save, reset, apply), JobCron (Cronos check)
-│   ├── Options/         # ServerOptions (ports), ReverseProxyOptions, AuthOptions (lockout, RememberMeDays), DatabaseOptions, StorageOptions (blob root, upload cap, min free disk), SeedOptions
+│   ├── Options/         # ServerOptions (ports), ReverseProxyOptions, AuthOptions (lockout, RememberMeDays), DatabaseOptions, LogOptions (log file), StorageOptions (blob root, upload cap, min free disk), SeedOptions
 │   ├── Startup/         # ServiceCollectionExtensions (AddObjeX* per concern), DatabaseInitializer (migrate, pragmas, legacy blob paths, roles, admin, seeding), BackgroundJobs (Hangfire wiring, recurring schedule, stale-job prune)
 │   ├── Components/      # App.razor (host document), _Imports.razor
 │   ├── wwwroot/         # tokens.css (design tokens, the only file with colour values), app.css (fonts, document base, Radzen grid/dialog/notification styles), favicons, fonts/, site.webmanifest
@@ -400,7 +400,7 @@ Empty or unset values are no-ops. Invalid bucket names are logged and skipped. S
 
 - **Database**: `data/db/objex.db` (set in `ConnectionStrings:DefaultConnection`; hardcoded default when absent from config)
 - **Blob storage**: `data/blobs` (set in `Storage:BasePath`; hardcoded default when absent from config)
-- **Logs**: `data/logs/objex-.log` (Serilog file sink in `appsettings.json`)
+- **Logs**: stdout always; `data/logs/objex-.log` from `Log:FilePath` (file sink added in `Program.cs`, because configuration cannot remove a `Serilog:WriteTo` entry). The image sets it empty: the container logs to stdout only
 
 Relative paths resolve against the **content root** via `ResolvePath()` in `Program.cs` — the project directory under `dotnet run` (so `src/ObjeX.Api/data/`), `/app` in the container. Never against the process working directory: that used to leave a second `data/` behind whenever the app was started from a different shell location. `launchSettings.json` must not set `workingDirectory` (`dotnet run` ignores it anyway). Deployed instances should still configure absolute paths.
 

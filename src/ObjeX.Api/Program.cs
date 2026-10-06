@@ -10,6 +10,7 @@ using ObjeX.Api.Startup;
 using ObjeX.Infrastructure.Options;
 using Prometheus;
 using Serilog;
+using Serilog.Formatting.Compact;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -18,13 +19,6 @@ var builder = WebApplication.CreateBuilder(args);
 // the project directory under `dotnet run`, /app in the container. Never against the process
 // working directory, which differs between IDE, CLI and service managers.
 string ResolvePath(string path) => Path.GetFullPath(path, builder.Environment.ContentRootPath);
-
-foreach (var sink in builder.Configuration.GetSection("Serilog:WriteTo").GetChildren())
-{
-    var key = $"{sink.Path}:Args:path";
-    if (builder.Configuration[key] is { Length: > 0 } logPath && !Path.IsPathRooted(logPath))
-        builder.Configuration[key] = ResolvePath(logPath);
-}
 
 T Options<T>(string section) where T : new() => builder.Configuration.GetSection(section).Get<T>() ?? new T();
 
@@ -38,9 +32,18 @@ var defaultAdmin = Options<DefaultAdminOptions>(DefaultAdminOptions.SectionName)
 var seed = Options<SeedOptions>(SeedOptions.SectionName);
 var database = DatabaseOptions.Load(builder.Configuration, ResolvePath);
 var metrics = Options<MetricsOptions>(MetricsOptions.SectionName);
+var log = Options<LogOptions>(LogOptions.SectionName);
 
 // ---- Host ----------------------------------------------------------------------------------
-builder.Host.UseSerilog((context, config) => config.ReadFrom.Configuration(context.Configuration));
+// The file sink lives here, not in Serilog:WriteTo, because configuration cannot remove an array entry:
+// the container sets Log:FilePath empty and logs to stdout only.
+builder.Host.UseSerilog((context, config) =>
+{
+    config.ReadFrom.Configuration(context.Configuration);
+    if (!string.IsNullOrWhiteSpace(log.FilePath))
+        config.WriteTo.File(new CompactJsonFormatter(), ResolvePath(log.FilePath),
+            rollingInterval: RollingInterval.Day, retainedFileCountLimit: 30);
+});
 
 // Ports come from Server:UiPort / Server:S3Port only. Kestrel listeners defined in code take
 // precedence over ASPNETCORE_URLS, so that variable is intentionally not used anywhere.

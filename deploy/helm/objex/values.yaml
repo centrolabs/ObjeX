@@ -5,6 +5,23 @@ image:
 
 replicaCount: 1
 
+# 1654 is the app user of the image. fsGroup gives it the volume.
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1654
+  runAsGroup: 1654
+  fsGroup: 1654
+  fsGroupChangePolicy: OnRootMismatch
+  seccompProfile:
+    type: RuntimeDefault
+
+# The root filesystem is read-only; /data and /tmp are volumes.
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop: [ALL]
+
 service:
   type: ClusterIP
   uiPort: 9001
