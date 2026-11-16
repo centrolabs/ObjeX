@@ -70,9 +70,9 @@
       },
       "Microsoft.Extensions.Diagnostics.HealthChecks.Abstractions": {
         "type": "Direct",
-        "requested": "[10.0.12, )",
-        "resolved": "10.0.12",
-        "contentHash": "oN4AYFq+50m7a65GgRxRqjdynWS6kVQAH6gHKRTfsrLP/aH7RvxIQ7139fjbnrxBwzfZQtZRhlcjvEIiRzihrg=="
+        "requested": "[11.0.0, )",
+        "resolved": "11.0.0",
+        "contentHash": "O6Yxj7A2ciRF2NdG80gCAFhWSiVJ0bps+QyFhjWmV/zJktD8NFuEawmm7byrQ/y4oWifs5M6zk4/klEKC1xf5Q=="
       },
       "Npgsql.EntityFrameworkCore.PostgreSQL": {
         "type": "Direct",
