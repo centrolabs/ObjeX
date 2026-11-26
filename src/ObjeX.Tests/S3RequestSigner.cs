@@ -134,17 +134,6 @@ public static class S3RequestSigner
     private static string ToHex(byte[] bytes) =>
         Convert.ToHexString(bytes).ToLowerInvariant();
 
-    private static string UriEncode(string value)
-    {
-        var sb = new StringBuilder();
-        foreach (var c in value)
-        {
-            if (char.IsAsciiLetterOrDigit(c) || c is '-' or '_' or '.' or '~')
-                sb.Append(c);
-            else
-                foreach (var b in Encoding.UTF8.GetBytes(c.ToString()))
-                    sb.Append($"%{b:X2}");
-        }
-        return sb.ToString();
-    }
+    // The BCL encoder, not a copy of the server's: it leaves exactly the RFC 3986 unreserved characters and encodes per code point.
+    private static string UriEncode(string value) => Uri.EscapeDataString(value);
 }
