@@ -20,18 +20,24 @@ public static class S3Pipeline
         return services;
     }
 
+    private const string InvalidArgumentMessage = "A request parameter has an invalid value.";
+
     public static WebApplication UseS3Api(this WebApplication app, int s3Port)
     {
         // A fresh ApplicationBuilder has its own endpoint route builder. Branching off `app`
         // would share the global one and let UI endpoints match inside this pipeline.
         var s3 = new ApplicationBuilder(app.Services, ((IApplicationBuilder)app).ServerFeatures);
 
-        s3.UseExceptionHandler(errors => errors.Run(ctx =>
-            ctx.Features.Get<IExceptionHandlerFeature>()?.Error is InvalidDataException
-                ? S3Xml.WriteErrorAsync(ctx, S3Errors.IncompleteBody,
-                    "The request body is not a complete aws-chunked stream.", StatusCodes.Status400BadRequest)
-                : S3Xml.WriteErrorAsync(ctx, S3Errors.InternalError,
-                    "We encountered an internal error. Please try again.", StatusCodes.Status500InternalServerError)));
+        s3.UseExceptionHandler(errors => errors.Run(ctx => ctx.Features.Get<IExceptionHandlerFeature>()?.Error switch
+        {
+            InvalidDataException => S3Xml.WriteErrorAsync(ctx, S3Errors.IncompleteBody,
+                "The request body is not a complete aws-chunked stream.", StatusCodes.Status400BadRequest),
+            // Development throws on a parameter that does not bind (?download=abc); elsewhere it is the bare 400 handled below.
+            BadHttpRequestException { StatusCode: StatusCodes.Status400BadRequest } => S3Xml.WriteErrorAsync(ctx, S3Errors.InvalidArgument,
+                InvalidArgumentMessage, StatusCodes.Status400BadRequest),
+            _ => S3Xml.WriteErrorAsync(ctx, S3Errors.InternalError,
+                "We encountered an internal error. Please try again.", StatusCodes.Status500InternalServerError),
+        }));
 
         s3.Use((ctx, next) =>
         {
@@ -41,7 +47,8 @@ public static class S3Pipeline
         s3.UseCors("S3");
         s3.UseMiddleware<SigV4AuthMiddleware>();
 
-        // Results.File answers a failed precondition or an unsatisfiable range with a bare status code.
+        // Results.File answers a failed precondition or an unsatisfiable range with a bare status code,
+        // and so does parameter binding for a value it cannot parse. The endpoints' own 400s have started a body.
         s3.Use(async (ctx, next) =>
         {
             await next(ctx);
@@ -50,6 +57,7 @@ public static class S3Pipeline
 
             var (code, message) = ctx.Response.StatusCode switch
             {
+                StatusCodes.Status400BadRequest => (S3Errors.InvalidArgument, InvalidArgumentMessage),
                 StatusCodes.Status412PreconditionFailed => (S3Errors.PreconditionFailed, "At least one of the preconditions you specified did not hold."),
                 StatusCodes.Status416RangeNotSatisfiable => (S3Errors.InvalidRange, "The requested range is not satisfiable."),
                 _ => (null, null),

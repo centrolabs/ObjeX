@@ -191,6 +191,35 @@ public class S3ConformanceTests(ObjeXFactory factory) : IClassFixture<ObjeXFacto
     }
 
     [Fact]
+    public async Task UnparsableQueryParameter_CarriesInvalidArgumentCode()
+    {
+        var bucket = await NewBucketAsync();
+        await SendAsync(HttpMethod.Put, $"/{bucket}/foo", "bar");
+
+        var response = await SendAsync(HttpMethod.Get, $"/{bucket}/foo?download=abc");
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Contains("<Code>InvalidArgument</Code>", await response.Content.ReadAsStringAsync());
+    }
+
+    [Fact]
+    public async Task KeyOutsideTheBmp_SignsAndRoundTrips()
+    {
+        var bucket = await NewBucketAsync();
+        const string path = "emoji-%F0%9F%98%80.txt";
+
+        var put = await SendAsync(HttpMethod.Put, $"/{bucket}/{path}", "bar");
+        Assert.Equal(HttpStatusCode.OK, put.StatusCode);
+
+        var get = await SendAsync(HttpMethod.Get, $"/{bucket}/{path}");
+        Assert.Equal(HttpStatusCode.OK, get.StatusCode);
+        Assert.Equal("bar", await get.Content.ReadAsStringAsync());
+
+        var list = await SendAsync(HttpMethod.Get, $"/{bucket}?list-type=2&prefix=emoji-%F0%9F%98%80");
+        Assert.Contains("<Key>emoji-😀.txt</Key>", await list.Content.ReadAsStringAsync());
+    }
+
+    [Fact]
     public async Task SystemHeaders_AreStoredAndReturned()
     {
         var bucket = await NewBucketAsync();
