@@ -349,7 +349,7 @@ public class EfCoreMetadataService(IDbContextFactory<ObjeXDbContext> contexts) :
     {
         var tx = await ctx.Database.BeginTransactionAsync(ctk);
         if (IsPostgreSql(ctx))
-            await ctx.Database.ExecuteSqlInterpolatedAsync($"SELECT 1 FROM buckets WHERE name = {bucketName} FOR UPDATE", ctk);
+            await ctx.Database.ExecuteSqlAsync($"SELECT 1 FROM buckets WHERE name = {bucketName} FOR UPDATE", ctk);
         return tx;
     }
 
