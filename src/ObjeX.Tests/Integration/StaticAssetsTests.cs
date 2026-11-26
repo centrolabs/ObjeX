@@ -1,3 +1,4 @@
+using System.IO.Compression;
 using System.Net;
 using System.Text.RegularExpressions;
 
@@ -64,5 +65,32 @@ public class StaticAssetsTests(ObjeXFactory factory) : IClassFixture<ObjeXFactor
         var client = factory.CreateClient();
         var response = await client.GetAsync(url);
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    }
+
+    // Response compression offers zstd by default since ASP.NET Core 11, next to Brotli and gzip.
+    [Theory]
+    [InlineData("zstd")]
+    [InlineData("br")]
+    [InlineData("gzip")]
+    public async Task UiPort_CompressesWithTheEncodingTheBrowserAsksFor(string encoding)
+    {
+        var client = factory.CreateClient();
+        var plain = await client.GetByteArrayAsync("/tokens.css");
+
+        using var request = new HttpRequestMessage(HttpMethod.Get, "/tokens.css");
+        request.Headers.AcceptEncoding.ParseAdd(encoding);
+        var response = await client.SendAsync(request);
+
+        Assert.Equal([encoding], response.Content.Headers.ContentEncoding);
+        await using var body = await response.Content.ReadAsStreamAsync();
+        await using Stream decoded = encoding switch
+        {
+            "zstd" => new ZstandardStream(body, CompressionMode.Decompress),
+            "br" => new BrotliStream(body, CompressionMode.Decompress),
+            _ => new GZipStream(body, CompressionMode.Decompress),
+        };
+        using var bytes = new MemoryStream();
+        await decoded.CopyToAsync(bytes);
+        Assert.Equal(plain, bytes.ToArray());
     }
 }
