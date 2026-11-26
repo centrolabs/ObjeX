@@ -2,7 +2,6 @@
 @using Microsoft.AspNetCore.Identity
 @using ObjeX.Core.Models
 @inject UserManager<User> UserManager
-@inject AuthenticationStateProvider AuthStateProvider
 @inject NotificationService NotificationService
 @inject NavigationManager Navigation
 
@@ -50,6 +49,8 @@
 </OxBox>
 
 @code {
+    [CascadingParameter] public Task<AuthenticationState> AuthState { get; set; } = null!;
+
     User? _user;
     string _currentUsername = string.Empty;
     string _newUsername = string.Empty;
@@ -69,7 +70,7 @@
 
     protected override async Task OnInitializedAsync()
     {
-        var auth = await AuthStateProvider.GetAuthenticationStateAsync();
+        var auth = await AuthState;
         var userId = auth.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
         _user = await UserManager.FindByIdAsync(userId!);
         _currentUsername = _user?.UserName ?? string.Empty;

@@ -30,8 +30,12 @@
     {
         if (!firstRender || Sink is null) return;
         _self = DotNetObjectReference.Create(this);
-        _module = await JS.InvokeAsync<IJSObjectReference>("import", "./_content/ObjeX.Web/Components/Ui/OxDropZone.razor.js");
-        await _module.InvokeVoidAsync("initFileDrop", _zone, Sink, _self);
+        try
+        {
+            _module = await JS.InvokeAsync<IJSObjectReference>("import", "./_content/ObjeX.Web/Components/Ui/OxDropZone.razor.js");
+            await _module.InvokeVoidAsync("initFileDrop", _zone, Sink, _self);
+        }
+        catch (JSDisconnectedException) { }
     }
 
     [JSInvokable]

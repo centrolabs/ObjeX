@@ -1,5 +1,4 @@
 @implements IDisposable
-@inject AuthenticationStateProvider AuthStateProvider
 @inject CommandPaletteState Palette
 
 <OxSideItem Label="Search" Hint="@Palette.Shortcut" RailTooltip="@($"Search ({Palette.Shortcut})")" OnClick="@Palette.Open">
@@ -23,6 +22,8 @@
 <OxNavItem Href="/settings" Icon="settings" Label="Settings" />
 
 @code {
+    [CascadingParameter] public Task<AuthenticationState> AuthState { get; set; } = null!;
+
     bool _isAdmin;
     bool _isManager;
 
@@ -35,7 +36,7 @@
 
     protected override async Task OnInitializedAsync()
     {
-        var auth = await AuthStateProvider.GetAuthenticationStateAsync();
+        var auth = await AuthState;
         _isAdmin = auth.User.IsInRole("Admin");
         _isManager = auth.User.IsInRole("Manager");
     }

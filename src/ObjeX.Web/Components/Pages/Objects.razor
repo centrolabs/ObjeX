@@ -16,7 +16,6 @@
 @inject NotificationService NotificationService
 @inject NavigationManager Navigation
 @inject IOptions<S3Options> S3
-@inject AuthenticationStateProvider AuthStateProvider
 @inject IDbContextFactory<ObjeXDbContext> DbFactory
 @inject IJSRuntime JS
 @inject BrowserTimeZone Tz
@@ -169,6 +168,8 @@
 </OxDropZone>
 
 @code {
+    [CascadingParameter] public Task<AuthenticationState> AuthState { get; set; } = null!;
+
     [Parameter] public string BucketName { get; set; } = string.Empty;
     [SupplyParameterFromQuery(Name = "prefix")] public string? PrefixParam { get; set; }
 
@@ -294,7 +295,7 @@
 
     protected override async Task OnInitializedAsync()
     {
-        var auth = await AuthStateProvider.GetAuthenticationStateAsync();
+        var auth = await AuthState;
         _currentUserId = auth.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? string.Empty;
         _isPrivileged = auth.User.IsInRole("Admin") || auth.User.IsInRole("Manager");
     }
@@ -340,8 +341,8 @@
     async Task ForgetUploadsAsync()
     {
         var ids = _uploads.Clear();
-        if (_uploader is not null && ids.Count > 0)
-            await _uploader.InvokeVoidAsync("forget", ids);
+        if (ids.Count > 0)
+            await CallUploaderAsync("forget", ids);
     }
 
     async Task LoadObjects()
@@ -505,10 +506,14 @@
         // Also on a missing bucket: the switcher can open an existing one later, and this component stays.
         if (!firstRender || Antiforgery.GetAntiforgeryToken()?.Value is not { } token) return;
         _self = DotNetObjectReference.Create(this);
-        _uploadModule = await JS.InvokeAsync<IJSObjectReference>("import", "./_content/ObjeX.Web/Components/Pages/Objects.razor.js");
-        _uploader = await _uploadModule.InvokeAsync<IJSObjectReference>("createUploader", _self, AntiforgeryOptions.Value.HeaderName, token);
-        _paste = await _uploadModule.InvokeAsync<IJSObjectReference>("watchPaste", _uploader);
-        _keys = await _uploadModule.InvokeAsync<IJSObjectReference>("watchKeys", _self);
+        try
+        {
+            _uploadModule = await JS.InvokeAsync<IJSObjectReference>("import", "./_content/ObjeX.Web/Components/Pages/Objects.razor.js");
+            _uploader = await _uploadModule.InvokeAsync<IJSObjectReference>("createUploader", _self, AntiforgeryOptions.Value.HeaderName, token);
+            _paste = await _uploadModule.InvokeAsync<IJSObjectReference>("watchPaste", _uploader);
+            _keys = await _uploadModule.InvokeAsync<IJSObjectReference>("watchKeys", _self);
+        }
+        catch (JSDisconnectedException) { return; }
         StateHasChanged();
     }
 
@@ -559,18 +564,23 @@
     }
 
     Task StartUploadsAsync(IReadOnlyList<UploadItem> items) =>
-        items.Count == 0 || _uploader is null
+        items.Count == 0
             ? Task.CompletedTask
-            : _uploader.InvokeVoidAsync("start", items.Select(i => new { id = i.Id, url = FileHelper.UploadUrl(BucketName, i.Key), type = i.ContentType })).AsTask();
+            : CallUploaderAsync("start", items.Select(i => new { id = i.Id, url = FileHelper.UploadUrl(BucketName, i.Key), type = i.ContentType }));
 
-    async Task CancelUpload(int id)
-    {
-        if (_uploader is not null) await _uploader.InvokeVoidAsync("cancel", id);
-    }
+    Task CancelUpload(int id) => CallUploaderAsync("cancel", id);
 
-    async Task CancelAllUploads()
+    Task CancelAllUploads() => CallUploaderAsync("cancelAll");
+
+    // The uploader lives in the browser; once the circuit is gone there is nobody left to tell.
+    async Task CallUploaderAsync(string identifier, params object?[] args)
     {
-        if (_uploader is not null) await _uploader.InvokeVoidAsync("cancelAll");
+        if (_uploader is null) return;
+        try
+        {
+            await _uploader.InvokeVoidAsync(identifier, args);
+        }
+        catch (JSDisconnectedException) { }
     }
 
     Task RetryUploads(int? id) => StartUploadsAsync(_uploads.Retry(id));
@@ -578,7 +588,7 @@
     async Task CloseUploads()
     {
         var ids = _uploads.Clear();
-        if (_uploader is not null) await _uploader.InvokeVoidAsync("forget", ids);
+        await CallUploaderAsync("forget", ids);
     }
 
     // Another folder of this bucket keeps the page and its uploads; any other page ends them.
@@ -732,7 +742,11 @@
 
         var query = string.Join("&", allKeys.Select(k => $"keys={Uri.EscapeDataString(k)}"));
         var url = $"/api/objects/{BucketName}/download?{query}";
-        await JS.InvokeVoidAsync("ObjeX.triggerDownload", url, "selection.zip");
+        try
+        {
+            await JS.InvokeVoidAsync("ObjeX.triggerDownload", url, "selection.zip");
+        }
+        catch (JSDisconnectedException) { return; }
         _selected.Clear();
     }
 
@@ -828,7 +842,7 @@
 
     async Task CopyPresignedLink(BlobObject obj)
     {
-        var auth = await AuthStateProvider.GetAuthenticationStateAsync();
+        var auth = await AuthState;
         var userId = auth.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "";
 
         S3Credential? credential;
@@ -868,7 +882,11 @@
             credential.AccessKeyId, credential.SecretAccessKey,
             expiresSeconds);
 
-        await JS.InvokeVoidAsync("navigator.clipboard.writeText", url);
+        try
+        {
+            await JS.InvokeVoidAsync("navigator.clipboard.writeText", url);
+        }
+        catch (JSDisconnectedException) { return; }
 
         NotificationService.Notify(NotificationSeverity.Success, "Link copied",
             $"Expires at {Tz.FormatSeconds(DateTime.UtcNow.AddSeconds(expiresSeconds))}");

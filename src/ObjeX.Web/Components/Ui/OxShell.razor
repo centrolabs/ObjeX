@@ -71,9 +71,13 @@
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (!firstRender) return;
-        _module = await JS.InvokeAsync<IJSObjectReference>("import", "./_content/ObjeX.Web/Components/Ui/OxShell.razor.js");
         _self = DotNetObjectReference.Create(this);
-        await _module.InvokeVoidAsync("init", _side, _edge, _self, MinWidth, MaxWidth);
+        try
+        {
+            _module = await JS.InvokeAsync<IJSObjectReference>("import", "./_content/ObjeX.Web/Components/Ui/OxShell.razor.js");
+            await _module.InvokeVoidAsync("init", _side, _edge, _self, MinWidth, MaxWidth);
+        }
+        catch (JSDisconnectedException) { }
     }
 
     // Below 900 px the sidebar is a drawer; a navigation closes it.

@@ -6,7 +6,6 @@
 @using ObjeX.Web.Components.Dialogs
 @inject IJobMonitor Monitor
 @inject IJobScheduler Scheduler
-@inject AuthenticationStateProvider AuthStateProvider
 @inject DialogService DialogService
 @inject NotificationService NotificationService
 @inject BrowserTimeZone Tz
@@ -126,6 +125,8 @@
 </OxCard>
 
 @code {
+    [CascadingParameter] public Task<AuthenticationState> AuthState { get; set; } = null!;
+
     const int HistorySize = 50;
     static readonly TimeSpan PollInterval = TimeSpan.FromSeconds(3);
 
@@ -180,7 +181,7 @@
 
     async Task ApplyAsync(RecurringJobStatus job, string done, Func<string, Task> apply)
     {
-        var auth = await AuthStateProvider.GetAuthenticationStateAsync();
+        var auth = await AuthState;
         try
         {
             await apply(auth.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? string.Empty);

@@ -87,30 +87,34 @@
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (firstRender)
+        try
         {
-            _module = await JS.InvokeAsync<IJSObjectReference>("import", "./_content/ObjeX.Web/Components/Ui/OxPalette.razor.js");
-            _self = DotNetObjectReference.Create(this);
-            _hotkey = await _module.InvokeAsync<IJSObjectReference>("listen", _self);
-            await OnPlatform.InvokeAsync(await _module.InvokeAsync<bool>("isMac"));
+            if (firstRender)
+            {
+                _module = await JS.InvokeAsync<IJSObjectReference>("import", "./_content/ObjeX.Web/Components/Ui/OxPalette.razor.js");
+                _self = DotNetObjectReference.Create(this);
+                _hotkey = await _module.InvokeAsync<IJSObjectReference>("listen", _self);
+                await OnPlatform.InvokeAsync(await _module.InvokeAsync<bool>("isMac"));
+            }
+            if (_module is null) return;
+            if (_restore && !Open)
+            {
+                _restore = false;
+                await _module.InvokeVoidAsync("restore");
+            }
+            if (!Open) return;
+            if (_attach)
+            {
+                _attach = false;
+                await _module.InvokeVoidAsync("attach", _input, _self);
+            }
+            if (_reveal)
+            {
+                _reveal = false;
+                await _module.InvokeVoidAsync("reveal", _list);
+            }
         }
-        if (_module is null) return;
-        if (_restore && !Open)
-        {
-            _restore = false;
-            await _module.InvokeVoidAsync("restore");
-        }
-        if (!Open) return;
-        if (_attach)
-        {
-            _attach = false;
-            await _module.InvokeVoidAsync("attach", _input, _self);
-        }
-        if (_reveal)
-        {
-            _reveal = false;
-            await _module.InvokeVoidAsync("reveal", _list);
-        }
+        catch (JSDisconnectedException) { }
     }
 
     Task Pick(int index) => index >= 0 && index < Items.Count ? OnPick.InvokeAsync(Items[index]) : Task.CompletedTask;

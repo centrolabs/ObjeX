@@ -18,8 +18,12 @@
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (Sink is null || ReferenceEquals(Sink, _attached)) return;
-        _module ??= await JS.InvokeAsync<IJSObjectReference>("import", "./_content/ObjeX.Web/Components/Ui/OxDropZone.razor.js");
-        await _module.InvokeVoidAsync("initDropZone", _zone, Sink);
+        try
+        {
+            _module ??= await JS.InvokeAsync<IJSObjectReference>("import", "./_content/ObjeX.Web/Components/Ui/OxDropZone.razor.js");
+            await _module.InvokeVoidAsync("initDropZone", _zone, Sink);
+        }
+        catch (JSDisconnectedException) { return; }
         _attached = Sink;
     }
 

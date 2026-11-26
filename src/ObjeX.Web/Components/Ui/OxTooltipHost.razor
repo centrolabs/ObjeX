@@ -13,8 +13,12 @@
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (!firstRender) return;
-        _module = await JS.InvokeAsync<IJSObjectReference>("import", "./_content/ObjeX.Web/Components/Ui/OxTooltipHost.razor.js");
-        await _module.InvokeVoidAsync("init", _tip);
+        try
+        {
+            _module = await JS.InvokeAsync<IJSObjectReference>("import", "./_content/ObjeX.Web/Components/Ui/OxTooltipHost.razor.js");
+            await _module.InvokeVoidAsync("init", _tip);
+        }
+        catch (JSDisconnectedException) { }
     }
 
     public async ValueTask DisposeAsync()

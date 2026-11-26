@@ -80,7 +80,7 @@ public sealed class UiPreferences(IJSRuntime js, ThemeService themes, BrowserTim
         var theme = ThemeMode.CookieValue(dark);
         themes.SetTheme(theme);
         await WriteAsync(ThemeMode.CookieName, theme);
-        await js.InvokeVoidAsync("ObjeX.setTheme", dark);
+        await CallAsync("ObjeX.setTheme", dark);
     }
 
     public async Task SetSidebarCollapsedAsync(bool collapsed)
@@ -118,7 +118,7 @@ public sealed class UiPreferences(IJSRuntime js, ThemeService themes, BrowserTim
         Compact = compact;
         Changed?.Invoke();
         await WriteAsync(DensityCookie, compact ? "compact" : "comfortable");
-        await js.InvokeVoidAsync("ObjeX.setClass", CompactClass, compact);
+        await CallAsync("ObjeX.setClass", CompactClass, compact);
     }
 
     public async Task SetSystemFontAsync(bool system)
@@ -126,7 +126,7 @@ public sealed class UiPreferences(IJSRuntime js, ThemeService themes, BrowserTim
         SystemFont = system;
         Changed?.Invoke();
         await WriteAsync(FontCookie, system ? "system" : "inter");
-        await js.InvokeVoidAsync("ObjeX.setClass", SystemFontClass, system);
+        await CallAsync("ObjeX.setClass", SystemFontClass, system);
     }
 
     public async Task SetStartPageAsync(string path)
@@ -136,5 +136,15 @@ public sealed class UiPreferences(IJSRuntime js, ThemeService themes, BrowserTim
         await WriteAsync(StartPages.CookieName, path);
     }
 
-    Task WriteAsync(string name, string value) => js.InvokeVoidAsync("ObjeX.setCookie", name, value).AsTask();
+    Task WriteAsync(string name, string value) => CallAsync("ObjeX.setCookie", name, value);
+
+    // The state above is already set; a circuit that went away has no page left to update.
+    async Task CallAsync(string identifier, params object?[] args)
+    {
+        try
+        {
+            await js.InvokeVoidAsync(identifier, args);
+        }
+        catch (JSDisconnectedException) { }
+    }
 }

@@ -8,7 +8,6 @@
 @inject IStorageQuotaService QuotaService
 @inject IStorageSpaceService SpaceService
 @inject ILogger<Dashboard> Logger
-@inject AuthenticationStateProvider AuthStateProvider
 @inject IServiceScopeFactory ScopeFactory
 @inject BrowserTimeZone Tz
 @inject NotificationService NotificationService
@@ -186,6 +185,8 @@ else
 }
 
 @code {
+    [CascadingParameter] public Task<AuthenticationState> AuthState { get; set; } = null!;
+
     record FileTypeStat(string Label, int Count);
 
     List<Bucket> _buckets = [];
@@ -211,7 +212,7 @@ else
 
     protected override async Task OnInitializedAsync()
     {
-        var auth = await AuthStateProvider.GetAuthenticationStateAsync();
+        var auth = await AuthState;
         _currentUserId = auth.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? string.Empty;
         _isPrivileged = auth.User.IsInRole("Admin") || auth.User.IsInRole("Manager");
         _isAdmin = auth.User.IsInRole("Admin");

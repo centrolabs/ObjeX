@@ -1,7 +1,6 @@
 @page "/login"
 @attribute [AllowAnonymous]
 @layout EmptyLayout
-@inject AuthenticationStateProvider AuthStateProvider
 @inject NavigationManager Navigation
 @inject NotificationService NotificationService
 @inject IHttpContextAccessor HttpContextAccessor
@@ -38,6 +37,8 @@
 </OxContainer>
 
 @code {
+    [CascadingParameter] public Task<AuthenticationState> AuthState { get; set; } = null!;
+
     [SupplyParameterFromQuery] public string? ReturnUrl { get; set; }
     [SupplyParameterFromQuery] public string? Error { get; set; }
     [SupplyParameterFromQuery] public string? Msg { get; set; }
@@ -58,7 +59,7 @@
             ? restored
             : HttpContextAccessor.HttpContext?.Request.Cookies["objex-remember"] == "1";
 
-        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var authState = await AuthState;
         if (authState.User.Identity?.IsAuthenticated == true)
             Navigation.NavigateTo(LoginTarget.Local(ReturnUrl, new Uri(Navigation.BaseUri).Authority) ?? "/", forceLoad: true);
     }

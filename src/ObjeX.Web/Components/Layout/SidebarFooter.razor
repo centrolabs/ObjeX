@@ -1,7 +1,6 @@
 @implements IDisposable
 @using ObjeX.Core.Interfaces
 @inject NavigationManager Navigation
-@inject AuthenticationStateProvider AuthStateProvider
 @inject IStorageSpaceService StorageSpace
 @inject UiPreferences Preferences
 
@@ -17,6 +16,8 @@
 </OxUserBar>
 
 @code {
+    [CascadingParameter] public Task<AuthenticationState> AuthState { get; set; } = null!;
+
     string _username = string.Empty;
     StorageSpaceStatus _disk = null!;
 
@@ -33,7 +34,7 @@
 
     protected override async Task OnInitializedAsync()
     {
-        var auth = await AuthStateProvider.GetAuthenticationStateAsync();
+        var auth = await AuthState;
         _username = auth.User.Identity?.Name ?? "Unknown";
     }
 

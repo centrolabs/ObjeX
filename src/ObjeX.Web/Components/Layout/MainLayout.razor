@@ -1,7 +1,6 @@
 @inherits LayoutComponentBase
 @implements IDisposable
 @inject NavigationManager Navigation
-@inject AuthenticationStateProvider AuthStateProvider
 @inject IDbContextFactory<ObjeX.Infrastructure.Data.ObjeXDbContext> DbFactory
 @inject UiPreferences Preferences
 @using Microsoft.EntityFrameworkCore
@@ -26,6 +25,8 @@
 </AuthorizeView>
 
 @code {
+    [CascadingParameter] public Task<AuthenticationState> AuthState { get; set; } = null!;
+
     protected override void OnInitialized()
     {
         Navigation.LocationChanged += OnLocationChanged;
@@ -45,7 +46,7 @@
 
     async Task CheckDeactivatedAsync()
     {
-        var auth = await AuthStateProvider.GetAuthenticationStateAsync();
+        var auth = await AuthState;
         if (!auth.User.Identity?.IsAuthenticated == true) return;
 
         var userId = auth.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
