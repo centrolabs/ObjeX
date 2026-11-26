@@ -62,3 +62,44 @@ jobs:
         run: dotnet test ObjeX.slnx --no-build --configuration Release --verbosity normal
         env:
           OBJEX_TEST_POSTGRES: ${{ matrix.database == 'postgresql' && 'Host=localhost;Port=5432;Username=objex;Password=objex' || '' }}
+
+  # The release builds this image only on a tag; building and starting it here finds a broken base image or publish before that.
+  image:
+    name: image
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Build image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          load: true
+          tags: objex:ci
+          build-args: |
+            SOURCE_REVISION=${{ github.sha }}
+
+      - name: Start container and check both ports
+        run: |
+          docker run -d --name objex -p 9000:9000 -p 9001:9001 objex:ci
+          for i in $(seq 1 30); do
+            curl -fsS http://localhost:9001/health/ready && break
+            sleep 2
+          done
+          curl -fsS http://localhost:9001/health/ready
+          curl -fsS -o /dev/null http://localhost:9001/login
+          # Unsigned request on the S3 port: an S3 error document, never HTML or an empty body.
+          curl -sS http://localhost:9000/ | grep -q "<Code>AccessDenied</Code>"
+          # The UI resolves IANA zones from the image's tzdata.
+          docker exec objex test -f /usr/share/zoneinfo/Europe/Zurich
+
+      - name: Container log
+        if: always()
+        run: docker logs objex
