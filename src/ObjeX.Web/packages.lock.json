@@ -4,11 +4,11 @@
     "net11.0": {
       "Radzen.Blazor": {
         "type": "Direct",
-        "requested": "[12.2.1, )",
-        "resolved": "12.2.1",
-        "contentHash": "NwExW+hdCwEOwvehHiZI0+6gKAoPQI/M6C7P/HbvtlYomazFng4qNYtlqTuXgkv5+A2u0CunwE878sFbXaPpww==",
+        "requested": "[13.3.0, )",
+        "resolved": "13.3.0",
+        "contentHash": "NmdxsSx9eU3qkrhbDjVOTH/UfIpHI0AJomSTe0iSLvkvoT/Be+s05rVkbhMhEP6D10p9k747sQMhaSx5zcK3ZA==",
         "dependencies": {
-          "Microsoft.Extensions.AI": "10.11.0"
+          "Microsoft.Extensions.AI": "10.11.1"
         }
       },
       "EFCore.NamingConventions": {
@@ -95,17 +95,17 @@
       },
       "Microsoft.Extensions.AI": {
         "type": "Transitive",
-        "resolved": "10.11.0",
-        "contentHash": "PtgeWqaC3gQ8/saMgkUiwKeqCBPfDOcjfqDLcXtwJI//pu79gYZqUMPOh7/bFdFWcJihP/rWq9sgQd2xQtEP0A==",
+        "resolved": "10.11.1",
+        "contentHash": "VaQmPXuKSnHcv1tVDAWUx/MDahzTK43ozkurbhGcKMR4BnEA41ktF+fSO+aZNQGcgQg2KYI7D5ca3dTzlrO9/A==",
         "dependencies": {
-          "Microsoft.Extensions.AI.Abstractions": "10.11.0",
+          "Microsoft.Extensions.AI.Abstractions": "10.11.1",
           "System.Numerics.Tensors": "10.0.13"
         }
       },
       "Microsoft.Extensions.AI.Abstractions": {
         "type": "Transitive",
-        "resolved": "10.11.0",
-        "contentHash": "h4DX/TdJU4fk1GGaf19n6Kujkj6VXbGeL4UEOsQ8+ZJC5fVApPauokCtvBP684BYbczUYZQNfo1mbmyHG4WVSg=="
+        "resolved": "10.11.1",
+        "contentHash": "LcfA+SF7/GYZcI/XIC6WW17g7xytFvMQOzlBvbK5rvcltQKYXqnX47WaE/tvFqNm2GQtqhWnG/EkJC+T5PBKMw=="
       },
       "Microsoft.Extensions.DependencyModel": {
         "type": "Transitive",
