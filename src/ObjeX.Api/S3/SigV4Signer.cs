@@ -168,15 +168,17 @@ public static class SigV4Signer
         Convert.ToHexString(bytes).ToLowerInvariant();
 
     // RFC 3986 unreserved: A-Z a-z 0-9 - _ . ~
-    private static string UriEncodeStrict(string value)
+    // Per Rune, not per char: a character outside the BMP is one four-byte UTF-8 sequence, not two encoded surrogates.
+    public static string UriEncodeStrict(string value)
     {
         var sb = new StringBuilder();
-        foreach (var c in value)
+        Span<byte> utf8 = stackalloc byte[4];
+        foreach (var rune in value.EnumerateRunes())
         {
-            if (char.IsAsciiLetterOrDigit(c) || c is '-' or '_' or '.' or '~')
-                sb.Append(c);
+            if (rune.IsAscii && (char.IsAsciiLetterOrDigit((char)rune.Value) || (char)rune.Value is '-' or '_' or '.' or '~'))
+                sb.Append((char)rune.Value);
             else
-                foreach (var b in Encoding.UTF8.GetBytes(c.ToString()))
+                foreach (var b in utf8[..rune.EncodeToUtf8(utf8)])
                     sb.Append($"%{b:X2}");
         }
         return sb.ToString();

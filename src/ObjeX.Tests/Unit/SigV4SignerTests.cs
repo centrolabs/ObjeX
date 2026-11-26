@@ -20,4 +20,13 @@ public class SigV4SignerTests
 
     [Fact]
     public void SignaturesEqual_Empty_False() => Assert.False(SigV4Signer.SignaturesEqual(Sig, ""));
+
+    [Theory]
+    [InlineData("AZaz09-_.~", "AZaz09-_.~")]
+    [InlineData("a b/c+d", "a%20b%2Fc%2Bd")]
+    [InlineData("ü", "%C3%BC")]
+    [InlineData("€", "%E2%82%AC")]
+    [InlineData("emoji-😀.txt", "emoji-%F0%9F%98%80.txt")]
+    public void UriEncodeStrict_EncodesUtf8PerCodePoint(string value, string expected) =>
+        Assert.Equal(expected, SigV4Signer.UriEncodeStrict(value));
 }
