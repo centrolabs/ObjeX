@@ -50,7 +50,7 @@ dotnet build "$repo/src/ObjeX.Api" -c Release -v q --nologo >"$work/build.log" 2
         Seed__S3Credential__AccessKeyId="$access_key" \
         Seed__S3Credential__SecretAccessKey="$secret_key" \
         Serilog__MinimumLevel__Default=Warning \
-        dotnet bin/Release/net10.0/ObjeX.Api.dll
+        dotnet bin/Release/net11.0/ObjeX.Api.dll
 ) >"$work/objex.log" 2>&1 &
 server=$!
 trap 'kill "$server" 2>/dev/null || true; rm -rf "$data"' EXIT

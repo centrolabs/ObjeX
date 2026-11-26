@@ -13,7 +13,6 @@
 @inject IDbContextFactory<ObjeXDbContext> DbFactory
 @inject DialogService DialogService
 @inject NotificationService NotificationService
-@inject AuthenticationStateProvider AuthStateProvider
 @inject BrowserTimeZone Tz
 @inject ISearchIndex SearchIndex
 @inject ILogger<Settings> Logger
@@ -183,6 +182,8 @@
 </OxCard>
 
 @code {
+    [CascadingParameter] public Task<AuthenticationState> AuthState { get; set; } = null!;
+
     bool _isAdmin;
     bool _isManager;
     SearchIndexStatus? _searchIndex;
@@ -226,7 +227,7 @@
 
     protected override async Task OnInitializedAsync()
     {
-        var auth = await AuthStateProvider.GetAuthenticationStateAsync();
+        var auth = await AuthState;
         _userId = auth.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? string.Empty;
         _isAdmin = auth.User.IsInRole("Admin");
         _isManager = auth.User.IsInRole("Manager");

@@ -12,7 +12,6 @@
 @inject IDbContextFactory<ObjeXDbContext> DbFactory
 @inject DialogService DialogService
 @inject NotificationService NotificationService
-@inject AuthenticationStateProvider AuthStateProvider
 @inject IOptions<DefaultAdminOptions> DefaultAdmin
 @inject BrowserTimeZone Tz
 
@@ -159,6 +158,8 @@ else
 }
 
 @code {
+    [CascadingParameter] public Task<AuthenticationState> AuthState { get; set; } = null!;
+
     record UserRow(string Id, string Username, string Email, string Role, bool IsDeactivated, bool IsLocked, DateTime CreatedAt,
         long StorageUsed, long? Quota, int BucketCount, DateTime? LastActivity)
     {
@@ -188,7 +189,7 @@ else
 
     protected override async Task OnInitializedAsync()
     {
-        var auth = await AuthStateProvider.GetAuthenticationStateAsync();
+        var auth = await AuthState;
         _currentUserId = auth.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? string.Empty;
         _currentUserIsAdmin = auth.User.IsInRole("Admin");
         await LoadUsers();

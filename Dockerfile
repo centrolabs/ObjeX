@@ -1,6 +1,6 @@
-# Floating 10.0 tag: always the current .NET 10 SDK patch. global.json (copied below) governs
+# Floating 11.0 tag: always the current .NET 11 SDK patch. global.json (copied below) governs
 # the minimum SDK feature band via rollForward=latestFeature.
-FROM --platform=$BUILDPLATFORM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+FROM --platform=$BUILDPLATFORM mcr.microsoft.com/dotnet/sdk:11.0 AS build
 ARG TARGETARCH
 # .dockerignore excludes .git, so the SDK cannot derive the commit sha itself; CD passes it in.
 ARG SOURCE_REVISION=
@@ -31,7 +31,8 @@ RUN dotnet publish ObjeX.Api/ObjeX.Api.csproj \
     -p:Version=$VERSION \
     -o /app/publish
 
-FROM mcr.microsoft.com/dotnet/aspnet:10.0
+# Ubuntu 26.04 with ICU and tzdata, user app (1654); an Alpine or chiseled tag would need tzdata added.
+FROM mcr.microsoft.com/dotnet/aspnet:11.0
 
 ARG SOURCE_REVISION=
 LABEL org.opencontainers.image.source="https://github.com/centrolabs/ObjeX" \

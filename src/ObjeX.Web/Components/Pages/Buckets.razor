@@ -12,7 +12,6 @@
 @inject ILogger<Buckets> Logger
 @inject DialogService DialogService
 @inject NotificationService NotificationService
-@inject AuthenticationStateProvider AuthStateProvider
 @inject IOptions<DefaultAdminOptions> DefaultAdmin
 @inject IDbContextFactory<ObjeXDbContext> DbFactory
 @inject BrowserTimeZone Tz
@@ -117,6 +116,8 @@ else
 }
 
 @code {
+    [CascadingParameter] public Task<AuthenticationState> AuthState { get; set; } = null!;
+
     List<Bucket> _buckets = [];
     List<BlobObject> _results = [];
     string _currentUserId = string.Empty;
@@ -189,7 +190,7 @@ else
 
     protected override async Task OnInitializedAsync()
     {
-        var auth = await AuthStateProvider.GetAuthenticationStateAsync();
+        var auth = await AuthState;
         _currentUserId = auth.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? string.Empty;
         _isPrivileged = auth.User.IsInRole("Admin") || auth.User.IsInRole("Manager");
         _isAdmin = auth.User.IsInRole("Admin");

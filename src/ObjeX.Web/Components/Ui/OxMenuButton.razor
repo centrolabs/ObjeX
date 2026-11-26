@@ -32,13 +32,18 @@
     }
 
     /// <summary>Closes the menu and hands the focus back to its button.</summary>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Usage", "BL0012", Justification = "Called by menu items and from the browser, where nothing renders on its own; the panel must be gone before the focus moves.")]
     public async Task CloseAsync()
     {
         if (!_open) return;
         _open = false;
         StateHasChanged();
-        if (_module is not null)
+        if (_module is null) return;
+        try
+        {
             await _module.InvokeVoidAsync("release", _anchor);
+        }
+        catch (JSDisconnectedException) { }
     }
 
     [JSInvokable]
@@ -51,9 +56,13 @@
     {
         if (!_place) return;
         _place = false;
-        _module ??= await JS.InvokeAsync<IJSObjectReference>("import", "./_content/ObjeX.Web/Components/Ui/OxMenuButton.razor.js");
         _self ??= DotNetObjectReference.Create(this);
-        await _module.InvokeVoidAsync("place", _anchor, _panel, _self);
+        try
+        {
+            _module ??= await JS.InvokeAsync<IJSObjectReference>("import", "./_content/ObjeX.Web/Components/Ui/OxMenuButton.razor.js");
+            await _module.InvokeVoidAsync("place", _anchor, _panel, _self);
+        }
+        catch (JSDisconnectedException) { }
     }
 
     public async ValueTask DisposeAsync()

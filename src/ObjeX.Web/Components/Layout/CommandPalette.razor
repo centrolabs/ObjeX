@@ -4,13 +4,14 @@
 @inject UiPreferences Preferences
 @inject IMetadataService Metadata
 @inject NavigationManager Navigation
-@inject AuthenticationStateProvider AuthStateProvider
 
 <OxPalette Open="@_open" OpenChanged="SetOpenAsync" Query="@_query" QueryChanged="OnQueryAsync" Items="@_items" Busy="@_searching"
            OnPick="PickAsync" OnPlatform="@(mac => State.SetPlatform(mac))"
            Placeholder="Search pages, buckets, objects and actions" EmptyText="No matches" />
 
 @code {
+    [CascadingParameter] public Task<AuthenticationState> AuthState { get; set; } = null!;
+
     /// <summary>What a result does: open a page, or run an action of the palette.</summary>
     record Target(string? Href = null, Func<Task>? Run = null, bool ForceLoad = false);
 
@@ -30,6 +31,7 @@
 
     void OnOpenRequested() => _ = InvokeAsync(() => SetOpenAsync(true));
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Usage", "BL0012", Justification = "Also runs through InvokeAsync from OnOpenRequested, where nothing renders on its own.")]
     async Task SetOpenAsync(bool open)
     {
         if (open == _open) return;
@@ -49,7 +51,7 @@
 
     async Task LoadFixedAsync()
     {
-        var user = (await AuthStateProvider.GetAuthenticationStateAsync()).User;
+        var user = (await AuthState).User;
         var privileged = user.IsInRole("Admin") || user.IsInRole("Manager");
         // Null means every bucket, so a missing id must narrow to nothing rather than widen to all.
         _ownerFilter = privileged ? null : user.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? string.Empty;
